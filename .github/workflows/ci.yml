@@ -28,7 +28,7 @@ jobs:
     - name: Install dependencies
       run: npm install --location=global n
 
-    - name: Install newman
+    - name: Install Newman
       run: |
         npm install --location=global newman
 
@@ -44,7 +44,7 @@ jobs:
       run: make build
 
     - name: Run
-      run: make run
+      run: go run main.go -env-file .env &
 
     - name: Wait for REST API
       run: sleep 4s
