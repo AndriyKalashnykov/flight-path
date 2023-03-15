@@ -16,7 +16,14 @@ flight paths starting and ending airports.
     gvm install go1.19 --prefer-binary --with-build-tools --with-protobuf
     gvm use go1.19 --default
     ```
-  
+- Newman (a CLI to run Postman/Newman collections)
+  ```bash
+  # Install Node.js and NPM package manager
+  sudo apt update
+  sudo apt install nodejs npm -y
+  # Install Newman CLI
+  npm install --location=global newman
+  ```
 ## Help
 
 ```text
@@ -35,6 +42,7 @@ open-swagger    - Open browser with Swagger docs pointing to localhost
 test-case-one   - Test case 1 [["SFO", "EWR"]]
 test-case-two   - Test case 2 [["ATL", "EWR"], ["SFO", "ATL"]]
 test-case-three - Test case 3 [["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]
+e2e             - Run Postman/Newman end-to-end tests
 ```
 
 ## Start REST API server

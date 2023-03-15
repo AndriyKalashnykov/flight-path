@@ -1,6 +1,7 @@
 CURRENTTAG:=$(shell git describe --tags --abbrev=0)
 NEWTAG ?= $(shell bash -c 'read -p "Please provide a new tag (currnet tag - ${CURRENTTAG}): " newtag; echo $$newtag')
 GOFLAGS=-mod=mod
+NEWMANTESTSLOCATION=./test/
 
 #help: @ List available tasks
 help:
@@ -79,3 +80,7 @@ test-case-three:
       -H 'accept: application/json' \
       -H 'Content-Type: application/json' \
       -d '[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]'
+
+#e2e: @ Run Postman/Newman end-to-end tests
+e2e:
+	newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json

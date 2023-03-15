@@ -42,3 +42,13 @@ jobs:
 
     - name: Build
       run: make build
+
+    - name: Run
+      run: make run
+
+    - name: Wait for REST API
+      run: sleep 4s
+      shell: bash
+
+    - name: Run Postman/Newman end-to-end tests
+      run: make e2e
