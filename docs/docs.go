@@ -27,19 +27,68 @@ const docTemplate = `{
         "/": {
             "get": {
                 "description": "get the status of server.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ServerHealthCheck"
+                ],
+                "summary": "Show the status of server.",
+                "operationId": "healthCheck-get",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/calculate": {
+            "post": {
+                "description": "get the flight path of a person.",
                 "consumes": [
-                    "*/*"
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "HealthCheck"
+                    "FlightCalculate"
                 ],
-                "summary": "Show the status of server.",
+                "summary": "Determine the flight path of a person.",
+                "operationId": "flightCalculate-get",
+                "parameters": [
+                    {
+                        "description": "Flight segments",
+                        "name": "flightSegments",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -58,7 +107,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{"http"},
 	Title:            "Flight Path API",
-	Description:      "This is REST API server to determine the flight path of a person.",
+	Description:      "This is REST API server to determine the flight.go path of a person.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 }

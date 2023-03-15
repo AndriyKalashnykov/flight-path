@@ -7,7 +7,7 @@ help:
 	@clear
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
-	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-12s\033[0m - %s\n", $$1, $$2}'
+	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-15s\033[0m - %s\n", $$1, $$2}'
 
 #clean: @ Cleanup
 clean:
@@ -55,3 +55,27 @@ update: clean
 #open-swagger: @ Open browser with Swagger docs pointing to localhost
 open-swagger:
 	xdg-open http://localhost:8080/swagger/index.html 1>/dev/null 2>&1
+
+#test-case-one: @ Test case #1 [["SFO", "EWR"]]
+test-case-one:
+	curl -X 'POST' \
+      'http://localhost:8080/calculate' \
+      -H 'accept: application/json' \
+      -H 'Content-Type: application/json' \
+      -d '[["SFO", "EWR"]]'
+
+#test-case-two: @ Test case #2 [["ATL", "EWR"], ["SFO", "ATL"]]
+test-case-two:
+	curl -X 'POST' \
+      'http://localhost:8080/calculate' \
+      -H 'accept: application/json' \
+      -H 'Content-Type: application/json' \
+      -d '[["ATL", "EWR"], ["SFO", "ATL"]]'
+
+#test-case-three: @ Test case #3 [["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]
+test-case-three:
+	curl -X 'POST' \
+      'http://localhost:8080/calculate' \
+      -H 'accept: application/json' \
+      -H 'Content-Type: application/json' \
+      -d '[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]'

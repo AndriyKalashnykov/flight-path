@@ -1,4 +1,4 @@
-package routes
+package handlers
 
 import (
 	"net/http"
@@ -6,15 +6,15 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// HealthCheck godoc
+// ServerHealthCheck godoc
 // @Summary Show the status of server.
 // @Description get the status of server.
-// @Tags HealthCheck
-// @Accept */*
+// @Tags ServerHealthCheck
+// @ID healthCheck-get
 // @Produce json
 // @Success 200 {object} map[string]interface{}
 // @Router / [get]
-func HealthCheck(c echo.Context) error {
+func (h Handler) ServerHealthCheck(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"data": "Server is up and running",
 	})

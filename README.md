@@ -17,31 +17,29 @@ flight paths starting and ending airports.
     gvm install go1.19 --prefer-binary --with-build-tools --with-protobuf
     gvm use go1.19 --default
     ```
-- Newman (a CLI to run Postman collections)
-  ```bash
-  # Install Node.js and NPM package manager
-  sudo apt update
-  sudo apt install nodejs npm -y
-  # Install Newman CLI
-  npm install --location=global newman
-  ```
-
+  
 ## Help
 
 ```text
 Usage: make COMMAND
 Commands :
-help         - List available tasks
-clean        - Cleanup
-deps         - Download and install dependencies
-api-docs     - Build source code for swagger api reference
-test         - Run tests
-build        - Build REST API server's binary
-run          - Run REST API locally
-release      - Create and push a new tag
-update       - Update dependencies to latest versions
-open-swagger - Open browser with Swagger docs pointing to localhost
+help            - List available tasks
+clean           - Cleanup
+deps            - Download and install dependencies
+api-docs        - Build source code for swagger api reference
+test            - Run tests
+build           - Build REST API server's binary
+run             - Run REST API locally
+release         - Create and push a new tag
+update          - Update dependencies to latest versions
+open-swagger    - Open browser with Swagger docs pointing to localhost
+test-case-one   - Test case 1 [["SFO", "EWR"]]
+test-case-two   - Test case 2 [["ATL", "EWR"], ["SFO", "ATL"]]
+test-case-three - Test case 3 [["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]
 ```
 
 ## SwaggerUI
-http://localhost:8080/swagger/index.html#/
+
+[Swagger API documentation - http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
+
+![Swagger API documentation](./img/swagger-api-doc.jpg)

@@ -5,7 +5,7 @@ info:
     email: AndriyKalashnykov@gmail.com
     name: Andriy Kalashnykov
     url: https://github.com/AndriyKalashnykov/flight-path
-  description: This is REST API server to determine the flight path of a person.
+  description: This is REST API server to determine the flight.go path of a person.
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
@@ -15,9 +15,8 @@ info:
 paths:
   /:
     get:
-      consumes:
-      - '*/*'
       description: get the status of server.
+      operationId: healthCheck-get
       produces:
       - application/json
       responses:
@@ -28,7 +27,41 @@ paths:
             type: object
       summary: Show the status of server.
       tags:
-      - HealthCheck
+      - ServerHealthCheck
+  /calculate:
+    post:
+      consumes:
+      - application/json
+      description: get the flight path of a person.
+      operationId: flightCalculate-get
+      parameters:
+      - description: Flight segments
+        in: body
+        name: flightSegments
+        required: true
+        schema:
+          items:
+            items:
+              type: string
+            type: array
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Determine the flight path of a person.
+      tags:
+      - FlightCalculate
 schemes:
 - http
 swagger: "2.0"
