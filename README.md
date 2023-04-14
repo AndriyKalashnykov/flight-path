@@ -11,10 +11,10 @@ flight paths starting and ending airports.
 
 ### Requirements
 
-- [gvm](https://github.com/moovweb/gvm) Go 1.19
+- [gvm](https://github.com/moovweb/gvm) Go 1.20.3
     ```bash
-    gvm install go1.19 --prefer-binary --with-build-tools --with-protobuf
-    gvm use go1.19 --default
+    gvm install go1.20.3 --prefer-binary --with-build-tools --with-protobuf
+    gvm use go1.20.3 --default
     ```
 - Newman (a CLI to run Postman/Newman collections)
   ```bash
