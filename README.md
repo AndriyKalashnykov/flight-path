@@ -1,6 +1,7 @@
 # REST API server to determine the flight path of a person
 
 [![Renovate enabled](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://app.renovatebot.com/dashboard#github/AndriyKalashnykov/flight-path)
+
 Story: There are over 100,000 flights a day, with millions of people and cargo being transferred around the world. 
 With so many people and different carrier/agency groups, it can be hard to track where a person might be. 
 In order to determine the flight path of a person, we must sort through all of their flight records.
