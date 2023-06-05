@@ -84,3 +84,15 @@ test-case-three:
 #e2e: @ Run Postman/Newman end-to-end tests
 e2e:
 	newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
+
+lint:
+	go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	golangci-lint run ./...
+
+critic:
+	go install -v github.com/go-critic/go-critic/cmd/gocritic@latest
+	gocritic check -enableAll ./...
+
+sec:
+	go install github.com/securego/gosec/v2/cmd/gosec@latest
+	gosec ./...

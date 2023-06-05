@@ -33,7 +33,7 @@ func (h Handler) FlightCalculate(c echo.Context) error {
 	var start, finish string
 	max := -1
 
-	for key, _ := range api.CreateGraph(payload) {
+	for key := range api.CreateGraph(payload) {
 		itinerary = api.FindItinerary(payload, key)
 		fmt.Println(itinerary)
 		if len(itinerary) > max {
