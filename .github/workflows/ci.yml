@@ -46,6 +46,8 @@ jobs:
 
     - name: Run
       run: go run main.go -env-file .env &
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
     - name: Wait for REST API
       run: sleep 4s
