@@ -18,12 +18,17 @@ flight paths starting and ending airports.
     gvm install go1.21.1 --prefer-binary --with-build-tools --with-protobuf
     gvm use go1.21.1 --default
     ```
+  - [nmv](https://github.com/nvm-sh/nvm) Node 20.6.0
+  ```bash
+    nvm install 20.6.0
+    nvm use 20.6.0
+    npm install yarn --global
+    npm install npm --global
+    npm install -g pnpm
+    pnpm add -g pnpm
+  ```
 - Newman (a CLI to run Postman/Newman collections)
   ```bash
-  # Install Node.js and NPM package manager
-  sudo apt update
-  sudo apt install nodejs npm -y
-  # Install Newman CLI
   npm install --location=global newman
   ```
 ## Help
