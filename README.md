@@ -18,10 +18,10 @@ flight paths starting and ending airports.
     gvm install go1.21.1 --prefer-binary --with-build-tools --with-protobuf
     gvm use go1.21.1 --default
     ```
-  - [nmv](https://github.com/nvm-sh/nvm) Node 20.6.0
+  - [nmv](https://github.com/nvm-sh/nvm) Node 19.9.0
   ```bash
-    nvm install 20.6.0
-    nvm use 20.6.0
+    nvm install 19.9.0
+    nvm use 19.9.0
     npm install yarn --global
     npm install npm --global
     npm install -g pnpm
