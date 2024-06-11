@@ -10,6 +10,7 @@ require (
 )
 
 require (
+	github.com/AndriyKalashnykov/bfstree v0.0.1 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect

@@ -2,11 +2,21 @@ package handlers
 
 import (
 	"fmt"
+	"github.com/AndriyKalashnykov/bfstree"
+	"github.com/AndriyKalashnykov/flight-path/internal/api"
 	"net/http"
 
-	"github.com/AndriyKalashnykov/flight-path/internal/api"
 	"github.com/labstack/echo/v4"
 )
+
+type TestEdge struct {
+	from string
+	to   string
+}
+
+// TestEdge implements bfstree.Edge interface
+func (t TestEdge) To() string   { return t.to }
+func (t TestEdge) From() string { return t.from }
 
 // FlightCalculate godoc
 // @Summary Determine the flight path of a person.
@@ -29,6 +39,14 @@ func (h Handler) FlightCalculate(c echo.Context) error {
 		})
 	}
 
+	var tree *bfstree.BFSTree
+
+	tree = bfstree.New()
+	for _, t := range payload {
+		tree.AddEdge(TestEdge{t[0], t[1]})
+	}
+	fmt.Println(tree)
+
 	var itinerary []string
 	var start, finish string
 	max := -1
@@ -42,6 +60,6 @@ func (h Handler) FlightCalculate(c echo.Context) error {
 			finish = itinerary[len(itinerary)-1]
 		}
 	}
-
 	return c.JSON(http.StatusOK, []string{start, finish})
+
 }
