@@ -39,7 +39,6 @@ flight paths starting and ending airports.
 Usage: make COMMAND
 Commands :
 help            - List available tasks
-clean           - Cleanup
 deps            - Download and install dependencies
 api-docs        - Build source code for swagger api reference
 test            - Run tests

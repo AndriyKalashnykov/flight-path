@@ -10,11 +10,6 @@ help:
 	@echo "Commands :"
 	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-15s\033[0m - %s\n", $$1, $$2}'
 
-#clean: @ Cleanup
-clean:
-	@sudo rm -rf vendor/ dist/
-	@rm -f main
-
 #deps: @ Download and install dependencies
 deps:
 	go install github.com/swaggo/swag/cmd/swag@latest
@@ -38,7 +33,7 @@ run: build api-docs
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go run main.go -env-file .env
 
 #release: @ Create and push a new tag
-release: api-docs build clean
+release: api-docs build
 	$(eval NT=$(NEWTAG))
 	@echo -n "Are you sure to create and push ${NT} tag? [y/N] " && read ans && [ $${ans:-N} = y ]
 	@echo ${NT} > ./pkg/api/version.txt
@@ -50,7 +45,7 @@ release: api-docs build clean
 	@echo "Done."
 
 #update: @ Update dependencies to latest versions
-update: clean
+update:
 	@export GOFLAGS=$(GOFLAGS); go get -u; go mod tidy
 
 #open-swagger: @ Open browser with Swagger docs pointing to localhost
