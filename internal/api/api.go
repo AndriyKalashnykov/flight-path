@@ -10,6 +10,7 @@ func FindItinerary(segments [][]string, start string) []string {
 		if segments[i][0] > segments[j][0] {
 			return false
 		}
+
 		return segments[i][1] < segments[j][1]
 	})
 

@@ -13,6 +13,7 @@ help:
 #deps: @ Download and install dependencies
 deps:
 	go install github.com/swaggo/swag/cmd/swag@latest
+	go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 #api-docs: @ Build source code for swagger api reference
 api-docs: deps
@@ -20,7 +21,7 @@ api-docs: deps
 
 #test: @ Run lint
 lint:
-	golangci-lint run
+	golangci-lint run  ./...
 
 #test: @ Run tests
 test:
@@ -87,10 +88,6 @@ test-case-three:
 #e2e: @ Run Postman/Newman end-to-end tests
 e2e:
 	newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
-
-lint:
-	go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	golangci-lint run ./...
 
 critic:
 	go install -v github.com/go-critic/go-critic/cmd/gocritic@latest
