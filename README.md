@@ -33,6 +33,10 @@ flight paths starting and ending airports.
   ```bash
   npm install --location=global newman
   ```
+- [GolangCI lint](https://golangci-lint.run/welcome/install/#local-installation)
+  ```bash
+  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.59.1
+  ```
 ## Help
 
 ```text
