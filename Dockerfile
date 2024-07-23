@@ -16,7 +16,7 @@ RUN --mount=type=cache,target="$GOMODCACHE" \
 #COPY --from=build /app/main /
 #CMD ["./main"]
 
-FROM alpine:3.20.1 AS runtime
+FROM alpine:3.20.2 AS runtime
 WORKDIR /
 COPY --from=build /app/main /
 CMD ["/bin/sh", "-c", "./main"]
