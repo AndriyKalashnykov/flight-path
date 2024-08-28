@@ -19,9 +19,9 @@ deps:
 api-docs: deps
 	swag init --parseDependency -g main.go
 
-#test: @ Run lint
+#lint: @ Run lint
 lint:
-	golangci-lint run  ./...
+	golangci-lint run  --fast ./...
 
 #test: @ Run tests
 test:

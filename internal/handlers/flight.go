@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"fmt"
-	"github.com/AndriyKalashnykov/flight-path/internal/api"
+	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 	"net/http"
+	"sync"
 
 	"github.com/labstack/echo/v4"
 )
@@ -29,19 +29,27 @@ func (h Handler) FlightCalculate(c echo.Context) error {
 		})
 	}
 
-	var itinerary []string
-	var start, finish string
-	max := -1
+	//var itinerary []string
+	//var start, finish string
+	//max := -1
+	//
+	//for key := range api.CreateGraph(payload) {
+	//	itinerary = api.FindItinerary(payload, key)
+	//	fmt.Println(itinerary)
+	//	if len(itinerary) > max {
+	//		max = len(itinerary)
+	//		start = itinerary[0]
+	//		finish = itinerary[len(itinerary)-1]
+	//	}
+	//}
 
-	for key := range api.CreateGraph(payload) {
-		itinerary = api.FindItinerary(payload, key)
-		fmt.Println(itinerary)
-		if len(itinerary) > max {
-			max = len(itinerary)
-			start = itinerary[0]
-			finish = itinerary[len(itinerary)-1]
-		}
+	flights := make([]api.Flight, 0, len(payload))
+	for _, v := range payload {
+		flights = append(flights, api.Flight{v[0], v[1]})
 	}
+
+	start, finish := FindItinerary2(flights, &sync.Map{}, &sync.Map{})
+
 	return c.JSON(http.StatusOK, []string{start, finish})
 
 }

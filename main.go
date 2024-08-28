@@ -2,10 +2,10 @@ package main
 
 import (
 	"flag"
+	"github.com/AndriyKalashnykov/flight-path/internal/handlers"
 	"os"
 
 	_ "github.com/AndriyKalashnykov/flight-path/docs"
-	"github.com/AndriyKalashnykov/flight-path/internal/handlers"
 	"github.com/AndriyKalashnykov/flight-path/internal/routes"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
