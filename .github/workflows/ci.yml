@@ -19,10 +19,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go
+      - name: Install Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+          cache: true
 
       - name: Build
         run: make build
@@ -31,16 +32,21 @@ jobs:
     strategy:
       matrix:
         name: [unit]
+        go-version: [ 1.23 ]
     runs-on: ubuntu-latest
     name: test (${{ matrix.name }})
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: "go.mod"
+          go-version: ${{ matrix.go-version }}
           cache: true
+
       - name: Run ${{ matrix.name }} tests
         run: make test
 
@@ -50,6 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        name: [integration]
         go-version: [ 1.23 ]
         node-version: [ 20.6.0 ]
 
