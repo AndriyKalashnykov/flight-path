@@ -17,7 +17,7 @@ RUN --mount=type=cache,target="$GOMODCACHE" \
 #CMD ["./main"]
 
 # runtime image
-FROM alpine:3.20.2 AS runtime
+FROM alpine:3.20.3 AS runtime
 WORKDIR /
 
 RUN addgroup -g 1000 srvgroup && \
