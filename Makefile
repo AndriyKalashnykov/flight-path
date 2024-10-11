@@ -3,6 +3,10 @@ NEWTAG ?= $(shell bash -c 'read -p "Please provide a new tag (currnet tag - ${CU
 GOFLAGS=-mod=mod
 NEWMANTESTSLOCATION=./test/
 
+HOMEDIR := $(shell pwd)
+OUTDIR  := $(HOMEDIR)/output
+COVPROF := $(HOMEDIR)/covprof.out  # coverage profile
+
 #help: @ List available tasks
 help:
 	@clear
