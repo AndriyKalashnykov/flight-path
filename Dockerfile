@@ -1,5 +1,5 @@
 # build
-FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine@sha256:9dd2625a1ff2859b8d8b01d8f7822c0f528942fe56cfe7a1e7c38d3b8d72d679 AS build
 WORKDIR /app
 COPY go.mod go.sum ./
 ARG GOMODCACHE GOCACHE
@@ -11,7 +11,7 @@ RUN --mount=type=cache,target="$GOMODCACHE" \
     CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -o /app/main .
 
 # runtime image
-FROM alpine:3.20.3 AS runtime
+FROM alpine:3.20.3@sha256:beefdbd8a1da6d2915566fde36db9db0b524eb737fc57cd1367effd16dc0d06d AS runtime
 WORKDIR /
 RUN addgroup -g 1000 srvgroup && \
     adduser -D srvuser -u 1000 -G srvgroup
