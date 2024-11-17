@@ -14,11 +14,12 @@ cd $SCRIPT_PARENT_DIR
 docker buildx create --name builder --driver docker-container --bootstrap
 docker buildx use builder
 docker buildx build                                             \
-        --platform linux/amd64,linux/arm64                      \
+        --platform linux/amd64,linux/arm64,linux/arm/v7         \
         --build-arg GOCACHE=${GOCACHE}                          \
         --build-arg GOMODCACHE=${GOMODCACHE}                    \
         -t ${CONTAINER_REGISTRY}/${CONTAINER_IMAGE_NAME}:latest \
         --push                                                  \
         .
+# https://hub.docker.com/repository/docker/andriykalashnykov/flight-path/tags
 
 cd $LAUNCH_DIR

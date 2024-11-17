@@ -41,7 +41,7 @@ build: api-docs
 run: build api-docs
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go run main.go -env-file .env
 
-#build-image: @ Build Docker image
+#build-image: @ Build Docker image - https://hub.docker.com/repository/docker/andriykalashnykov/flight-path/tags
 build-image: api-docs
 	@./scripts/build-image.sh
 
