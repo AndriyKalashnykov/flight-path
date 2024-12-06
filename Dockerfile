@@ -11,7 +11,7 @@ RUN --mount=type=cache,target="$GOMODCACHE" \
     CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -o /app/main .
 
 # runtime image
-FROM alpine:3.20.3@sha256:1e42bbe2508154c9126d48c2b8a75420c3544343bf86fd041fb7527e017a4b4a AS runtime
+FROM alpine:3.21.0@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45 AS runtime
 WORKDIR /
 RUN addgroup -g 1000 srvgroup && \
     adduser -D srvuser -u 1000 -G srvgroup
