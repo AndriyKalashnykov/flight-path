@@ -15,15 +15,15 @@ flight paths starting and ending airports.
 
 ### Requirements
 
-- [gvm](https://github.com/moovweb/gvm) Go 1.23
+- [gvm](https://github.com/moovweb/gvm) Go 1.24.0
     ```bash
-    gvm install go1.23 --prefer-binary --with-build-tools --with-protobuf
-    gvm use go1.23 --default
+    gvm install go1.24.0 --prefer-binary --with-build-tools --with-protobuf
+    gvm use go1.24.0 --default
     ```
-  - [nmv](https://github.com/nvm-sh/nvm) Node 19.9.0
+  - [nmv](https://github.com/nvm-sh/nvm) Node 20.6.0
   ```bash
-    nvm install 19.9.0
-    nvm use 19.9.0
+    nvm install 20.6.0
+    nvm use 20.6.0
     npm install yarn --global
     npm install npm --global
     npm install -g pnpm
