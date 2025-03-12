@@ -9,9 +9,6 @@ jobs:
   builds:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: [ 1.24.0 ]
 
     steps:
       - name: Checkout
@@ -22,7 +19,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: 'go.mod'
           cache: true
 
       - name: Build
@@ -32,7 +29,7 @@ jobs:
     strategy:
       matrix:
         name: [unit]
-        go-version: [ 1.24.0 ]
+
     runs-on: ubuntu-latest
     name: test (${{ matrix.name }})
     steps:
@@ -44,7 +41,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: 'go.mod'
           cache: true
 
       - name: Run ${{ matrix.name }} tests
@@ -57,7 +54,6 @@ jobs:
     strategy:
       matrix:
         name: [integration]
-        go-version: [ 1.24.0 ]
         node-version: [ 20.6.0 ]
 
     steps:
@@ -69,7 +65,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: 'go.mod'
+          cache: true
 
       - name: Set up Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4
