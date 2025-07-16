@@ -11,8 +11,9 @@ CONTAINER_IMAGE_NAME=flight-path
 
 cd $SCRIPT_PARENT_DIR
 
-docker buildx create --name builder --driver docker-container --bootstrap
-docker buildx use builder
+# docker buildx create --name builder --driver docker-container --bootstrap
+# docker buildx use builder
+
 docker buildx build                                             \
         --platform linux/amd64,linux/arm64,linux/arm/v7         \
         --build-arg GOCACHE=${GOCACHE}                          \
