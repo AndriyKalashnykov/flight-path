@@ -1,5 +1,5 @@
 # build
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine@sha256:c8c5f95d64aa79b6547f3b626eb84b16a7ce18a139e3e9ca19a8c078b85ba80d AS build
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine@sha256:77dd832edf2752dafd030693bef196abb24dcba3a2bc3d7a6227a7a1dae73169 AS build
 WORKDIR /app
 COPY go.mod go.sum ./
 ARG GOMODCACHE GOCACHE
