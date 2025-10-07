@@ -59,18 +59,6 @@
       "platformAutomerge": true
     },
     {
-      "description": "Enforce bump range strategy",
-      "matchDatasources": [
-        "docker",
-        "golang-version"
-      ],
-      "matchPackageNames": [
-        "go",
-        "golang"
-      ],
-      "rangeStrategy": "bump"
-    },
-    {
       "description": "Automerge github-actions updates",
       "matchManagers": ["github-actions"],
       "automerge": true,
