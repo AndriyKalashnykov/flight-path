@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 	"sort"
 	"sync"
+
+	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 )
 
 func FindItinerary(segments [][]string, start string) []string {

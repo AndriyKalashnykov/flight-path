@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 	"net/http"
 	"sync"
+
+	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 
 	"github.com/labstack/echo/v4"
 )
