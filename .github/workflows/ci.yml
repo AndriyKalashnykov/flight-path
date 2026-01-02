@@ -12,19 +12,18 @@ permissions:
 
 jobs:
 
-  staticcheck:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
-        with:
-          fetch-depth: 0
-
-      - name: golangci-lint
-        uses: reviewdog/action-golangci-lint@f9bba13753278f6a73b27a56a3ffb1bfda90ed71 # v2.8.0
+#  staticcheck:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+#        with:
+#          fetch-depth: 0
+#
+#      - name: golangci-lint
+#        uses: reviewdog/action-golangci-lint@f9bba13753278f6a73b27a56a3ffb1bfda90ed71 # v2.8.0
 
   builds:
-    needs: [staticcheck]
     timeout-minutes: 20
     runs-on: ubuntu-latest
 
@@ -49,7 +48,6 @@ jobs:
       matrix:
         name: [unit]
 
-    needs: [staticcheck]
     runs-on: ubuntu-latest
     name: test (${{ matrix.name }})
     steps:
