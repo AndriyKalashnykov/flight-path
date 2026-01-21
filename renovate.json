@@ -25,6 +25,11 @@
       "description": "Automerge all updates when checks pass",
       "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
       "automerge": true
+    },
+    {
+      "description": "Block echo v5 until echo-swagger supports it",
+      "matchPackageNames": ["github.com/labstack/echo/v5"],
+      "enabled": false
     }
   ]
 }
