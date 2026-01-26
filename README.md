@@ -15,10 +15,10 @@ flight paths starting and ending airports.
 
 ### Requirements
 
-- [gvm](https://github.com/moovweb/gvm) Go 1.24.0
+- [gvm](https://github.com/moovweb/gvm) Go
     ```bash
-    gvm install go1.24.0 --prefer-binary --with-build-tools --with-protobuf
-    gvm use go1.24.0 --default
+    gvm install go1.25.6 --prefer-binary --with-build-tools --with-protobuf
+    gvm use go1.25.6 --default
     ```
   - [nmv](https://github.com/nvm-sh/nvm) Node 20.6.0
   ```bash
