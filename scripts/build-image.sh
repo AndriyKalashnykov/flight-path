@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-LAUNCH_DIR=$(pwd); SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; cd $SCRIPT_DIR; cd ..; SCRIPT_PARENT_DIR=$(pwd);
+LAUNCH_DIR=$(pwd); SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; cd "$SCRIPT_DIR" || exit; cd ..; SCRIPT_PARENT_DIR=$(pwd);
 
 GOCACHE=${HOME}/Library/Caches/go-build
 GOMODCACHE=${HOME}/go/pkg/mod
