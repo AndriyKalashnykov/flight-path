@@ -9,7 +9,7 @@ CONTAINER_REGISTRY=andriykalashnykov
 CONTAINER_IMAGE_NAME=flight-path
 
 
-cd $SCRIPT_PARENT_DIR
+cd "$SCRIPT_PARENT_DIR" || exit
 
 builders="$(docker buildx ls | grep builder)"
 if [[ $builders == "" ]]; then
@@ -28,4 +28,4 @@ docker buildx build                                             \
         .
 # https://hub.docker.com/repository/docker/andriykalashnykov/flight-path/tags
 
-cd $LAUNCH_DIR
+cd "$LAUNCH_DIR" || exit
