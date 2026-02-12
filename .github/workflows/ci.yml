@@ -22,7 +22,9 @@ jobs:
           fetch-depth: 0
 
       - name: staticcheck
-        run: make deps lint critic sec
+        run: |
+          export PATH=$PATH:/home/runner/go/bin
+          make deps lint critic sec
 
   builds:
     needs: [static-check]
