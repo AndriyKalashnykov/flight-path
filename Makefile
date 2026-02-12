@@ -42,7 +42,7 @@ run: build api-docs
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go run main.go -env-file .env
 
 #build-image: @ Build Docker image - https://hub.docker.com/repository/docker/andriykalashnykov/flight-path/tags
-build-image: api-docs
+build-image: api-docs lint critic sec
 	@./scripts/build-image.sh
 
 #release: @ Create and push a new tag
