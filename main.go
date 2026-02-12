@@ -1,11 +1,12 @@
+// Package main provides the entry point for the Flight Path API server.
 package main
 
 import (
 	"flag"
-	"github.com/AndriyKalashnykov/flight-path/internal/handlers"
 	"os"
 
 	_ "github.com/AndriyKalashnykov/flight-path/docs"
+	"github.com/AndriyKalashnykov/flight-path/internal/handlers"
 	"github.com/AndriyKalashnykov/flight-path/internal/routes"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -26,11 +27,11 @@ import (
 
 // @host localhost:8080
 // @BasePath /
-// @schemes http
+// @schemes http.
 func main() {
-
 	// Flags
 	var envFile string
+
 	flag.StringVar(&envFile, "env-file", ".env", "File from which to load environment")
 	flag.Parse()
 
@@ -39,12 +40,13 @@ func main() {
 	e.HideBanner = true
 
 	// Load env vars
-	if err := godotenv.Load(envFile); err != nil {
+	err := godotenv.Load(envFile)
+	if err != nil {
 		e.Logger.Fatalf("failed to load environment variables: %v", err)
 	}
 
 	// Middleware
-	e.Use(middleware.Logger())
+	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
 

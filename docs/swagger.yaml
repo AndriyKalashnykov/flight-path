@@ -63,5 +63,5 @@ paths:
       tags:
       - FlightCalculate
 schemes:
-- http
+- http.
 swagger: "2.0"

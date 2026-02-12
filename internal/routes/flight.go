@@ -1,3 +1,4 @@
+// Package routes contains route registration for the API.
 package routes
 
 import (

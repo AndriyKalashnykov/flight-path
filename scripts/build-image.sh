@@ -19,7 +19,7 @@ else
         echo "Using existing builder"
 fi
 
-docker buildx build                                             \
+docker buildx build  --load                                           \
         --platform linux/amd64,linux/arm64,linux/arm/v7         \
         --build-arg GOCACHE=${GOCACHE}                          \
         --build-arg GOMODCACHE=${GOMODCACHE}                    \

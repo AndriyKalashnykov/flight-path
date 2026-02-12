@@ -1,11 +1,13 @@
+// Package api contains API data structures and models.
 package api
 
+// Flight represents a flight segment with a start and end airport.
 type Flight struct {
 	Start string
 	End   string
 }
 
-// TestFlights start: BGY; end: AKL
+// TestFlights start: BGY; end: AKL.
 var TestFlights = []Flight{
 	{
 		Start: "BCN",

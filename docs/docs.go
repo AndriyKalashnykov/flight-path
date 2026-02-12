@@ -105,7 +105,7 @@ var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "localhost:8080",
 	BasePath:         "/",
-	Schemes:          []string{"http"},
+	Schemes:          []string{"http."},
 	Title:            "Flight Path API",
 	Description:      "This is REST API server to determine the flight.go path of a person.",
 	InfoInstanceName: "swagger",

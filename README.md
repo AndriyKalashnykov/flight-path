@@ -35,7 +35,7 @@ flight paths starting and ending airports.
   ```
 - [GolangCI lint](https://golangci-lint.run/welcome/install/#local-installation)
   ```bash
-  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.59.1
+  curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin
   ```
 ## Help
 

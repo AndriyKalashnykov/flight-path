@@ -17,7 +17,7 @@ help:
 #deps: @ Download and install dependencies
 deps:
 	go install github.com/swaggo/swag/cmd/swag@latest
-	go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin
 
 #api-docs: @ Build source code for swagger api reference
 api-docs: deps
@@ -25,7 +25,7 @@ api-docs: deps
 
 #lint: @ Run lint
 lint:
-	golangci-lint run  --fast ./...
+	golangci-lint run  ./...
 
 #test: @ Run tests
 test:
