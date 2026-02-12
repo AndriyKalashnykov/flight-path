@@ -17,6 +17,7 @@ help:
 #deps: @ Download and install dependencies
 deps:
 	go install github.com/swaggo/swag/cmd/swag@latest
+	go install github.com/securego/gosec/v2/cmd/gosec@latest
 	curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin
 
 #api-docs: @ Build source code for swagger api reference
@@ -98,5 +99,4 @@ critic:
 	gocritic check -enableAll ./...
 
 sec:
-	go install github.com/securego/gosec/v2/cmd/gosec@latest
 	gosec ./...
