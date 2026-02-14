@@ -3,14 +3,15 @@ package main
 
 import (
 	"flag"
+	"log"
 	"os"
 
 	_ "github.com/AndriyKalashnykov/flight-path/docs"
 	"github.com/AndriyKalashnykov/flight-path/internal/handlers"
 	"github.com/AndriyKalashnykov/flight-path/internal/routes"
 	"github.com/joho/godotenv"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 )
 
 // @title Flight Path API
@@ -37,12 +38,11 @@ func main() {
 
 	// Echo instance
 	e := echo.New()
-	e.HideBanner = true
 
 	// Load env vars
 	err := godotenv.Load(envFile)
 	if err != nil {
-		e.Logger.Fatalf("failed to load environment variables: %v", err)
+		log.Fatalf("failed to load environment variables: %v", err)
 	}
 
 	// Middleware
@@ -59,5 +59,7 @@ func main() {
 	routes.FlightRoutes(e, &h)
 
 	// Start server
-	e.Logger.Fatal(e.Start(":" + os.Getenv("SERVER_PORT")))
+	if err := e.Start(":" + os.Getenv("SERVER_PORT")); err != nil {
+		log.Fatal(err)
+	}
 }

@@ -3,7 +3,7 @@ package routes
 
 import (
 	"github.com/AndriyKalashnykov/flight-path/internal/handlers"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // FlightRoutes sets up routes for the flight calculations.

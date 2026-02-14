@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ServerHealthCheck godoc
@@ -14,7 +14,7 @@ import (
 // @Produce json
 // @Success 200 {object} map[string]interface{}
 // @Router / [get].
-func (h Handler) ServerHealthCheck(c echo.Context) error {
+func (h Handler) ServerHealthCheck(c *echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{
 		"data": "Server is up and running",
 	})

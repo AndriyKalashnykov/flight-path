@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/AndriyKalashnykov/flight-path/pkg/api"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // FlightCalculate godoc
@@ -19,7 +19,7 @@ import (
 // @Success 200 {object} []string
 // @Failure 500 {object} map[string]interface{}	"Internal Server Error"
 // @Router /calculate [post].
-func (h Handler) FlightCalculate(c echo.Context) error {
+func (h Handler) FlightCalculate(c *echo.Context) error {
 	var payload [][]string
 
 	// bind payload

@@ -34,7 +34,7 @@ test:
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test -v
 
 #build: @ Build REST API server's binary
-build: api-docs
+build: deps lint critic sec api-docs
 	@go generate
 	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; export GOOS=linux; export GOARCH=amd64; go build -a -o server main.go
 
