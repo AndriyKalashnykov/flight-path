@@ -48,7 +48,9 @@ func main() {
 	// Middleware
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+	}))
 
 	// Handlers
 	h := handlers.New()
