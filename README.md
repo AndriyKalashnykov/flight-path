@@ -17,8 +17,8 @@ flight paths starting and ending airports.
 
 - [gvm](https://github.com/moovweb/gvm) Go
     ```bash
-    gvm install go1.25.6 --prefer-binary --with-build-tools --with-protobuf
-    gvm use go1.25.6 --default
+    gvm install go1.26.0 --prefer-binary --with-build-tools --with-protobuf
+    gvm use go1.26.0 --default
     ```
   - [nmv](https://github.com/nvm-sh/nvm) Node
   ```bash

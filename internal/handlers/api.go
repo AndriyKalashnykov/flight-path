@@ -61,8 +61,8 @@ func DFS(g map[string][]string, start string, flightSegments *[]string) {
 
 // FindItinerary2 finds the starting and ending airports using concurrent processing.
 func FindItinerary2(flights []api.Flight, s, e *sync.Map) (start, end string) {
-	startChan := make(chan string, 1)
-	endChan := make(chan string, 1)
+	startChan := make(chan string, len(flights))
+	endChan := make(chan string, len(flights))
 	wg := sync.WaitGroup{}
 
 	for _, v := range flights {

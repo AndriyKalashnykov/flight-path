@@ -54,6 +54,11 @@ paths:
             items:
               type: string
             type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
         "500":
           description: Internal Server Error
           schema:

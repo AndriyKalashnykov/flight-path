@@ -61,7 +61,11 @@ func main() {
 	routes.FlightRoutes(e, &h)
 
 	// Start server
-	if err := e.Start(":" + os.Getenv("SERVER_PORT")); err != nil {
+	port := os.Getenv("SERVER_PORT")
+	if port == "" {
+		port = "8080"
+	}
+	if err := e.Start(":" + port); err != nil {
 		log.Fatal(err)
 	}
 }
