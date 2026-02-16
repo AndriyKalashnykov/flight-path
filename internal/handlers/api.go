@@ -61,8 +61,6 @@ func DFS(g map[string][]string, start string, flightSegments *[]string) {
 
 // FindItinerary2 finds the starting and ending airports using concurrent processing.
 func FindItinerary2(flights []api.Flight, s, e *sync.Map) (start, end string) {
-	startChan := make(chan string, len(flights))
-	endChan := make(chan string, len(flights))
 	wg := sync.WaitGroup{}
 
 	for _, v := range flights {
@@ -72,33 +70,29 @@ func FindItinerary2(flights []api.Flight, s, e *sync.Map) (start, end string) {
 			defer wg.Done()
 
 			for _, w := range flights {
-				_, nSFound := s.Load(v.Start)
-				_, nEFound := e.Load(v.End)
-
-				if !nSFound && v.Start == w.End {
+				if v.Start == w.End {
 					s.Store(v.Start, true)
 				}
 
-				if !nEFound && v.End == w.Start {
+				if v.End == w.Start {
 					e.Store(v.End, true)
 				}
-			}
-
-			if _, ok := s.Load(v.Start); !ok {
-				startChan <- v.Start
-			}
-
-			if _, ok := e.Load(v.End); !ok {
-				endChan <- v.End
 			}
 		}(v)
 	}
 
-	go func(st, en chan string) {
-		wg.Wait()
-		close(st)
-		close(en)
-	}(startChan, endChan)
+	wg.Wait()
 
-	return <-startChan, <-endChan
+	// After all goroutines complete, find start and end with no races
+	for _, v := range flights {
+		if _, ok := s.Load(v.Start); !ok && start == "" {
+			start = v.Start
+		}
+
+		if _, ok := e.Load(v.End); !ok && end == "" {
+			end = v.End
+		}
+	}
+
+	return start, end
 }
