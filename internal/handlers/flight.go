@@ -52,7 +52,7 @@ func (h Handler) FlightCalculate(c *echo.Context) error {
 		})
 	}
 
-	start, finish := FindItinerary2(flights, &sync.Map{}, &sync.Map{})
+	start, finish := FindItinerary(flights, &sync.Map{}, &sync.Map{})
 
 	return c.JSON(http.StatusOK, []string{start, finish})
 }

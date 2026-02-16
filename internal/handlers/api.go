@@ -2,65 +2,13 @@
 package handlers
 
 import (
-	"sort"
 	"sync"
 
 	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 )
 
-// FindItinerary determines the complete flight itinerary starting from a given airport.
-func FindItinerary(segments [][]string, start string) []string {
-	sort.Slice(segments, func(i, j int) bool {
-		if segments[i][0] < segments[j][0] {
-			return true
-		}
-
-		if segments[i][0] > segments[j][0] {
-			return false
-		}
-
-		return segments[i][1] < segments[j][1]
-	})
-
-	g := CreateGraph(segments)
-
-	var flightSegments []string
-
-	DFS(g, start, &flightSegments)
-
-	return flightSegments
-}
-
-// CreateGraph builds an adjacency list graph from flight segments.
-func CreateGraph(segments [][]string) map[string][]string {
-	g := map[string][]string{}
-	for _, t := range segments {
-		g[t[0]] = append(g[t[0]], t[1])
-	}
-
-	return g
-}
-
-// DFS performs depth-first search to build the flight path.
-func DFS(g map[string][]string, start string, flightSegments *[]string) {
-	for {
-		dest, exists := g[start]
-
-		if exists && len(dest) > 0 {
-			first := g[start][0]
-			g[start] = g[start][1:]
-
-			DFS(g, first, flightSegments)
-		} else {
-			break
-		}
-	}
-
-	*flightSegments = append([]string{start}, *flightSegments...)
-}
-
-// FindItinerary2 finds the starting and ending airports using concurrent processing.
-func FindItinerary2(flights []api.Flight, s, e *sync.Map) (start, end string) {
+// FindItinerary finds the starting and ending airports using concurrent processing.
+func FindItinerary(flights []api.Flight, s, e *sync.Map) (start, end string) {
 	wg := sync.WaitGroup{}
 
 	for _, v := range flights {
