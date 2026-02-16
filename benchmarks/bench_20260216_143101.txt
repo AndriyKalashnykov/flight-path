@@ -1,0 +1,10 @@
+goos: linux
+goarch: amd64
+pkg: github.com/AndriyKalashnykov/flight-path/internal/handlers
+cpu: 12th Gen Intel(R) Core(TM) i9-12900KF
+BenchmarkFindItinerary_10-24     	 7052388	       524.4 ns/op	     912 B/op	       6 allocs/op
+BenchmarkFindItinerary_50-24     	 1643464	      2256 ns/op	    3664 B/op	       6 allocs/op
+BenchmarkFindItinerary_100-24    	  822459	      4414 ns/op	    6992 B/op	       6 allocs/op
+BenchmarkFindItinerary_500-24    	  177362	     19941 ns/op	   54608 B/op	       6 allocs/op
+PASS
+ok  	github.com/AndriyKalashnykov/flight-path/internal/handlers	17.560s
