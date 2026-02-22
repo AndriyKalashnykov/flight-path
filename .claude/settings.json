@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make lint)",
+      "Bash(make test)",
+      "Bash(make build)",
+      "Bash(make bench)",
+      "Bash(make bench-save)",
+      "Bash(make bench-compare*)",
+      "Bash(make api-docs)",
+      "Bash(make critic)",
+      "Bash(make sec)",
+      "Bash(make deps)",
+      "Bash(make e2e)",
+      "Bash(make run*)",
+      "Bash(make update)",
+      "Bash(make test-case-*)",
+      "Bash(make open-swagger)",
+      "Bash(make release*)",
+      "Bash(make build-image*)",
+      "Bash(go test*)",
+      "Bash(go vet*)",
+      "Bash(go generate*)",
+      "Bash(go mod tidy*)",
+      "Bash(go mod verify*)",
+      "Bash(go fmt*)",
+      "Bash(go clean*)",
+      "Bash(swag init*)",
+      "Bash(newman run*)",
+      "Bash(curl *localhost*)"
+    ]
+  }
+}

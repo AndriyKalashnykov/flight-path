@@ -1,0 +1,27 @@
+# Generated Swagger documentation
+docs/swagger.json
+docs/swagger.yaml
+docs/docs.go
+
+# Benchmark result files
+benchmarks/
+
+# Build artifacts
+server
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Profiling output
+*.out
+*.prof
+
+# IDE files
+.idea/
+
+# Git internals
+.git/
+
+# Docker build context noise
+img/
