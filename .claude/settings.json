@@ -25,9 +25,25 @@
       "Bash(go mod verify*)",
       "Bash(go fmt*)",
       "Bash(go clean*)",
+      "Bash(go run *)",
+      "Bash(go build *)",
+      "Bash(go version*)",
+      "Bash(go env*)",
       "Bash(swag init*)",
       "Bash(newman run*)",
-      "Bash(curl *localhost*)"
+      "Bash(curl *localhost*)",
+      "Bash(docker build *)",
+      "Bash(docker run *)",
+      "Bash(docker stop *)",
+      "Bash(docker rm *)",
+      "Bash(docker ps*)",
+      "Bash(docker images*)",
+      "Bash(docker buildx *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git tag*)",
+      "Bash(pkill -f *)"
     ]
   }
 }

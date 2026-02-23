@@ -5,48 +5,69 @@
 **flight-path** is a Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
 - **Language**: Go 1.26.0 (managed via gvm)
-- **Framework**: Echo v5
+- **Framework**: Echo v5 (v5.0.4)
 - **Docs**: Swagger/Swaggo (auto-generated)
+- **Version**: See `pkg/api/version.txt`
 - **Repo**: https://github.com/AndriyKalashnykov/flight-path
 
 ## Project Structure
 
 ```
 flight-path/
-├── main.go                              # Entry point, server setup, Swagger config
+├── main.go                              # Entry point, server setup, Swagger config, middleware
 ├── internal/handlers/
-│   ├── handlers.go                      # Flight path calculation algorithm
-│   ├── flight.go                        # Flight endpoint handler
-│   ├── healthcheck.go                   # Health check handler
-│   ├── api.go                           # API utilities
-│   └── api_bench_test.go               # Benchmark tests
+│   ├── handlers.go                      # Handler struct constructor (New())
+│   ├── flight.go                        # FlightCalculate handler (POST /calculate)
+│   ├── healthcheck.go                   # ServerHealthCheck handler (GET /)
+│   ├── api.go                           # FindItinerary algorithm (core business logic)
+│   └── api_bench_test.go               # Benchmark tests + FindItineraryOptimized
 ├── internal/routes/
 │   ├── flight.go                        # Flight routes
 │   ├── healthcheck.go                   # Health routes
 │   └── swagger.go                       # Swagger routes
 ├── pkg/api/
-│   ├── data.go                          # Public API types/data structures
-│   └── version.txt                      # Semantic version
+│   ├── data.go                          # Flight struct + TestFlights test data
+│   └── version.txt                      # Semantic version (e.g., v0.0.3)
 ├── docs/                                # Generated Swagger docs (don't edit manually)
 ├── test/
 │   └── FlightPath.postman_collection.json  # E2E test collection
-├── benchmarks/                          # Saved benchmark results
-├── scripts/                             # Build and utility scripts
-├── Dockerfile                           # Multi-stage, multi-platform Docker build
+├── benchmarks/                          # Saved benchmark results (bench_YYYYMMDD_HHMMSS.txt)
+├── scripts/                             # build.sh, build-image.sh
+├── Dockerfile                           # Multi-stage, multi-platform Docker build (Alpine)
 ├── Makefile                             # All build/dev/test commands
-└── .env                                 # Environment variables
+├── .env                                 # SERVER_PORT=8080
+└── renovate.json                        # Dependency auto-update config
 ```
 
 ## API
 
 - **POST /calculate** — Accepts `[][]string` (e.g., `[["SFO","ATL"],["ATL","EWR"]]`), returns `[]string` (e.g., `["SFO","EWR"]`)
-- **GET /health** — Health check
-- **GET /swagger/index.html** — Swagger UI
-- Server runs on port 8080
+- **GET /** — Health check (returns status + version)
+- **GET /swagger/*** — Swagger UI
+- Server runs on `SERVER_PORT` from `.env` (default 8080)
 
 ## Core Algorithm
 
-Builds a graph (map) from flight segments, finds the starting airport (no incoming edge), traverses to the ending airport. O(n) time and space.
+`FindItinerary()` in `internal/handlers/api.go` — builds source/destination maps using `sync.Map`, finds the airport with no incoming edge (start) and no outgoing edge (end). O(n) time and space.
+
+## Handler Pattern
+
+Handlers are **methods on `Handler` struct**, not free functions:
+
+```go
+type Handler struct{}
+func New() Handler { return Handler{} }
+func (h Handler) FlightCalculate(c *echo.Context) error { ... }
+func (h Handler) ServerHealthCheck(c *echo.Context) error { ... }
+```
+
+Routes receive `*Handler` and wire methods:
+
+```go
+func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
+    e.POST("/calculate", h.FlightCalculate)
+}
+```
 
 ## Common Commands
 
@@ -56,11 +77,11 @@ make api-docs       # Generate Swagger docs (run after changing Swagger comments
 make lint           # Run golangci-lint
 make critic         # Run go-critic
 make sec            # Run gosec security scanner
-make test           # Run unit tests
+make test           # Run tests (currently benchmarks only)
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare latest two benchmark runs
-make build          # Lint + sec + api-docs + build binary
+make build          # deps + lint + critic + sec + api-docs + build binary
 make run            # Build and run server locally
 make e2e            # Run Newman/Postman E2E tests (server must be running)
 make test-case-one  # curl test: [["SFO", "EWR"]]
@@ -73,29 +94,27 @@ make build-image    # Build multi-platform Docker image
 
 ## Before Committing
 
-Run these checks:
-
 ```bash
 make lint           # Code quality
 make critic         # Code review
 make sec            # Security scan
-make test           # Unit tests
+make test           # Tests
 make api-docs       # Update Swagger docs
 make build          # Compile
 ```
 
 ## Code Conventions
 
-- **Error handling**: Always handle explicitly; return errors up the stack, log at top level (handlers)
-- **Handlers**: Keep thin — bind input, validate, call business logic, return JSON response
-- **Algorithm logic**: Lives in `internal/handlers/`, not in route registration
-- **Routes**: Registered separately in `internal/routes/`
-- **Public types**: Go in `pkg/api/`
+- **Error handling**: Always handle explicitly; return errors up the stack, log at handler level
+- **Handlers**: Methods on `Handler` struct — bind input, validate, call business logic, return JSON
+- **Algorithm logic**: Lives in `internal/handlers/api.go`, not in route registration
+- **Routes**: Registered in `internal/routes/`, receive `*Handler`
+- **Public types**: Go in `pkg/api/` (e.g., `Flight` struct with `Start`/`End` fields)
 - **Generated docs**: Never edit `docs/` manually — use `make api-docs`
 - **Swagger annotations**: Required on all public endpoints (see existing handlers for format)
 - **Testing**: Table-driven tests preferred; benchmark critical paths
 - **Input validation**: Validate before processing; return 400 for bad input, 500 for server errors
-- **Naming**: Descriptive (`CalculateFlightPath`, `FlightSegment`); handlers suffixed by purpose
+- **Naming**: Descriptive; handlers as methods (`FlightCalculate`, `ServerHealthCheck`)
 - **Formatting**: `gofmt`; lines < 120 chars
 - **Build flags**: `GOFLAGS=-mod=mod`
 - **Commit messages**: Conventional commits (`feat:`, `fix:`, `perf:`, `chore:`, etc.)
@@ -110,12 +129,12 @@ make build          # Compile
 
 ## Dependencies
 
-| Package | Purpose |
-|---|---|
-| `github.com/labstack/echo/v5` | Web framework |
-| `github.com/swaggo/echo-swagger` | Swagger UI |
-| `github.com/swaggo/swag` | Swagger generator |
-| `github.com/joho/godotenv` | Environment variables |
+| Package | Version | Purpose |
+|---|---|---|
+| `github.com/labstack/echo/v5` | v5.0.4 | Web framework |
+| `github.com/swaggo/echo-swagger` | v1.5.0 | Swagger UI |
+| `github.com/swaggo/swag` | v1.16.6 | Swagger generator |
+| `github.com/joho/godotenv` | v1.5.1 | Environment variables |
 
 ## Dev Tools
 
@@ -136,16 +155,9 @@ make build          # Compile
 - **Tests fail after changes**: Run `go test -v ./...` for verbose output; `go clean -testcache` to clear cache
 - **Build fails**: Check `go version` matches go.mod (1.26.0); run `go mod tidy` then `make build`
 - **E2E tests fail**: Ensure server is running first (`make run &`, wait a few seconds, then `make e2e`)
-- **Swagger generation errors**: Check `@` annotation syntax in handler comments; see existing handlers for reference
-
-## Custom Slash Commands
-
-- `/project:check` — Run full pre-commit checklist (lint, critic, sec, test, api-docs, build)
-- `/project:new-endpoint` — Guided workflow to add a new API endpoint
-- `/project:optimize` — Benchmark-optimize-compare performance workflow
 
 ## Environment
 
 - Go 1.26.0 via gvm: `GOROOT=/home/andriy/.gvm/gos/go1.26.0`
 - Node.js via nvm (for Newman)
-- Environment variables loaded from `.env`
+- Environment variables loaded from `.env` (`SERVER_PORT=8080`)
