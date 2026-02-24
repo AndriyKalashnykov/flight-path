@@ -1,6 +1,39 @@
 # Testing Specification
 
-## 1. Benchmark Tests
+## 1. Unit Tests — Algorithm
+
+**Location**: `internal/handlers/api_test.go`
+
+| Test | Input | Expected |
+|---|---|---|
+| empty input | `[]` | `("", "")` |
+| single flight | `[SFO->EWR]` | `("SFO", "EWR")` |
+| two flights in order | `[SFO->ATL, ATL->EWR]` | `("SFO", "EWR")` |
+| two flights reversed | `[ATL->EWR, SFO->ATL]` | `("SFO", "EWR")` |
+| four flights shuffled | 4-segment path | `("SFO", "EWR")` |
+| TestFlights fixture | 19 segments | `("BGY", "AKL")` |
+
+## 2. Unit Tests — Handlers
+
+**Location**: `internal/handlers/flight_test.go`
+
+| Test | Input | Expected Status |
+|---|---|---|
+| single segment | `[["SFO", "EWR"]]` | 200 |
+| two segments | `[["ATL", "EWR"], ["SFO", "ATL"]]` | 200 |
+| four segments | 4-segment path | 200 |
+| empty array | `[]` | 400 |
+| incomplete segment | `[["SFO"]]` | 400 |
+| malformed JSON | `not json` | 500 |
+| empty body | `` | 400 |
+
+**Location**: `internal/handlers/healthcheck_test.go`
+
+| Test | Expected |
+|---|---|
+| GET / | 200, `{"data": "Server is up and running"}` |
+
+## 3. Benchmark Tests
 
 **Location**: `internal/handlers/api_bench_test.go`
 
@@ -11,7 +44,7 @@
 | `BenchmarkFindItinerary_100` | 100 flights |
 | `BenchmarkFindItinerary_500` | 500 flights |
 
-Synthetic data: `generateFlights(n)` creates chain `A->B->C->...`
+Benchmarks test production `FindItinerary` directly (O(n) algorithm).
 
 ```bash
 make bench          # Run benchmarks (3s each)
@@ -19,24 +52,32 @@ make bench-save     # Save to benchmarks/bench_YYYYMMDD_HHMMSS.txt
 make bench-compare  # Compare latest two with benchstat
 ```
 
-## 2. E2E Tests (Postman/Newman)
+## 4. E2E Tests (Postman/Newman)
 
 **Location**: `test/FlightPath.postman_collection.json`
 **Prerequisite**: Server running on `localhost:8080`
+
+### Happy Path Cases
 
 | Test | Input | Expected |
 |---|---|---|
 | UseCase01 | `[["SFO", "EWR"]]` | `["SFO", "EWR"]` |
 | UseCase02 | `[["ATL", "EWR"], ["SFO", "ATL"]]` | `["SFO", "EWR"]` |
-| UseCase03 | `[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]` | `["SFO", "EWR"]` |
+| UseCase03 | 4-segment path | `["SFO", "EWR"]` |
 
-Assertions per case: status 200, valid JSON body, correct start/end values.
+### Negative Cases
+
+| Test | Input | Expected Status | Error Contains |
+|---|---|---|---|
+| UseCase04_EmptyBody | `[]` | 400 | "empty" |
+| UseCase05_MalformedJSON | `not valid json` | 500 | "parse" |
+| UseCase06_IncompleteSegment | `[["SFO"]]` | 400 | "source and destination" |
 
 ```bash
 make e2e    # newman run ./test/FlightPath.postman_collection.json
 ```
 
-## 3. Manual curl Tests
+## 5. Manual curl Tests
 
 ```bash
 make test-case-one      # [["SFO", "EWR"]]
@@ -44,21 +85,13 @@ make test-case-two      # [["ATL", "EWR"], ["SFO", "ATL"]]
 make test-case-three    # 4-segment path
 ```
 
-## 4. Unit Tests
-
-```bash
-make test   # go generate && go test -v
-```
-
 ## Test Data
 
-**Static fixture**: `pkg/api/data.go` -- `TestFlights` (19 segments, BGY -> AKL)
-**Synthetic**: `generateFlights(n)` in bench test
+**Static fixture**: `pkg/api/data.go` -- `TestFlights` (19 segments, BGY -> AKL). Used by `TestFindItinerary`.
+**Synthetic**: `generateFlights(n)` in bench test -- creates chain using sequential runes.
 
-## Coverage Gaps
+## Running All Tests
 
-- No unit tests for production `FindItinerary`
-- No handler tests (`FlightCalculate`, `ServerHealthCheck`)
-- No negative E2E cases (empty body, malformed JSON, invalid segments)
-- No validation logic tests
-- `TestFlights` fixture unused by any test
+```bash
+make test   # go generate && go test -v ./...
+```

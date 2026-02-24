@@ -20,7 +20,10 @@ flight-path/
 │   ├── flight.go                        # FlightCalculate handler (POST /calculate)
 │   ├── healthcheck.go                   # ServerHealthCheck handler (GET /)
 │   ├── api.go                           # FindItinerary algorithm (core business logic)
-│   └── api_bench_test.go               # Benchmark tests + FindItineraryOptimized
+│   ├── api_test.go                     # Unit tests for FindItinerary (table-driven)
+│   ├── api_bench_test.go               # Benchmark tests for FindItinerary
+│   ├── flight_test.go                  # Handler tests for FlightCalculate
+│   └── healthcheck_test.go             # Handler tests for ServerHealthCheck
 ├── internal/routes/
 │   ├── flight.go                        # Flight routes
 │   ├── healthcheck.go                   # Health routes
@@ -29,8 +32,9 @@ flight-path/
 │   ├── data.go                          # Flight struct + TestFlights test data
 │   └── version.txt                      # Semantic version (e.g., v0.0.3)
 ├── docs/                                # Generated Swagger docs (don't edit manually)
+├── specs/                               # Reverse-engineered specifications
 ├── test/
-│   └── FlightPath.postman_collection.json  # E2E test collection
+│   └── FlightPath.postman_collection.json  # E2E test collection (6 cases: 3 happy + 3 negative)
 ├── benchmarks/                          # Saved benchmark results (bench_YYYYMMDD_HHMMSS.txt)
 ├── scripts/                             # build.sh, build-image.sh
 ├── Dockerfile                           # Multi-stage, multi-platform Docker build (Alpine)
@@ -48,7 +52,7 @@ flight-path/
 
 ## Core Algorithm
 
-`FindItinerary()` in `internal/handlers/api.go` — builds source/destination maps using `sync.Map`, finds the airport with no incoming edge (start) and no outgoing edge (end). O(n) time and space.
+`FindItinerary()` in `internal/handlers/api.go` — builds source/destination sets using plain maps, finds the airport with no incoming edge (start) and no outgoing edge (end). O(n) time and space.
 
 ## Handler Pattern
 
@@ -72,12 +76,12 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 ## Common Commands
 
 ```bash
-make deps           # Install tools (swag, golangci-lint, gosec, benchstat)
+make deps           # Install tools (swag, golangci-lint, gosec, benchstat, node, newman)
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
 make lint           # Run golangci-lint
 make critic         # Run go-critic
 make sec            # Run gosec security scanner
-make test           # Run tests (currently benchmarks only)
+make test           # Run all tests (unit + handler tests via go test -v ./...)
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare latest two benchmark runs
@@ -102,6 +106,22 @@ make test           # Tests
 make api-docs       # Update Swagger docs
 make build          # Compile
 ```
+
+## Specifications
+
+Reverse-engineered specs live in `specs/` (see `specs/README.md` for index):
+
+- `PRODUCT.md` — Problem statement, functional/non-functional requirements
+- `API.md` — Endpoints, request/response formats, validation rules, middleware
+- `ALGORITHM.md` — FindItinerary algorithm, complexity analysis
+- `ARCHITECTURE.md` — Layered architecture, design patterns, project structure
+- `BUILD.md` — Toolchain, build pipeline, dependency management
+- `TESTING.md` — Unit, handler, benchmark, and E2E test coverage
+- `DOCKER.md` — Multi-stage build, multi-platform images
+- `CI-CD.md` — GitHub Actions pipelines, release process
+- `DATA-MODELS.md` — Data types, wire formats, validation rules
+
+Update specs when changing architecture, API, or testing strategy.
 
 ## Code Conventions
 
@@ -145,7 +165,7 @@ make build          # Compile
 | `gocritic` | Code critic | `make critic` installs it |
 | `benchstat` | Benchmark comparison | `make deps` |
 | `swag` | Swagger generation | `make deps` |
-| `newman` | E2E API testing | `npm install -g newman` |
+| `newman` | E2E API testing | `make deps` |
 
 ## Troubleshooting
 

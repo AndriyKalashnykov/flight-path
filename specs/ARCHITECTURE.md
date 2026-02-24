@@ -34,6 +34,39 @@ Single-service Go REST API using Echo v5, following a layered architecture patte
 └──────────────────────────────────┘
 ```
 
+## Project Structure
+
+```
+flight-path/
+├── main.go                          # Entry point
+├── internal/                        # Private application code
+│   ├── handlers/                    # HTTP handlers + business logic
+│   │   ├── handlers.go              # Handler struct (dependency container)
+│   │   ├── flight.go                # POST /calculate handler
+│   │   ├── healthcheck.go           # GET / handler
+│   │   ├── api.go                   # FindItinerary algorithm (O(n), plain maps)
+│   │   ├── api_test.go              # Unit tests for FindItinerary
+│   │   ├── api_bench_test.go        # Benchmarks for FindItinerary
+│   │   ├── flight_test.go           # Handler tests for FlightCalculate
+│   │   └── healthcheck_test.go      # Handler tests for ServerHealthCheck
+│   └── routes/                      # Route registration
+│       ├── flight.go                # Flight routes
+│       ├── healthcheck.go           # Health routes
+│       └── swagger.go               # Swagger routes
+├── pkg/api/                         # Public types (importable by others)
+│   ├── data.go                      # Flight struct, TestFlights fixture
+│   └── version.txt                  # Semantic version
+├── docs/                            # Auto-generated Swagger (do not edit)
+├── specs/                           # Reverse-engineered specifications
+├── test/                            # E2E test collections (6 cases)
+├── benchmarks/                      # Saved benchmark results
+├── scripts/                         # Build/deploy scripts
+├── .github/workflows/               # CI/CD pipelines
+├── Dockerfile                       # Multi-stage container build
+├── Makefile                         # Build automation
+└── .env                             # Environment variables
+```
+
 ## Design Patterns
 
 ### Handler Struct Pattern

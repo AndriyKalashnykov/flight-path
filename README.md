@@ -29,13 +29,9 @@ flight paths starting and ending airports.
     npm install -g pnpm
     pnpm add -g pnpm
   ```
-- Newman (a CLI to run Postman/Newman collections)
+- All dev tools (Newman, GolangCI lint, gosec, etc.) are installed automatically:
   ```bash
-  npm install --location=global newman
-  ```
-- [GolangCI lint](https://golangci-lint.run/welcome/install/#local-installation)
-  ```bash
-  curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin
+  make deps
   ```
 ## Help
 
@@ -155,6 +151,6 @@ GitHub CI has following steps:
 ## Postman/Newman end-to-end tests
 
 Utilized Postman collection exported to [JSON file](./test/FlightPath.postman_collection.json)
-and executes same use cases as Makefile targets `test-case-one` `test-case-two` `test-case-three`
+and executes same use cases as Makefile targets `test-case-one` `test-case-two` `test-case-three`, plus negative test cases (empty body, malformed JSON, incomplete segment)
 
 ![Postman/Newman end-to-end tests](./img/posman-newmanjpg.jpg)

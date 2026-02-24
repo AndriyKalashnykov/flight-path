@@ -22,13 +22,24 @@ GOOS=linux
 GOARCH=amd64
 ```
 
+## Dependency Installation (`make deps`)
+
+Installs all missing tools using `command -v` checks:
+
+1. **swag** -- `go install github.com/swaggo/swag/cmd/swag@latest`
+2. **gosec** -- `go install github.com/securego/gosec/v2/cmd/gosec@latest`
+3. **benchstat** -- `go install golang.org/x/perf/cmd/benchstat@latest`
+4. **golangci-lint** -- via install script
+5. **Node.js** -- `nvm install --lts && nvm use --lts` (if node not found)
+6. **newman** -- `npm install --location=global newman`
+
 ## Build Pipeline (`make build`)
 
 ```
 deps → lint → critic → sec → api-docs → compile
 ```
 
-1. **deps** -- Install missing tools (skips installed via `command -v`)
+1. **deps** -- Install missing tools
 2. **lint** -- `golangci-lint run ./...`
 3. **critic** -- `gocritic check -enableAll ./...`
 4. **sec** -- `gosec ./...`
