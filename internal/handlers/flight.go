@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"sync"
 
 	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 	"github.com/labstack/echo/v5"
@@ -52,7 +51,7 @@ func (h Handler) FlightCalculate(c *echo.Context) error {
 		})
 	}
 
-	start, finish := FindItinerary(flights, &sync.Map{}, &sync.Map{})
+	start, finish := FindItinerary(flights)
 
 	return c.JSON(http.StatusOK, []string{start, finish})
 }

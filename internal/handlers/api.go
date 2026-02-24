@@ -2,43 +2,28 @@
 package handlers
 
 import (
-	"sync"
-
 	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 )
 
-// FindItinerary finds the starting and ending airports using concurrent processing.
-func FindItinerary(flights []api.Flight, s, e *sync.Map) (start, end string) {
-	wg := sync.WaitGroup{}
+// FindItinerary finds the starting and ending airports from a list of flight segments.
+// It builds sets of all start and end airports, then finds the airport that only
+// appears as a start (the origin) and the airport that only appears as an end (the destination).
+// Time complexity: O(n), Space complexity: O(n).
+func FindItinerary(flights []api.Flight) (start, end string) {
+	starts := make(map[string]bool, len(flights))
+	ends := make(map[string]bool, len(flights))
 
-	for _, v := range flights {
-		wg.Add(1)
-
-		go func(v api.Flight) {
-			defer wg.Done()
-
-			for _, w := range flights {
-				if v.Start == w.End {
-					s.Store(v.Start, true)
-				}
-
-				if v.End == w.Start {
-					e.Store(v.End, true)
-				}
-			}
-		}(v)
+	for _, f := range flights {
+		starts[f.Start] = true
+		ends[f.End] = true
 	}
 
-	wg.Wait()
-
-	// After all goroutines complete, find start and end with no races
-	for _, v := range flights {
-		if _, ok := s.Load(v.Start); !ok && start == "" {
-			start = v.Start
+	for _, f := range flights {
+		if !ends[f.Start] {
+			start = f.Start
 		}
-
-		if _, ok := e.Load(v.End); !ok && end == "" {
-			end = v.End
+		if !starts[f.End] {
+			end = f.End
 		}
 	}
 

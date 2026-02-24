@@ -20,6 +20,8 @@ deps:
 	@command -v gosec >/dev/null 2>&1 || { echo "Installing gosec..."; go install github.com/securego/gosec/v2/cmd/gosec@latest; }
 	@command -v benchstat >/dev/null 2>&1 || { echo "Installing benchstat..."; go install golang.org/x/perf/cmd/benchstat@latest; }
 	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint..."; curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin; }
+	@command -v node >/dev/null 2>&1 || { echo "Installing Node.js LTS via nvm..."; . "$${NVM_DIR:-$$HOME/.nvm}/nvm.sh" && nvm install --lts && nvm use --lts; }
+	@command -v newman >/dev/null 2>&1 || { echo "Installing newman..."; npm install --location=global newman; }
 
 #api-docs: @ Build source code for swagger api reference
 api-docs: deps
@@ -32,7 +34,7 @@ lint: deps
 #test: @ Run tests
 test:
 	@go generate
-	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test -v
+	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test -v ./...
 
 #bench: @ Run bench tests
 bench:
@@ -117,7 +119,7 @@ test-case-three:
       -d '[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]'
 
 #e2e: @ Run Postman/Newman end-to-end tests
-e2e:
+e2e: deps
 	newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
 
 critic: deps
