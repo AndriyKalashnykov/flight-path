@@ -32,13 +32,12 @@ jobs:
           export PATH=$PATH:/home/runner/go/bin
           make deps lint sec vulncheck secrets lint-ci
 
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # v0.34.1
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+        run: trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --exit-code 1 .
 
   builds:
     needs: [static-check]
@@ -171,9 +170,9 @@ jobs:
       - name: Build Docker image
         run: docker build -t flight-path:scan .
 
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # v0.34.1
-        with:
-          image-ref: 'flight-path:scan'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+        run: trivy image --severity CRITICAL,HIGH --exit-code 1 flight-path:scan
