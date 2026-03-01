@@ -34,7 +34,7 @@ jobs:
 
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.69.1
 
       - name: Trivy filesystem scan
         run: trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --exit-code 1 .
@@ -172,7 +172,7 @@ jobs:
 
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.69.1
 
       - name: Trivy image scan
         run: trivy image --severity CRITICAL,HIGH --exit-code 1 flight-path:scan
