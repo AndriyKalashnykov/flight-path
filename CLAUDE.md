@@ -22,6 +22,7 @@ flight-path/
 │   ├── api.go                           # FindItinerary algorithm (core business logic)
 │   ├── api_test.go                     # Unit tests for FindItinerary (table-driven)
 │   ├── api_bench_test.go               # Benchmark tests for FindItinerary
+│   ├── api_fuzz_test.go                # Fuzz tests for FindItinerary
 │   ├── flight_test.go                  # Handler tests for FlightCalculate
 │   └── healthcheck_test.go             # Handler tests for ServerHealthCheck
 ├── internal/routes/
@@ -76,16 +77,19 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 ## Common Commands
 
 ```bash
-make deps           # Install tools (swag, golangci-lint, gosec, benchstat, node, newman)
+make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, newman)
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
-make lint           # Run golangci-lint
-make critic         # Run go-critic
+make lint           # Run golangci-lint (60+ linters via .golangci.yml)
 make sec            # Run gosec security scanner
+make vulncheck      # Run Go vulnerability check on dependencies
+make secrets        # Scan for hardcoded secrets (gitleaks)
+make lint-ci        # Lint GitHub Actions workflow files (actionlint)
 make test           # Run all tests (unit + handler tests via go test -v ./...)
+make fuzz           # Run fuzz tests for 30 seconds
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare latest two benchmark runs
-make build          # deps + lint + critic + sec + api-docs + build binary
+make build          # deps + lint + sec + vulncheck + secrets + api-docs + build binary
 make run            # Build and run server locally
 make e2e            # Run Newman/Postman E2E tests (server must be running)
 make test-case-one  # curl test: [["SFO", "EWR"]]
@@ -99,9 +103,10 @@ make build-image    # Build multi-platform Docker image
 ## Before Committing
 
 ```bash
-make lint           # Code quality
-make critic         # Code review
-make sec            # Security scan
+make lint           # Code quality (60+ linters via .golangci.yml)
+make sec            # Security scan (gosec)
+make vulncheck      # Dependency vulnerability check (govulncheck)
+make secrets        # Secrets detection (gitleaks)
 make test           # Tests
 make api-docs       # Update Swagger docs
 make build          # Compile
@@ -160,9 +165,11 @@ Update specs when changing architecture, API, or testing strategy.
 
 | Tool | Purpose | Install |
 |---|---|---|
-| `golangci-lint` | Linter | `make deps` |
+| `golangci-lint` | Meta-linter (60+ linters via `.golangci.yml`) | `make deps` |
 | `gosec` | Security scanner | `make deps` |
-| `gocritic` | Code critic | `make critic` installs it |
+| `govulncheck` | Dependency vulnerability check | `make deps` |
+| `gitleaks` | Secrets detection | `make deps` |
+| `actionlint` | GitHub Actions linter | `make deps` |
 | `benchstat` | Benchmark comparison | `make deps` |
 | `swag` | Swagger generation | `make deps` |
 | `newman` | E2E API testing | `make deps` |

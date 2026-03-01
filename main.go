@@ -6,12 +6,13 @@ import (
 	"log"
 	"os"
 
-	_ "github.com/AndriyKalashnykov/flight-path/docs"
-	"github.com/AndriyKalashnykov/flight-path/internal/handlers"
-	"github.com/AndriyKalashnykov/flight-path/internal/routes"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
+
+	_ "github.com/AndriyKalashnykov/flight-path/docs"
+	"github.com/AndriyKalashnykov/flight-path/internal/handlers"
+	"github.com/AndriyKalashnykov/flight-path/internal/routes"
 )
 
 // @title Flight Path API

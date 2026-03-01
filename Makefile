@@ -20,6 +20,9 @@ deps:
 	@command -v gosec >/dev/null 2>&1 || { echo "Installing gosec..."; go install github.com/securego/gosec/v2/cmd/gosec@latest; }
 	@command -v benchstat >/dev/null 2>&1 || { echo "Installing benchstat..."; go install golang.org/x/perf/cmd/benchstat@latest; }
 	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint..."; curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin; }
+	@command -v govulncheck >/dev/null 2>&1 || { echo "Installing govulncheck..."; go install golang.org/x/vuln/cmd/govulncheck@latest; }
+	@command -v gitleaks >/dev/null 2>&1 || { echo "Installing gitleaks..."; go install github.com/zricethezav/gitleaks/v8@latest; }
+	@command -v actionlint >/dev/null 2>&1 || { echo "Installing actionlint..."; go install github.com/rhysd/actionlint/cmd/actionlint@latest; }
 	@command -v node >/dev/null 2>&1 || { echo "Installing Node.js LTS via nvm..."; . "$${NVM_DIR:-$$HOME/.nvm}/nvm.sh" && nvm install --lts && nvm use --lts; }
 	@command -v newman >/dev/null 2>&1 || { echo "Installing newman..."; npm install --location=global newman; }
 
@@ -27,9 +30,9 @@ deps:
 api-docs: deps
 	swag init --parseDependency -g main.go
 
-#lint: @ Run lint
+#lint: @ Run golangci-lint (60+ linters via .golangci.yml)
 lint: deps
-	golangci-lint run  ./...
+	golangci-lint run ./...
 
 #test: @ Run tests
 test:
@@ -61,8 +64,24 @@ bench-compare: deps
 		benchstat $(OLD) $(NEW); \
 	fi
 
+#vulncheck: @ Run Go vulnerability check on dependencies
+vulncheck: deps
+	govulncheck ./...
+
+#secrets: @ Scan for hardcoded secrets in source code and git history
+secrets: deps
+	gitleaks detect --source . --verbose --redact
+
+#lint-ci: @ Lint GitHub Actions workflow files
+lint-ci: deps
+	actionlint
+
+#fuzz: @ Run fuzz tests for 30 seconds
+fuzz:
+	go test ./internal/handlers/ -fuzz=FuzzFindItinerary -fuzztime=30s
+
 #build: @ Build REST API server's binary
-build: deps lint critic sec api-docs
+build: deps lint sec vulncheck secrets api-docs
 	@go generate
 	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; export GOOS=linux; export GOARCH=amd64; go build -a -o server main.go
 
@@ -71,7 +90,7 @@ run: build api-docs
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go run main.go -env-file .env
 
 #build-image: @ Build Docker image - https://hub.docker.com/repository/docker/andriykalashnykov/flight-path/tags
-build-image: deps api-docs lint critic sec
+build-image: deps api-docs lint sec vulncheck secrets
 	@./scripts/build-image.sh
 
 #release: @ Create and push a new tag
@@ -122,9 +141,6 @@ test-case-three:
 e2e: deps
 	newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
 
-critic: deps
-	go install -v github.com/go-critic/go-critic/cmd/gocritic@latest
-	gocritic check -enableAll ./...
-
+#sec: @ Run gosec security scanner
 sec: deps
 	gosec ./...

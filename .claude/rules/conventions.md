@@ -80,5 +80,5 @@ Required on all public endpoints. Run `make api-docs` after changes. Never edit 
 ## Pre-commit Checklist
 
 ```bash
-make lint && make critic && make sec && make test && make api-docs && make build
+make lint && make sec && make vulncheck && make secrets && make test && make api-docs && make build
 ```

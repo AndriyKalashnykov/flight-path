@@ -3,8 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 	"github.com/labstack/echo/v5"
+
+	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 )
 
 // FlightCalculate godoc

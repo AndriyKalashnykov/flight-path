@@ -21,10 +21,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: staticcheck
+      - name: Install Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Lint, security scan, vulncheck, secrets, CI lint
         run: |
           export PATH=$PATH:/home/runner/go/bin
-          make deps lint critic sec
+          make deps lint sec vulncheck secrets lint-ci
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
 
   builds:
     needs: [static-check]
@@ -112,3 +126,54 @@ jobs:
 
       - name: Run Postman/Newman end-to-end tests
         run: make e2e
+
+  dast:
+    needs: [integration]
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build
+        run: make build
+
+      - name: Start server
+        run: |
+          go run main.go -env-file .env &
+          sleep 6
+
+      - name: OWASP ZAP API Scan
+        uses: zaproxy/action-api-scan@v0.9.0
+        with:
+          target: 'http://localhost:8080/swagger/doc.json'
+          format: openapi
+          fail_action: false
+
+  image-scan:
+    needs: [builds]
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Build Docker image
+        run: docker build -t flight-path:scan .
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'flight-path:scan'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
