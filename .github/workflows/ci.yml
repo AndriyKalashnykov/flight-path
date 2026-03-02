@@ -88,6 +88,9 @@ jobs:
       - name: Run ${{ matrix.name }} tests
         run: make test
 
+      - name: Run fuzz tests
+        run: make fuzz
+
   integration:
     needs: [builds, tests]
     timeout-minutes: 20
@@ -160,7 +163,8 @@ jobs:
         with:
           target: 'http://localhost:8080/swagger/doc.json'
           format: openapi
-          fail_action: false
+          rules_file_name: '.zap/rules.tsv'
+          fail_action: true
 
   image-scan:
     needs: [builds]

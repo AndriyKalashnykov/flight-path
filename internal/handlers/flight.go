@@ -26,7 +26,7 @@ func (h Handler) FlightCalculate(c *echo.Context) error {
 	// bind payload
 	err := c.Bind(&payload)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]any{
+		return c.JSON(http.StatusBadRequest, map[string]any{
 			"Error": "Can't parse the payload",
 		})
 	}

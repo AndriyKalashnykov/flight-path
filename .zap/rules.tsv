@@ -1,0 +1,3 @@
+100001	IGNORE	(Unexpected Content-Type - Swagger UI serves HTML)
+10023	IGNORE	(Information Disclosure - Debug Error Messages - Swagger spec contains error response examples)
+90022	IGNORE	(Application Error Disclosure - Swagger spec contains error response examples)

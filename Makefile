@@ -30,14 +30,14 @@ deps:
 api-docs: deps
 	swag init --parseDependency -g main.go
 
-#lint: @ Run golangci-lint (60+ linters via .golangci.yml)
-lint: deps
-	golangci-lint run ./...
-
 #test: @ Run tests
 test:
 	@go generate
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test -v ./...
+
+#fuzz: @ Run fuzz tests for 30 seconds
+fuzz:
+	go test ./internal/handlers/ -fuzz=FuzzFindItinerary -fuzztime=30s
 
 #bench: @ Run bench tests
 bench:
@@ -64,6 +64,10 @@ bench-compare: deps
 		benchstat $(OLD) $(NEW); \
 	fi
 
+#lint: @ Run golangci-lint (60+ linters via .golangci.yml)
+lint: deps
+	golangci-lint run ./...
+
 #vulncheck: @ Run Go vulnerability check on dependencies
 vulncheck: deps
 	govulncheck ./...
@@ -72,16 +76,20 @@ vulncheck: deps
 secrets: deps
 	gitleaks detect --source . --verbose --redact
 
+#sec: @ Run gosec security scanner
+sec: deps
+	gosec ./...
+
 #lint-ci: @ Lint GitHub Actions workflow files
 lint-ci: deps
 	actionlint
 
-#fuzz: @ Run fuzz tests for 30 seconds
-fuzz:
-	go test ./internal/handlers/ -fuzz=FuzzFindItinerary -fuzztime=30s
+#static-check: @ Run code statick check
+static-check: deps lint sec vulncheck secrets lint-ci
+	@echo "Static check done."
 
 #build: @ Build REST API server's binary
-build: deps lint sec vulncheck secrets api-docs
+build: api-docs
 	@go generate
 	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; export GOOS=linux; export GOARCH=amd64; go build -a -o server main.go
 
@@ -140,7 +148,3 @@ test-case-three:
 #e2e: @ Run Postman/Newman end-to-end tests
 e2e: deps
 	newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
-
-#sec: @ Run gosec security scanner
-sec: deps
-	gosec ./...

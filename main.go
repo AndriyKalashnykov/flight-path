@@ -46,12 +46,28 @@ func main() {
 		log.Fatalf("failed to load environment variables: %v", err)
 	}
 
+	// Error handler — hide internal error details from responses
+	e.HTTPErrorHandler = echo.DefaultHTTPErrorHandler(false)
+
 	// Middleware
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
 	}))
+	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		XSSProtection:      "1; mode=block",
+		ContentTypeNosniff: "nosniff",
+		XFrameOptions:      "DENY",
+		ReferrerPolicy:     "strict-origin-when-cross-origin",
+	}))
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			c.Response().Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+			c.Response().Header().Set("Cache-Control", "no-store")
+			return next(c)
+		}
+	})
 
 	// Handlers
 	h := handlers.New()

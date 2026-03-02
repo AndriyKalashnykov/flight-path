@@ -50,9 +50,9 @@ func TestFlightCalculate(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "malformed JSON returns 500",
+			name:       "malformed JSON returns 400",
 			body:       `not json`,
-			wantStatus: http.StatusInternalServerError,
+			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "empty body returns 400",
