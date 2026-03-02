@@ -227,8 +227,8 @@
 					"listen": "test",
 					"script": {
 						"exec": [
-							"pm.test(\"status code is 500\", function () {",
-							"  pm.response.to.have.status(500);",
+							"pm.test(\"status code is 400\", function () {",
+							"  pm.response.to.have.status(400);",
 							"});",
 							"",
 							"pm.test(\"Response must be valid and have a body\", function() {",
