@@ -21,8 +21,9 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for C4 diagrams (Context, Con
 
 - [gvm](https://github.com/moovweb/gvm) Go
     ```bash
-    gvm install go1.26.0 --prefer-binary --with-build-tools --with-protobuf
-    gvm use go1.26.0 --default
+    LATEST_GO=$(curl -s 'https://go.dev/VERSION?m=text' | head -1)
+    gvm install "$LATEST_GO" --prefer-binary --with-build-tools --with-protobuf
+    gvm use "$LATEST_GO" --default
     ```
   - [nmv](https://github.com/nvm-sh/nvm) Node
   ```bash
