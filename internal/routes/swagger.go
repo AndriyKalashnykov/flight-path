@@ -2,7 +2,7 @@ package routes
 
 import (
 	"github.com/labstack/echo/v5"
-	echoSwagger "github.com/swaggo/echo-swagger"
+	echoSwagger "github.com/swaggo/echo-swagger/v2"
 )
 
 // SwaggerRoutes sets up routes for the Swagger API docs.
