@@ -4,8 +4,10 @@ Guide me through creating a new release for this project:
 2. Ask what the new version should be (suggest next patch, minor, and major versions)
 3. Run the full pre-commit checklist:
    - `make lint`
-   - `make critic`
    - `make sec`
+   - `make vulncheck`
+   - `make secrets`
+   - `make lint-ci`
    - `make test`
    - `make api-docs`
    - `make build`
