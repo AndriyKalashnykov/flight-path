@@ -6,7 +6,7 @@ Review PR #$ARGUMENTS for quality, security, and correctness.
 
 ## Steps
 
-1. Run `gh pr view $ARGUMENTS` to get PR title, description, base branch, and status
+1. Run `gh pr view $ARGUMENTS --json title,state,body,baseRefName,headRefName,commits,files` to get PR title, description, base branch, and status
 2. Run `gh pr diff $ARGUMENTS` to get the full diff
 3. For each changed file, analyze the diff and check for:
    - **Bugs**: Logic errors, nil pointer risks, off-by-one errors, race conditions
