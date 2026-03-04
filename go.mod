@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v5 v5.0.4
-	github.com/swaggo/echo-swagger/v2 v2.0.0
+	github.com/swaggo/echo-swagger/v2 v2.0.1
 	github.com/swaggo/swag v1.16.6
 )
 
