@@ -132,7 +132,7 @@ jobs:
 
       - name: Wait for REST API
         run: |
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             curl -sf http://localhost:8080/ >/dev/null 2>&1 && break
             sleep 1
           done
@@ -161,7 +161,7 @@ jobs:
       - name: Start server
         run: |
           ./server -env-file .env &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             curl -sf http://localhost:8080/ >/dev/null 2>&1 && break
             sleep 1
           done
@@ -224,7 +224,7 @@ jobs:
       - name: Run container and health-check
         run: |
           docker run -d --name fp-test -p 8080:8080 -e SERVER_PORT=8080 flight-path:test
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             curl -sf http://localhost:8080/ >/dev/null 2>&1 && break
             sleep 1
           done
