@@ -52,8 +52,12 @@ func main() {
 	// Middleware
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
+	corsOrigin := os.Getenv("CORS_ORIGIN")
+	if corsOrigin == "" {
+		corsOrigin = "*"
+	}
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"},
+		AllowOrigins: []string{corsOrigin},
 	}))
 	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
 		XSSProtection:      "1; mode=block",
