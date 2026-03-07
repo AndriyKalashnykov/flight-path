@@ -1,5 +1,9 @@
 ---
-description: Common issues and diagnostic commands
+name: troubleshooting
+description: >
+  Diagnose and fix common issues in the flight-path project: build failures, test failures, port conflicts, Docker problems, and tool errors.
+  Use when something fails, an error occurs, the server won't start, or a command produces unexpected output.
+  Do NOT use for environment setup, workflow guidance, or adding new features.
 ---
 
 # Troubleshooting
@@ -43,8 +47,9 @@ go mod tidy && make build # Clean up and retry
 go clean -cache           # Nuclear option
 ```
 
+- `make build` depends on `api-docs` (which depends on `deps`), then compiles
 - Ensure `GOFLAGS=-mod=mod` is set (Makefile sets this automatically)
-- `make build` runs the full chain: `deps lint critic sec api-docs` then compiles
+- Use `make check` for the full pre-commit chain: `lint sec vulncheck secrets test api-docs build`
 
 ## Tests Fail
 
@@ -54,7 +59,7 @@ go clean -testcache       # Clear cache
 go test -race ./...       # Check for races
 ```
 
-- `make test` runs `go generate` first, then tests with `TZ="UTC"`
+- `make test` runs tests with `TZ="UTC"` and `GOFLAGS=-mod=mod`
 - Benchmarks: `go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s`
 
 ## E2E Tests Fail
@@ -67,32 +72,43 @@ make e2e
 pkill -f server
 ```
 
-- Requires Newman: `npm install --location=global newman`
+- `make e2e` depends on `deps` (installs Newman if missing)
 - Tests live in `test/FlightPath.postman_collection.json`
-- CI waits 6 seconds for server startup (locally 3s is usually enough)
+- CI polls with curl for up to 30 seconds for server startup
 
 ## Docker Build Fails
 
 ```bash
 docker buildx ls                    # Check builder exists
 docker buildx create --use --name builder --driver docker-container --bootstrap
+make docker-build                   # Build locally (single platform, uses buildx)
 docker build --no-cache -t flight-path:debug .  # Build without cache
 ```
 
 - Image: multi-stage Alpine build (`golang:1.26-alpine` -> `alpine:3.23.3`)
 - Non-root user: `srvuser:1000`
 - `CGO_ENABLED=0`, platforms: `linux/amd64`, `linux/arm64`, `linux/arm/v7`
-- `make build-image` calls `scripts/build-image.sh` which pushes to `andriykalashnykov/flight-path` on Docker Hub
+- `make build-image` runs checks first (`deps api-docs lint sec vulncheck secrets`) then pushes to Docker Hub
+
+## Docker Container Crashes at Runtime
+
+Known issue: `.env` file is not copied into the Docker runtime stage, and `godotenv.Load()` calls `log.Fatalf` on error.
+
+Workaround: pass `SERVER_PORT` as environment variable:
+```bash
+docker run -d -p 8080:8080 -e SERVER_PORT=8080 flight-path:local
+```
+
+Or use `make docker-run` / `make docker-test` which handle this automatically.
 
 ## Tool Not Found
 
 ```bash
-make deps                           # Install swag, gosec, benchstat, golangci-lint
+make deps                           # Install all tools
 export PATH=$PATH:$(go env GOPATH)/bin  # Ensure tools are on PATH
 ```
 
-- `gocritic` is installed by `make critic` (not `make deps`)
-- `newman` requires npm: `npm install --location=global newman`
+- `newman` requires Node.js — `make deps` installs both via nvm/npm
 
 ## Diagnostic Commands
 
@@ -100,6 +116,7 @@ export PATH=$PATH:$(go env GOPATH)/bin  # Ensure tools are on PATH
 ps aux | grep -E "(server|flight-path)"  # Check processes
 lsof -i:8080                              # Check port
 curl http://localhost:8080/                # Test health
-which swag golangci-lint gosec gocritic newman  # Check tools
+which swag golangci-lint gosec govulncheck gitleaks actionlint newman  # Check tools
 go env GOPATH GOROOT                       # Check Go paths
+make check                                # Run full pre-commit checklist
 ```

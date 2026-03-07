@@ -4,9 +4,10 @@
     "GIT_AUTHOR_EMAIL": "noreply@anthropic.com"
   },
   "permissions": {
-    "allow": [
-      "*"
-    ]
+    "allow": []
+  },
+  "enabledPlugins": {
+    "everything-claude-code@everything-claude-code": true
   },
   "extraKnownMarketplaces": {
     "everything-claude-code": {
@@ -15,8 +16,5 @@
         "repo": "affaan-m/everything-claude-code"
       }
     }
-  },
-  "enabledPlugins": {
-    "everything-claude-code@everything-claude-code": true
   }
 }
