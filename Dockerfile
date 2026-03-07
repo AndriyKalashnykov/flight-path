@@ -2,7 +2,8 @@
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS build
 WORKDIR /app
 COPY go.mod go.sum ./
-ARG GOMODCACHE GOCACHE
+ARG GOMODCACHE=/go/pkg/mod
+ARG GOCACHE=/root/.cache/go-build
 RUN --mount=type=cache,target="$GOMODCACHE" go mod download
 ARG TARGETOS TARGETARCH
 COPY . .
@@ -13,6 +14,7 @@ RUN --mount=type=cache,target="$GOMODCACHE" \
 # runtime image
 FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659 AS runtime
 WORKDIR /
+RUN apk upgrade --no-cache
 RUN addgroup -g 1000 srvgroup && \
     adduser -D srvuser -u 1000 -G srvgroup
 USER srvuser:srvgroup
@@ -29,5 +31,6 @@ USER srvuser:srvgroup
 #USER 65532:65532
 
 COPY --from=build /app/main /
-CMD ["/bin/sh", "-c", "./main"]
-ENTRYPOINT [ "./main" ]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
+ENTRYPOINT ["/main"]
