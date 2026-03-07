@@ -1,0 +1,74 @@
+version: 2
+
+project_name: flight-path
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+    binary: flight-path
+
+archives:
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+
+dockers:
+  - image_templates:
+      - "ghcr.io/andriykalashnykov/flight-path:{{ .Version }}"
+      - "ghcr.io/andriykalashnykov/flight-path:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--build-arg=GOMODCACHE=/go/pkg/mod"
+      - "--build-arg=GOCACHE=/root/.cache/go-build"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^chore:'
+      - '^ci:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^feat'
+    - title: Bug Fixes
+      regexp: '^fix'
+    - title: Performance
+      regexp: '^perf'
+    - title: Refactoring
+      regexp: '^refactor'
+    - title: Testing
+      regexp: '^test'
+    - title: Others
+      order: 999
+
+checksum:
+  name_template: 'checksums.txt'
+
+release:
+  github:
+    owner: AndriyKalashnykov
+    name: flight-path
