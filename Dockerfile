@@ -2,7 +2,8 @@
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS build
 WORKDIR /app
 COPY go.mod go.sum ./
-ARG GOMODCACHE GOCACHE
+ARG GOMODCACHE=/go/pkg/mod
+ARG GOCACHE=/root/.cache/go-build
 RUN --mount=type=cache,target="$GOMODCACHE" go mod download
 ARG TARGETOS TARGETARCH
 COPY . .
@@ -29,5 +30,6 @@ USER srvuser:srvgroup
 #USER 65532:65532
 
 COPY --from=build /app/main /
-CMD ["/bin/sh", "-c", "./main"]
-ENTRYPOINT [ "./main" ]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
+ENTRYPOINT ["/main"]

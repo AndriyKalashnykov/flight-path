@@ -1,0 +1,13 @@
+.git
+.github
+.zap
+benchmarks
+docs
+specs
+test
+scripts
+*.md
+.golangci.yml
+renovate.json
+Makefile
+.env
