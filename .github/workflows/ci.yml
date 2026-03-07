@@ -32,7 +32,7 @@ jobs:
           make static-check
 
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # v0.34.2
         with:
           scan-type: 'fs'
           scanners: 'vuln,secret,misconfig'
@@ -40,7 +40,7 @@ jobs:
           exit-code: '1'
 
       - name: Trivy filesystem scan (MEDIUM - informational)
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # v0.34.2
         with:
           scan-type: 'fs'
           scanners: 'vuln,secret,misconfig'
@@ -195,7 +195,7 @@ jobs:
             -t flight-path:scan .
 
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # v0.34.2
         with:
           image-ref: 'flight-path:scan'
           severity: 'CRITICAL,HIGH'
