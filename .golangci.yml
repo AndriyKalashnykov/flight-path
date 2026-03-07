@@ -85,10 +85,6 @@ linters:
     misspell:
       locale: US
 
-    gosec:
-      excludes:
-        - G104  # Unhandled errors on deferred Close() — acceptable in this codebase
-
     errcheck:
       check-type-assertions: true
       check-blank: true
