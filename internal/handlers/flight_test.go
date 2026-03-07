@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -64,7 +65,7 @@ func TestFlightCalculate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := echo.New()
-			req := httptest.NewRequest(http.MethodPost, "/calculate", strings.NewReader(tt.body))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/calculate", strings.NewReader(tt.body))
 			req.Header.Set(echo.HeaderContentType, "application/json")
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
