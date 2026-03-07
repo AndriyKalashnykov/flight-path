@@ -38,7 +38,7 @@ make run
 ## Build Fails
 
 ```bash
-go version                # Must match go.mod (1.26.0)
+go version                # Must match go.mod (1.26.1)
 go mod tidy && make build # Clean up and retry
 go clean -cache           # Nuclear option
 ```

@@ -104,5 +104,5 @@ Routes in `internal/routes/` receive `*handlers.Handler` and wire methods.
 |---|---|
 | `echo/v5` | HTTP framework |
 | `godotenv` | Load `.env` files |
-| `swaggo/echo-swagger` | Serve Swagger UI |
+| `swaggo/echo-swagger/v2` | Serve Swagger UI |
 | `swaggo/swag` | Generate OpenAPI spec from annotations |

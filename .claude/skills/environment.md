@@ -7,11 +7,11 @@ description: Development environment setup and tool locations
 ## Go (via gvm)
 
 ```bash
-GOROOT=/home/andriy/.gvm/gos/go1.26.0
-GOPATH=/home/andriy/.gvm/pkgsets/go1.26.0/global
+GOROOT=/home/andriy/.gvm/gos/go1.26.1
+GOPATH=/home/andriy/.gvm/pkgsets/go1.26.1/global
 ```
 
-Activated via `~/.zshrc`: `gvm use go1.26.0 --default`
+Activated via `~/.zshrc`: `gvm use go1.26.1 --default`
 
 ## Node.js (via nvm)
 

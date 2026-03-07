@@ -4,7 +4,7 @@
 
 | Tool | Version | Purpose |
 |---|---|---|
-| Go | 1.26.0 (via gvm) | Language runtime |
+| Go | 1.26.1 (via gvm) | Language runtime |
 | Node.js | LTS (via nvm) | Newman E2E test runner |
 | golangci-lint | latest | Linting |
 | go-critic | latest | Code review |

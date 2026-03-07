@@ -33,7 +33,7 @@ static-check → builds → tests → integration
 
 **Triggers**: Tag push (`*`)
 
-1. Checkout + Setup Go 1.26.0
+1. Checkout + Setup Go (from `go.mod`)
 2. Docker login to GHCR (`ghcr.io`)
 3. GoReleaser (`goreleaser/goreleaser-action@v7`) with `.goreleaser.yml`
 
