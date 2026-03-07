@@ -1,28 +1,29 @@
 CURRENTTAG:=$(shell git describe --tags --abbrev=0)
-NEWTAG ?= $(shell bash -c 'read -p "Please provide a new tag (currnet tag - ${CURRENTTAG}): " newtag; echo $$newtag')
-GOFLAGS=-mod=mod
+NEWTAG ?= $(shell bash -c 'read -p "Please provide a new tag (current tag - ${CURRENTTAG}): " newtag; echo $$newtag')
+GOFLAGS ?= -mod=mod
 NEWMANTESTSLOCATION=./test/
 
-HOMEDIR := $(shell pwd)
+HOMEDIR := $(CURDIR)
 OUTDIR  := $(HOMEDIR)/output
 COVPROF := $(HOMEDIR)/covprof.out  # coverage profile
+GOOS ?= linux
+GOARCH ?= amd64
 
 #help: @ List available tasks
 help:
-	@clear
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
 	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-15s\033[0m - %s\n", $$1, $$2}'
 
 #deps: @ Download and install dependencies
 deps:
-	@command -v swag >/dev/null 2>&1 || { echo "Installing swag..."; go install github.com/swaggo/swag/cmd/swag@latest; }
-	@command -v gosec >/dev/null 2>&1 || { echo "Installing gosec..."; go install github.com/securego/gosec/v2/cmd/gosec@latest; }
+	@command -v swag >/dev/null 2>&1 || { echo "Installing swag..."; go install github.com/swaggo/swag/cmd/swag@v1.16.6; }
+	@command -v gosec >/dev/null 2>&1 || { echo "Installing gosec..."; go install github.com/securego/gosec/v2/cmd/gosec@v2.24.0; }
 	@command -v benchstat >/dev/null 2>&1 || { echo "Installing benchstat..."; go install golang.org/x/perf/cmd/benchstat@latest; }
-	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint..."; curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin; }
-	@command -v govulncheck >/dev/null 2>&1 || { echo "Installing govulncheck..."; go install golang.org/x/vuln/cmd/govulncheck@latest; }
-	@command -v gitleaks >/dev/null 2>&1 || { echo "Installing gitleaks..."; go install github.com/zricethezav/gitleaks/v8@latest; }
-	@command -v actionlint >/dev/null 2>&1 || { echo "Installing actionlint..."; go install github.com/rhysd/actionlint/cmd/actionlint@latest; }
+	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint..."; curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin v2.11.1; }
+	@command -v govulncheck >/dev/null 2>&1 || { echo "Installing govulncheck..."; go install golang.org/x/vuln/cmd/govulncheck@v1.1.4; }
+	@command -v gitleaks >/dev/null 2>&1 || { echo "Installing gitleaks..."; go install github.com/zricethezav/gitleaks/v8@v8.24.0; }
+	@command -v actionlint >/dev/null 2>&1 || { echo "Installing actionlint..."; go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7; }
 	@command -v node >/dev/null 2>&1 || { echo "Installing Node.js LTS via nvm..."; . "$${NVM_DIR:-$$HOME/.nvm}/nvm.sh" && nvm install --lts && nvm use --lts; }
 	@command -v newman >/dev/null 2>&1 || { echo "Installing newman..."; npm install --location=global newman; }
 
@@ -32,7 +33,6 @@ api-docs: deps
 
 #test: @ Run tests
 test:
-	@go generate
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test -v ./...
 
 #fuzz: @ Run fuzz tests for 30 seconds
@@ -84,29 +84,29 @@ sec: deps
 lint-ci: deps
 	actionlint
 
-#static-check: @ Run code statick check
+#static-check: @ Run code static check
 static-check: deps lint sec vulncheck secrets lint-ci
 	@echo "Static check done."
 
 #build: @ Build REST API server's binary
 build: api-docs
-	@go generate
-	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; export GOOS=linux; export GOARCH=amd64; go build -a -o server main.go
+	@export GOFLAGS=$(GOFLAGS); export CGO_ENABLED=0; export GOOS=$(GOOS); export GOARCH=$(GOARCH); go build -a -o server main.go
 
 #run: @ Run REST API locally
-run: build api-docs
-	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go run main.go -env-file .env
+run: build
+	@export TZ="UTC"; ./server -env-file .env
 
 #build-image: @ Build Docker image - https://hub.docker.com/repository/docker/andriykalashnykov/flight-path/tags
 build-image: deps api-docs lint sec vulncheck secrets
 	@./scripts/build-image.sh
 
 #release: @ Create and push a new tag
-release: api-docs build
+release: lint sec vulncheck test api-docs build
 	$(eval NT=$(NEWTAG))
+	@echo "$(NT)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "Error: Tag must match vN.N.N"; exit 1; }
 	@echo -n "Are you sure to create and push ${NT} tag? [y/N] " && read ans && [ $${ans:-N} = y ]
 	@echo ${NT} > ./pkg/api/version.txt
-	@git add -A
+	@git add pkg/api/version.txt
 	@git commit -a -s -m "Cut ${NT} release"
 	@git tag ${NT}
 	@git push origin ${NT}
@@ -119,7 +119,7 @@ update:
 
 #open-swagger: @ Open browser with Swagger docs pointing to localhost
 open-swagger:
-	xdg-open http://localhost:8080/swagger/index.html 1>/dev/null 2>&1
+	@command -v xdg-open >/dev/null && xdg-open http://localhost:8080/swagger/index.html 1>/dev/null 2>&1 || open http://localhost:8080/swagger/index.html 1>/dev/null 2>&1
 
 #test-case-one: @ Test case #1 [["SFO", "EWR"]]
 test-case-one:
@@ -145,6 +145,74 @@ test-case-three:
       -H 'Content-Type: application/json' \
       -d '[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]'
 
+#clean: @ Remove build artifacts and test cache
+clean:
+	@rm -f server
+	@rm -rf $(OUTDIR)
+	@rm -f $(COVPROF)
+	@go clean -testcache
+
+#coverage: @ Run tests with coverage report
+coverage:
+	@mkdir -p $(OUTDIR)
+	@go test -coverprofile=$(COVPROF) -covermode=atomic ./...
+	@go tool cover -func=$(COVPROF)
+	@go tool cover -html=$(COVPROF) -o $(OUTDIR)/coverage.html
+	@echo "Coverage report: $(OUTDIR)/coverage.html"
+
+#coverage-check: @ Verify coverage meets 80% threshold
+coverage-check: coverage
+	@TOTAL=$$(go tool cover -func=$(COVPROF) | grep total | awk '{print $$3}' | tr -d '%'); \
+	echo "Coverage: $${TOTAL}%"; \
+	if [ "$$(echo "$${TOTAL} < 80" | bc -l)" -eq 1 ]; then \
+		echo "FAIL: Coverage $${TOTAL}% is below 80% threshold"; exit 1; \
+	else \
+		echo "PASS: Coverage meets 80% threshold"; \
+	fi
+
+#ci: @ Run full CI pipeline locally
+ci: static-check build test fuzz
+	@echo "Local CI pipeline passed."
+
+#ci-full: @ Run full CI pipeline including coverage
+ci-full: ci coverage-check
+	@echo "Full CI pipeline passed."
+
+#check: @ Run pre-commit checklist
+check: lint sec vulncheck secrets test api-docs build
+	@echo "All pre-commit checks passed."
+
+#trivy-fs: @ Run Trivy filesystem vulnerability scan
+trivy-fs:
+	trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --exit-code 1 .
+
+#trivy-image: @ Run Trivy image vulnerability scan
+trivy-image:
+	trivy image --severity CRITICAL,HIGH --exit-code 1 flight-path:scan
+
+#docker-build: @ Build Docker image for local testing
+docker-build:
+	docker buildx build --load \
+		--build-arg GOMODCACHE=$$(go env GOMODCACHE) \
+		--build-arg GOCACHE=$$(go env GOCACHE) \
+		-t flight-path:local .
+
+#docker-run: @ Run Docker container locally
+docker-run: docker-build
+	docker run --rm -p 8080:8080 -e SERVER_PORT=8080 flight-path:local
+
+#docker-test: @ Build and smoke-test Docker container
+docker-test: docker-build
+	@docker run -d --name fp-test -p 8080:8080 -e SERVER_PORT=8080 flight-path:local; \
+	for i in $$(seq 1 10); do curl -sf http://localhost:8080/ >/dev/null 2>&1 && break; sleep 1; done; \
+	curl -sf http://localhost:8080/ && echo "Health: OK" || echo "Health: FAIL"; \
+	curl -sf -X POST http://localhost:8080/calculate \
+		-H 'Content-Type: application/json' \
+		-d '[["SFO","ATL"],["ATL","EWR"]]' && echo " API: OK" || echo "API: FAIL"; \
+	docker stop fp-test && docker rm fp-test
+
 #e2e: @ Run Postman/Newman end-to-end tests
 e2e: deps
 	newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
+
+.PHONY: help deps api-docs test fuzz bench bench-save bench-compare lint vulncheck secrets sec lint-ci static-check build run build-image release update open-swagger test-case-one test-case-two test-case-three e2e clean coverage coverage-check ci ci-full check trivy-fs trivy-image docker-build docker-run docker-test
