@@ -40,7 +40,7 @@ jobs:
           exit-code: '1'
 
       - name: Trivy filesystem scan (MEDIUM - informational)
-        uses: aquasecurity/trivy-action@v0.30.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: 'fs'
           scanners: 'vuln,secret,misconfig'
