@@ -89,27 +89,31 @@ make fuzz           # Run fuzz tests for 30 seconds
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare latest two benchmark runs
-make build          # deps + lint + sec + vulncheck + secrets + api-docs + build binary
+make static-check   # All static analysis (lint + sec + vulncheck + secrets + lint-ci)
+make build          # Generate Swagger docs + compile binary
 make run            # Build and run server locally
 make e2e            # Run Newman/Postman E2E tests (server must be running)
 make test-case-one  # curl test: [["SFO", "EWR"]]
 make test-case-two  # curl test: [["ATL", "EWR"], ["SFO", "ATL"]]
 make test-case-three # curl test: 4-segment path
 make update         # Update Go dependencies
-make release        # Tag and push a new release
-make build-image    # Build multi-platform Docker image
+make release        # Tag and push a new release (full checks + build)
+make build-image    # Build multi-platform Docker image (full checks + test)
+make check          # Full pre-commit checklist (static-check + test + build)
+make ci             # Local CI pipeline (static-check + build + test + fuzz)
+make ci-full        # Full CI with coverage threshold (ci + coverage-check)
+make coverage       # Run tests with coverage report
+make coverage-check # Verify coverage meets 80% threshold
+make clean          # Remove build artifacts and test cache
+make docker-build   # Build Docker image for local testing
+make docker-run     # Run Docker container locally
+make docker-test    # Build and smoke-test Docker container
 ```
 
 ## Before Committing
 
 ```bash
-make lint           # Code quality (60+ linters via .golangci.yml)
-make sec            # Security scan (gosec)
-make vulncheck      # Dependency vulnerability check (govulncheck)
-make secrets        # Secrets detection (gitleaks)
-make test           # Tests
-make api-docs       # Update Swagger docs
-make build          # Compile
+make check          # Runs: static-check (lint, sec, vulncheck, secrets, lint-ci) + test + api-docs + build
 ```
 
 ## Specifications

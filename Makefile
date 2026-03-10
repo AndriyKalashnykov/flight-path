@@ -37,16 +37,16 @@ test:
 
 #fuzz: @ Run fuzz tests for 30 seconds
 fuzz:
-	go test ./internal/handlers/ -fuzz=FuzzFindItinerary -fuzztime=30s
+	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test ./internal/handlers/ -fuzz=FuzzFindItinerary -fuzztime=30s
 
 #bench: @ Run bench tests
 bench:
-	go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s
+	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s
 
 #bench-save: @ Save benchmark results to file
 bench-save: deps
 	@mkdir -p benchmarks
-	@go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s | tee benchmarks/bench_$(shell date +%Y%m%d_%H%M%S).txt
+	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s | tee benchmarks/bench_$(shell date +%Y%m%d_%H%M%S).txt
 
 #bench-compare: @ Compare two benchmark files (usage: make bench-compare OLD=file1.txt NEW=file2.txt)
 bench-compare: deps
@@ -97,11 +97,11 @@ run: build
 	@export TZ="UTC"; ./server -env-file .env
 
 #build-image: @ Build Docker image - https://hub.docker.com/repository/docker/andriykalashnykov/flight-path/tags
-build-image: deps api-docs lint sec vulncheck secrets
+build-image: static-check test api-docs
 	@./scripts/build-image.sh
 
 #release: @ Create and push a new tag
-release: lint sec vulncheck test api-docs build
+release: static-check test api-docs build
 	$(eval NT=$(NEWTAG))
 	@echo "$(NT)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "Error: Tag must match vN.N.N"; exit 1; }
 	@echo -n "Are you sure to create and push ${NT} tag? [y/N] " && read ans && [ $${ans:-N} = y ]
@@ -155,7 +155,7 @@ clean:
 #coverage: @ Run tests with coverage report
 coverage:
 	@mkdir -p $(OUTDIR)
-	@go test -coverprofile=$(COVPROF) -covermode=atomic ./...
+	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test -coverprofile=$(COVPROF) -covermode=atomic ./...
 	@go tool cover -func=$(COVPROF)
 	@go tool cover -html=$(COVPROF) -o $(OUTDIR)/coverage.html
 	@echo "Coverage report: $(OUTDIR)/coverage.html"
@@ -164,7 +164,7 @@ coverage:
 coverage-check: coverage
 	@TOTAL=$$(go tool cover -func=$(COVPROF) | grep total | awk '{print $$3}' | tr -d '%'); \
 	echo "Coverage: $${TOTAL}%"; \
-	if [ "$$(echo "$${TOTAL} < 80" | bc -l)" -eq 1 ]; then \
+	if awk "BEGIN {exit !($${TOTAL} < 80)}"; then \
 		echo "FAIL: Coverage $${TOTAL}% is below 80% threshold"; exit 1; \
 	else \
 		echo "PASS: Coverage meets 80% threshold"; \
@@ -175,11 +175,11 @@ ci: static-check build test fuzz
 	@echo "Local CI pipeline passed."
 
 #ci-full: @ Run full CI pipeline including coverage
-ci-full: ci coverage-check
+ci-full: static-check build coverage-check fuzz
 	@echo "Full CI pipeline passed."
 
 #check: @ Run pre-commit checklist
-check: lint sec vulncheck secrets test api-docs build
+check: static-check test api-docs build
 	@echo "All pre-commit checks passed."
 
 #trivy-fs: @ Run Trivy filesystem vulnerability scan
@@ -199,20 +199,25 @@ docker-build:
 
 #docker-run: @ Run Docker container locally
 docker-run: docker-build
-	docker run --rm -p 8080:8080 -e SERVER_PORT=8080 flight-path:local
+	docker run --rm -p 8080:8080 -e SERVER_PORT=8080 \
+		--entrypoint sh flight-path:local -c "touch /tmp/.env && /main -env-file /tmp/.env"
 
 #docker-test: @ Build and smoke-test Docker container
 docker-test: docker-build
-	@docker run -d --name fp-test -p 8080:8080 -e SERVER_PORT=8080 flight-path:local; \
+	@docker run -d --name fp-test -p 8080:8080 -e SERVER_PORT=8080 \
+		--entrypoint sh flight-path:local -c "touch /tmp/.env && /main -env-file /tmp/.env"; \
+	RESULT=0; \
 	for i in $$(seq 1 10); do curl -sf http://localhost:8080/ >/dev/null 2>&1 && break; sleep 1; done; \
-	curl -sf http://localhost:8080/ && echo "Health: OK" || echo "Health: FAIL"; \
+	curl -sf http://localhost:8080/ && echo "Health: OK" || { echo "Health: FAIL"; docker logs fp-test; RESULT=1; }; \
 	curl -sf -X POST http://localhost:8080/calculate \
 		-H 'Content-Type: application/json' \
-		-d '[["SFO","ATL"],["ATL","EWR"]]' && echo " API: OK" || echo "API: FAIL"; \
-	docker stop fp-test && docker rm fp-test
+		-d '[["SFO","ATL"],["ATL","EWR"]]' && echo "API: OK" || { echo "API: FAIL"; docker logs fp-test; RESULT=1; }; \
+	docker rm -f fp-test 2>/dev/null || true; \
+	exit $$RESULT
 
 #e2e: @ Run Postman/Newman end-to-end tests
 e2e: deps
+	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
 	newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
 
 .PHONY: help deps api-docs test fuzz bench bench-save bench-compare lint vulncheck secrets sec lint-ci static-check build run build-image release update open-swagger test-case-one test-case-two test-case-three e2e clean coverage coverage-check ci ci-full check trivy-fs trivy-image docker-build docker-run docker-test
