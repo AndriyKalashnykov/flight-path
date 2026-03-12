@@ -4,7 +4,20 @@
     "GIT_AUTHOR_EMAIL": "noreply@anthropic.com"
   },
   "permissions": {
-    "allow": []
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "Agent(*)",
+      "Skill(*)",
+      "mcp__claude-in-chrome__*",
+      "Bash(gh *)"
+    ]
   },
   "enabledPlugins": {
     "everything-claude-code@everything-claude-code": true
