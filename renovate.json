@@ -22,9 +22,14 @@
   "automergeType": "pr",
   "packageRules": [
     {
-      "description": "Automerge all updates when checks pass",
-      "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
+      "description": "Automerge minor, patch, pin, and digest updates when checks pass",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true
+    },
+    {
+      "description": "Require manual review for major updates (potential breaking changes)",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
     }
   ]
 }
