@@ -16,5 +16,6 @@
 
 .idea/
 .claude/worktrees/
+output/
 main
 server

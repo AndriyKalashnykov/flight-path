@@ -29,5 +29,11 @@
         "repo": "affaan-m/everything-claude-code"
       }
     }
+  },
+  "experiments": {
+    "claude_code_experimental_agents_teams": true
+  },
+  "agentsTeams": {
+    "tmuxSplitPanes": true
   }
 }
