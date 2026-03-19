@@ -155,7 +155,7 @@ clean:
 #coverage: @ Run tests with coverage report
 coverage:
 	@mkdir -p $(OUTDIR)
-	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test -coverprofile=$(COVPROF) -covermode=atomic ./...
+	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test -coverprofile=$(COVPROF) -covermode=atomic ./internal/...
 	@go tool cover -func=$(COVPROF)
 	@go tool cover -html=$(COVPROF) -o $(OUTDIR)/coverage.html
 	@echo "Coverage report: $(OUTDIR)/coverage.html"
