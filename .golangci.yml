@@ -132,6 +132,7 @@ linters:
           - goconst
     paths:
       - docs/
+      - test/node_modules/
 
 formatters:
   enable:
