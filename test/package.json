@@ -1,0 +1,11 @@
+{
+  "name": "flight-path-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "newman": "^6.2.2"
+  },
+  "overrides": {
+    "uuid": "^11.0.0"
+  }
+}
