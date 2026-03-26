@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := help
+
 CURRENTTAG:=$(shell git describe --tags --abbrev=0)
 NEWTAG ?= $(shell bash -c 'read -p "Please provide a new tag (current tag - ${CURRENTTAG}): " newtag; echo $$newtag')
 GOFLAGS ?= -mod=mod
@@ -19,7 +21,7 @@ help:
 deps:
 	@command -v swag >/dev/null 2>&1 || { echo "Installing swag..."; go install github.com/swaggo/swag/cmd/swag@v1.16.6; }
 	@command -v gosec >/dev/null 2>&1 || { echo "Installing gosec..."; go install github.com/securego/gosec/v2/cmd/gosec@v2.24.0; }
-	@command -v benchstat >/dev/null 2>&1 || { echo "Installing benchstat..."; go install golang.org/x/perf/cmd/benchstat@latest; }
+	@command -v benchstat >/dev/null 2>&1 || { echo "Installing benchstat..."; go install golang.org/x/perf/cmd/benchstat@v0.0.0-20260312031701-16a31bc5fbd0; }
 	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint..."; curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin v2.11.1; }
 	@command -v govulncheck >/dev/null 2>&1 || { echo "Installing govulncheck..."; go install golang.org/x/vuln/cmd/govulncheck@v1.1.4; }
 	@command -v gitleaks >/dev/null 2>&1 || { echo "Installing gitleaks..."; go install github.com/zricethezav/gitleaks/v8@v8.24.0; }
@@ -29,7 +31,7 @@ deps:
 
 #api-docs: @ Build source code for swagger api reference
 api-docs: deps
-	swag init --parseDependency -g main.go
+	@swag init --parseDependency -g main.go
 
 #test: @ Run tests
 test:
@@ -66,23 +68,23 @@ bench-compare: deps
 
 #lint: @ Run golangci-lint (60+ linters via .golangci.yml)
 lint: deps
-	golangci-lint run ./...
+	@golangci-lint run ./...
 
 #vulncheck: @ Run Go vulnerability check on dependencies
 vulncheck: deps
-	govulncheck ./...
+	@govulncheck ./...
 
 #secrets: @ Scan for hardcoded secrets in source code and git history
 secrets: deps
-	gitleaks detect --source . --verbose --redact
+	@gitleaks detect --source . --verbose --redact
 
 #sec: @ Run gosec security scanner
 sec: deps
-	gosec ./...
+	@gosec ./...
 
 #lint-ci: @ Lint GitHub Actions workflow files
 lint-ci: deps
-	actionlint
+	@actionlint
 
 #static-check: @ Run code static check
 static-check: deps lint sec vulncheck secrets lint-ci
@@ -123,7 +125,7 @@ open-swagger:
 
 #test-case-one: @ Test case #1 [["SFO", "EWR"]]
 test-case-one:
-	curl -X 'POST' \
+	@curl -X 'POST' \
       'http://localhost:8080/calculate' \
       -H 'accept: application/json' \
       -H 'Content-Type: application/json' \
@@ -131,7 +133,7 @@ test-case-one:
 
 #test-case-two: @ Test case #2 [["ATL", "EWR"], ["SFO", "ATL"]]
 test-case-two:
-	curl -X 'POST' \
+	@curl -X 'POST' \
       'http://localhost:8080/calculate' \
       -H 'accept: application/json' \
       -H 'Content-Type: application/json' \
@@ -139,7 +141,7 @@ test-case-two:
 
 #test-case-three: @ Test case #3 [["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]
 test-case-three:
-	curl -X 'POST' \
+	@curl -X 'POST' \
       'http://localhost:8080/calculate' \
       -H 'accept: application/json' \
       -H 'Content-Type: application/json' \
@@ -184,22 +186,22 @@ check: static-check test api-docs build
 
 #trivy-fs: @ Run Trivy filesystem vulnerability scan
 trivy-fs:
-	trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --exit-code 1 .
+	@trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --exit-code 1 .
 
 #trivy-image: @ Run Trivy image vulnerability scan
 trivy-image:
-	trivy image --severity CRITICAL,HIGH --exit-code 1 flight-path:scan
+	@trivy image --severity CRITICAL,HIGH --exit-code 1 flight-path:scan
 
 #docker-build: @ Build Docker image for local testing
 docker-build:
-	docker buildx build --load \
+	@docker buildx build --load \
 		--build-arg GOMODCACHE=$$(go env GOMODCACHE) \
 		--build-arg GOCACHE=$$(go env GOCACHE) \
 		-t flight-path:local .
 
 #docker-run: @ Run Docker container locally
 docker-run: docker-build
-	docker run --rm -p 8080:8080 -e SERVER_PORT=8080 \
+	@docker run --rm -p 8080:8080 -e SERVER_PORT=8080 \
 		--entrypoint sh flight-path:local -c "touch /tmp/.env && /main -env-file /tmp/.env"
 
 #docker-test: @ Build and smoke-test Docker container
@@ -218,6 +220,6 @@ docker-test: docker-build
 #e2e: @ Run Postman/Newman end-to-end tests
 e2e: deps
 	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
-	NODE_NO_WARNINGS=1 ./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
+	@NODE_NO_WARNINGS=1 ./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
 
 .PHONY: help deps api-docs test fuzz bench bench-save bench-compare lint vulncheck secrets sec lint-ci static-check build run build-image release update open-swagger test-case-one test-case-two test-case-three e2e clean coverage coverage-check ci ci-full check trivy-fs trivy-image docker-build docker-run docker-test
