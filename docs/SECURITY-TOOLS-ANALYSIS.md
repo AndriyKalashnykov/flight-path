@@ -190,7 +190,7 @@ func FuzzFindItinerary(f *testing.F) {
 
 ### Phase 4 — Container Supply Chain
 
-1. Add trivy image scanning to the `build-image` workflow
+1. Add trivy image scanning to the `image-build` workflow
 2. Add SBOM generation with syft
 3. Consider image signing with cosign for release images
 

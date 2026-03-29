@@ -1,87 +1,111 @@
-[![ci](https://github.com/AndriyKalashnykov/flight-path/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AndriyKalashnykov/flight-path/actions/workflows/ci.yml)
+[![CI](https://github.com/AndriyKalashnykov/flight-path/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AndriyKalashnykov/flight-path/actions/workflows/ci.yml)
 [![Hits](https://hits.sh/github.com/AndriyKalashnykov/flight-path.svg?view=today-total&style=plastic)](https://hits.sh/github.com/AndriyKalashnykov/flight-path/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 [![Renovate enabled](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://app.renovatebot.com/dashboard#github/AndriyKalashnykov/flight-path)
-# REST API server to determine the flight path of a person
 
-Story: There are over 100,000 flights a day, with millions of people and cargo being transferred around the world.
-With so many people and different carrier/agency groups, it can be hard to track where a person might be.
-In order to determine the flight path of a person, we must sort through all of their flight records.
+# Flight Path
 
-Goal: To create a simple microservice API that can help us understand and track how a particular person's flight path
-may be queried. The API should accept a request that includes a list of flights, which are defined by a source and
-destination airport code. These flights may not be listed in order and will need to be sorted to find the total
-flight paths starting and ending airports.
+A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport). Built with Go 1.26 + Echo v5 + Swagger/Swaggo.
+
+## Quick Start
+
+```bash
+make deps      # install dev tools (golangci-lint, gosec, swag, etc.)
+make build     # generate Swagger docs + compile binary
+make test      # run unit + handler tests
+make run       # build and start the server on :8080
+```
+
+## Prerequisites
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| [Go](https://go.dev/dl/) | 1.26+ | Language runtime and compiler |
+| [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
+| [Docker](https://www.docker.com/) | latest | Container builds and testing |
+| [Node.js](https://nodejs.org/) | LTS | Newman E2E tests (optional) |
+| [gvm](https://github.com/moovweb/gvm) | latest | Go version management (optional) |
+| [nvm](https://github.com/nvm-sh/nvm) | latest | Node.js version management (optional) |
+
+Install all required dev tools:
+
+```bash
+make deps
+```
 
 ## Architecture
 
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for C4 diagrams (Context, Container, Component), request flow sequence diagram, and CI/CD pipeline flowchart.
 
-### Requirements
+## Available Make Targets
 
-- [gvm](https://github.com/moovweb/gvm) Go
-    ```bash
-    LATEST_GO=$(curl -s 'https://go.dev/VERSION?m=text' | head -1)
-    gvm install "$LATEST_GO" --prefer-binary --with-build-tools --with-protobuf
-    gvm use "$LATEST_GO" --default
-    ```
-  - [nmv](https://github.com/nvm-sh/nvm) Node
-  ```bash
-    nvm install --lts
-    nvm use --lts
-    npm install yarn --global
-    npm install npm --global
-    npm install -g pnpm
-    pnpm add -g pnpm
-  ```
-- All dev tools are installed automatically:
-  ```bash
-  make deps
-  ```
+Run `make help` to see all available targets.
 
-## Help
+### Build & Run
 
-```text
-Usage: make COMMAND
-Commands :
-help            - List available tasks
-deps            - Download and install dependencies
-api-docs        - Build source code for swagger api reference
-lint            - Run golangci-lint (60+ linters via .golangci.yml)
-sec             - Run gosec security scanner
-vulncheck       - Run Go vulnerability check on dependencies
-secrets         - Scan for hardcoded secrets in source code and git history
-lint-ci         - Lint GitHub Actions workflow files
-test            - Run tests
-bench           - Run bench tests
-bench-save      - Save benchmark results to file
-bench-compare   - Compare two benchmark files
-fuzz            - Run fuzz tests for 30 seconds
-build           - Build REST API server's binary
-run             - Run REST API locally
-build-image     - Build Docker image
-release         - Create and push a new tag
-update          - Update dependencies to latest versions
-open-swagger    - Open browser with Swagger docs pointing to localhost
-test-case-one   - Test case 1 [["SFO", "EWR"]]
-test-case-two   - Test case 2 [["ATL", "EWR"], ["SFO", "ATL"]]
-test-case-three - Test case 3 [["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]
-e2e             - Run Postman/Newman end-to-end tests
-```
+| Target | Description |
+|--------|-------------|
+| `make build` | Build REST API server's binary |
+| `make run` | Run REST API locally |
+| `make api-docs` | Build source code for swagger api reference |
+| `make clean` | Remove build artifacts and test cache |
+| `make update` | Update dependencies to latest versions |
 
-## Start REST API server
+### Testing
 
-```bash
-make run
-```
+| Target | Description |
+|--------|-------------|
+| `make test` | Run tests |
+| `make fuzz` | Run fuzz tests for 30 seconds |
+| `make bench` | Run bench tests |
+| `make bench-save` | Save benchmark results to file |
+| `make bench-compare` | Compare two benchmark files (usage: `make bench-compare OLD=file1.txt NEW=file2.txt`) |
+| `make coverage` | Run tests with coverage report |
+| `make coverage-check` | Verify coverage meets 80% threshold |
+| `make e2e` | Run Postman/Newman end-to-end tests |
 
-## Run test cases
+### Code Quality
 
-```bash
-make test-case-one
-make test-case-two
-make test-case-three
-```
+| Target | Description |
+|--------|-------------|
+| `make lint` | Run golangci-lint and hadolint (60+ linters via .golangci.yml) |
+| `make sec` | Run gosec security scanner |
+| `make vulncheck` | Run Go vulnerability check on dependencies |
+| `make secrets` | Scan for hardcoded secrets in source code and git history |
+| `make lint-ci` | Lint GitHub Actions workflow files |
+| `make static-check` | Run code static check (lint + sec + vulncheck + secrets + lint-ci) |
+
+### Docker
+
+| Target | Description |
+|--------|-------------|
+| `make docker-build` | Build Docker image for local testing |
+| `make docker-run` | Run Docker container locally |
+| `make docker-test` | Build and smoke-test Docker container |
+| `make image-build` | Build Docker image (full checks + test) |
+| `make trivy-fs` | Run Trivy filesystem vulnerability scan |
+| `make trivy-image` | Run Trivy image vulnerability scan |
+
+### CI
+
+| Target | Description |
+|--------|-------------|
+| `make ci` | Run full CI pipeline locally (static-check + build + test + fuzz) |
+| `make ci-full` | Run full CI pipeline including coverage |
+| `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
+| `make check` | Run pre-commit checklist |
+
+### Utilities
+
+| Target | Description |
+|--------|-------------|
+| `make deps` | Download and install dependencies |
+| `make release` | Create and push a new tag |
+| `make open-swagger` | Open browser with Swagger docs pointing to localhost |
+| `make renovate-validate` | Validate Renovate configuration |
+| `make test-case-one` | Test case #1 `[["SFO", "EWR"]]` |
+| `make test-case-two` | Test case #2 `[["ATL", "EWR"], ["SFO", "ATL"]]` |
+| `make test-case-three` | Test case #3 `[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]` |
 
 ## Security & Code Quality
 
@@ -104,6 +128,7 @@ make test-case-three
 | Tool | Command | What it does |
 |------|---------|-------------|
 | [golangci-lint](https://github.com/golangci/golangci-lint) | `make lint` | Meta-linter running 60+ linters (configured via `.golangci.yml`) |
+| [hadolint](https://github.com/hadolint/hadolint) | `make lint` | Dockerfile linter |
 | [actionlint](https://github.com/rhysd/actionlint) | `make lint-ci` | Lints GitHub Actions workflow files |
 
 ### Container Security
@@ -121,12 +146,6 @@ make test-case-three
 | go test -fuzz | `make fuzz` | Fuzz testing for FindItinerary algorithm |
 | [Newman](https://github.com/postmanlabs/newman) | `make e2e` | Postman/Newman end-to-end API tests |
 
-### Pre-commit Checklist
-
-```bash
-make lint && make sec && make vulncheck && make secrets && make test && make api-docs && make build
-```
-
 ## SwaggerUI
 
 Take a look at autogenerated REST API Documentation
@@ -134,7 +153,6 @@ Take a look at autogenerated REST API Documentation
 [Swagger API documentation - http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
 
 ![Swagger API documentation](./img/swagger-api-doc.jpg)
-
 
 ## API Endpoint documentation
 
@@ -194,18 +212,23 @@ Take a look at autogenerated REST API Documentation
         }
 ```
 
-## GitHub CI
+## CI/CD
 
-GitHub CI pipeline:
+GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 
-| Job | Steps |
-|-----|-------|
-| **static-check** | golangci-lint, gosec, govulncheck, gitleaks, actionlint, Trivy filesystem scan |
-| **builds** | Build binary |
-| **tests** | Unit + handler tests |
-| **integration** | Build, run server, Newman/Postman E2E tests |
-| **dast** | Build, run server, OWASP ZAP API security scan |
-| **image-scan** | Build Docker image, Trivy vulnerability scan |
+| Job | Triggers | Steps |
+|-----|----------|-------|
+| **static-check** | push, PR, tags | golangci-lint, gosec, govulncheck, gitleaks, actionlint, Trivy filesystem scan |
+| **builds** | after static-check | Build binary, upload artifact |
+| **tests** | after static-check | Unit + handler tests with coverage, fuzz tests |
+| **integration** | after builds + tests | Download binary, run server, Newman/Postman E2E tests |
+| **dast** | after builds | Run server, OWASP ZAP API security scan |
+| **image-scan** | after builds | Build Docker image, Trivy vulnerability scan |
+| **container-test** | after image-scan | Load Docker image, health-check, API smoke test |
+
+A separate [release workflow](./.github/workflows/release.yml) runs on tag pushes (`v*.*.*`), executing the full CI pipeline followed by GoReleaser to create GitHub releases and push container images.
+
+[Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
 
 ## Postman/Newman end-to-end tests
 

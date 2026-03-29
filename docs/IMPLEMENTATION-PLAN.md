@@ -312,11 +312,11 @@ critic: deps
 	gocritic check -enableAll ./...
 ```
 
-### 8.2 — Makefile: update `build` and `build-image` targets
+### 8.2 — Makefile: update `build` and `image-build` targets
 
 ```makefile
 build: deps lint sec vulncheck secrets api-docs
-build-image: deps api-docs lint sec vulncheck secrets
+image-build: deps api-docs lint sec vulncheck secrets
 ```
 
 ### 8.3 — CI: remove `critic` from `static-check`
@@ -339,7 +339,7 @@ build-image: deps api-docs lint sec vulncheck secrets
 | `internal/handlers/flight.go` | 1 | Auto-fix imports |
 | `internal/routes/flight.go` | 1 | Auto-fix imports |
 | `internal/routes/healthcheck.go` | 1 | Auto-fix imports |
-| `Makefile` | 2,3,4,5,8 | Add `vulncheck`, `secrets`, `lint-ci`, `fuzz` targets; update `deps`, `build`, `build-image`; remove `critic` |
+| `Makefile` | 2,3,4,5,8 | Add `vulncheck`, `secrets`, `lint-ci`, `fuzz` targets; update `deps`, `build`, `image-build`; remove `critic` |
 | `internal/handlers/api_fuzz_test.go` | 5 | Create (new file) |
 | `.github/workflows/ci.yml` | 2,3,4,6,7 | Add `vulncheck`, `secrets`, `lint-ci` to static-check; add `dast` and `image-scan` jobs; add Trivy fs scan |
 | `README.md` | All | Update to reflect new commands and CI pipeline |

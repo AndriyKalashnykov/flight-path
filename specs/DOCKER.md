@@ -26,7 +26,7 @@
 | Builder | Docker buildx (creates if missing) |
 
 ```bash
-make build-image    # deps + lint + critic + sec + api-docs + build-image.sh
+make image-build    # deps + lint + critic + sec + api-docs + build-image.sh
 ```
 
 ## Running

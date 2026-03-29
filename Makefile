@@ -11,38 +11,64 @@ COVPROF := $(HOMEDIR)/covprof.out  # coverage profile
 GOOS ?= linux
 GOARCH ?= amd64
 
+# === Tool Versions (pinned) ===
+SWAG_VERSION        := 1.16.6
+GOSEC_VERSION       := 2.24.0
+BENCHSTAT_VERSION   := 0.0.0-20260312031701-16a31bc5fbd0
+GOLANGCI_VERSION    := 2.11.1
+GOVULNCHECK_VERSION := 1.1.4
+GITLEAKS_VERSION    := 8.24.0
+ACTIONLINT_VERSION  := 1.7.7
+NVM_VERSION         := 0.40.4
+HADOLINT_VERSION    := 2.12.0
+ACT_VERSION         := 0.2.86
+
 #help: @ List available tasks
 help:
 	@echo "Usage: make COMMAND"
 	@echo "Commands :"
-	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-15s\033[0m - %s\n", $$1, $$2}'
+	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-16s\033[0m - %s\n", $$1, $$2}'
 
 #deps: @ Download and install dependencies
 deps:
-	@command -v swag >/dev/null 2>&1 || { echo "Installing swag..."; go install github.com/swaggo/swag/cmd/swag@v1.16.6; }
-	@command -v gosec >/dev/null 2>&1 || { echo "Installing gosec..."; go install github.com/securego/gosec/v2/cmd/gosec@v2.24.0; }
-	@command -v benchstat >/dev/null 2>&1 || { echo "Installing benchstat..."; go install golang.org/x/perf/cmd/benchstat@v0.0.0-20260312031701-16a31bc5fbd0; }
-	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint..."; curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin v2.11.1; }
-	@command -v govulncheck >/dev/null 2>&1 || { echo "Installing govulncheck..."; go install golang.org/x/vuln/cmd/govulncheck@v1.1.4; }
-	@command -v gitleaks >/dev/null 2>&1 || { echo "Installing gitleaks..."; go install github.com/zricethezav/gitleaks/v8@v8.24.0; }
-	@command -v actionlint >/dev/null 2>&1 || { echo "Installing actionlint..."; go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7; }
+	@command -v swag >/dev/null 2>&1 || { echo "Installing swag..."; go install github.com/swaggo/swag/cmd/swag@v$(SWAG_VERSION); }
+	@command -v gosec >/dev/null 2>&1 || { echo "Installing gosec..."; go install github.com/securego/gosec/v2/cmd/gosec@v$(GOSEC_VERSION); }
+	@command -v benchstat >/dev/null 2>&1 || { echo "Installing benchstat..."; go install golang.org/x/perf/cmd/benchstat@v$(BENCHSTAT_VERSION); }
+	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint..."; curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$(go env GOPATH)/bin v$(GOLANGCI_VERSION); }
+	@command -v govulncheck >/dev/null 2>&1 || { echo "Installing govulncheck..."; go install golang.org/x/vuln/cmd/govulncheck@v$(GOVULNCHECK_VERSION); }
+	@command -v gitleaks >/dev/null 2>&1 || { echo "Installing gitleaks..."; go install github.com/zricethezav/gitleaks/v8@v$(GITLEAKS_VERSION); }
+	@command -v actionlint >/dev/null 2>&1 || { echo "Installing actionlint..."; go install github.com/rhysd/actionlint/cmd/actionlint@v$(ACTIONLINT_VERSION); }
 	@command -v node >/dev/null 2>&1 || { echo "Installing Node.js LTS via nvm..."; . "$${NVM_DIR:-$$HOME/.nvm}/nvm.sh" && nvm install --lts && nvm use --lts; }
 	@[ -f test/node_modules/.bin/newman ] || { echo "Installing newman..."; cd test && npm install; }
+
+#deps-hadolint: @ Install hadolint for Dockerfile linting
+deps-hadolint:
+	@command -v hadolint >/dev/null 2>&1 || { echo "Installing hadolint $(HADOLINT_VERSION)..."; \
+		curl -sSfL -o /tmp/hadolint https://github.com/hadolint/hadolint/releases/download/v$(HADOLINT_VERSION)/hadolint-Linux-x86_64 && \
+		install -m 755 /tmp/hadolint /usr/local/bin/hadolint && \
+		rm -f /tmp/hadolint; \
+	}
+
+#deps-act: @ Install act for running GitHub Actions locally
+deps-act: deps
+	@command -v act >/dev/null 2>&1 || { echo "Installing act $(ACT_VERSION)..."; \
+		curl -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash -s -- -b /usr/local/bin v$(ACT_VERSION); \
+	}
 
 #api-docs: @ Build source code for swagger api reference
 api-docs: deps
 	@swag init --parseDependency -g main.go
 
 #test: @ Run tests
-test:
+test: deps
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test -v ./...
 
 #fuzz: @ Run fuzz tests for 30 seconds
-fuzz:
+fuzz: deps
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test ./internal/handlers/ -fuzz=FuzzFindItinerary -fuzztime=30s
 
 #bench: @ Run bench tests
-bench:
+bench: deps
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s
 
 #bench-save: @ Save benchmark results to file
@@ -66,9 +92,10 @@ bench-compare: deps
 		benchstat $(OLD) $(NEW); \
 	fi
 
-#lint: @ Run golangci-lint (60+ linters via .golangci.yml)
-lint: deps
+#lint: @ Run golangci-lint and hadolint (60+ linters via .golangci.yml)
+lint: deps deps-hadolint
 	@golangci-lint run ./...
+	@hadolint Dockerfile
 
 #vulncheck: @ Run Go vulnerability check on dependencies
 vulncheck: deps
@@ -98,8 +125,8 @@ build: api-docs
 run: build
 	@export TZ="UTC"; ./server -env-file .env
 
-#build-image: @ Build Docker image - https://hub.docker.com/repository/docker/andriykalashnykov/flight-path/tags
-build-image: static-check test api-docs
+#image-build: @ Build Docker image - https://hub.docker.com/repository/docker/andriykalashnykov/flight-path/tags
+image-build: static-check test api-docs
 	@./scripts/build-image.sh
 
 #release: @ Create and push a new tag
@@ -126,26 +153,26 @@ open-swagger:
 #test-case-one: @ Test case #1 [["SFO", "EWR"]]
 test-case-one:
 	@curl -X 'POST' \
-      'http://localhost:8080/calculate' \
-      -H 'accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -d '[["SFO", "EWR"]]'
+	      'http://localhost:8080/calculate' \
+	      -H 'accept: application/json' \
+	      -H 'Content-Type: application/json' \
+	      -d '[["SFO", "EWR"]]'
 
 #test-case-two: @ Test case #2 [["ATL", "EWR"], ["SFO", "ATL"]]
 test-case-two:
 	@curl -X 'POST' \
-      'http://localhost:8080/calculate' \
-      -H 'accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -d '[["ATL", "EWR"], ["SFO", "ATL"]]'
+	      'http://localhost:8080/calculate' \
+	      -H 'accept: application/json' \
+	      -H 'Content-Type: application/json' \
+	      -d '[["ATL", "EWR"], ["SFO", "ATL"]]'
 
 #test-case-three: @ Test case #3 [["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]
 test-case-three:
 	@curl -X 'POST' \
-      'http://localhost:8080/calculate' \
-      -H 'accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -d '[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]'
+	      'http://localhost:8080/calculate' \
+	      -H 'accept: application/json' \
+	      -H 'Content-Type: application/json' \
+	      -d '[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]'
 
 #clean: @ Remove build artifacts and test cache
 clean:
@@ -155,7 +182,7 @@ clean:
 	@go clean -testcache
 
 #coverage: @ Run tests with coverage report
-coverage:
+coverage: deps
 	@mkdir -p $(OUTDIR)
 	@export GOFLAGS=$(GOFLAGS); export TZ="UTC"; go test -coverprofile=$(COVPROF) -covermode=atomic ./internal/...
 	@go tool cover -func=$(COVPROF)
@@ -179,6 +206,11 @@ ci: static-check build test fuzz
 #ci-full: @ Run full CI pipeline including coverage
 ci-full: static-check build coverage-check fuzz
 	@echo "Full CI pipeline passed."
+
+#ci-run: @ Run GitHub Actions workflow locally using act
+ci-run: deps-act
+	@act push --container-architecture linux/amd64 \
+		--artifact-server-path /tmp/act-artifacts
 
 #check: @ Run pre-commit checklist
 check: static-check test api-docs build
@@ -222,8 +254,18 @@ e2e: deps
 	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
 	@NODE_NO_WARNINGS=1 ./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
 
-.PHONY: help deps api-docs test fuzz bench bench-save bench-compare lint vulncheck secrets sec lint-ci static-check build run build-image release update open-swagger test-case-one test-case-two test-case-three e2e clean coverage coverage-check ci ci-full check trivy-fs trivy-image docker-build docker-run docker-test renovate-validate
+#renovate-bootstrap: @ Install nvm and npm for Renovate
+renovate-bootstrap:
+	@command -v node >/dev/null 2>&1 || { \
+		echo "Installing nvm $(NVM_VERSION)..."; \
+		curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v$(NVM_VERSION)/install.sh | bash; \
+		export NVM_DIR="$$HOME/.nvm"; \
+		[ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh"; \
+		nvm install --lts; \
+	}
 
 #renovate-validate: @ Validate Renovate configuration
-renovate-validate: deps
+renovate-validate: renovate-bootstrap
 	@npx --yes renovate --platform=local
+
+.PHONY: help deps deps-hadolint deps-act api-docs test fuzz bench bench-save bench-compare lint vulncheck secrets sec lint-ci static-check build run image-build release update open-swagger test-case-one test-case-two test-case-three e2e clean coverage coverage-check ci ci-full ci-run check trivy-fs trivy-image docker-build docker-run docker-test renovate-bootstrap renovate-validate

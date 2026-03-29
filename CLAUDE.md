@@ -39,6 +39,7 @@ flight-path/
 ├── benchmarks/                          # Saved benchmark results (bench_YYYYMMDD_HHMMSS.txt)
 ├── scripts/                             # build.sh, build-image.sh
 ├── Dockerfile                           # Multi-stage, multi-platform Docker build (Alpine)
+├── .hadolint.yaml                       # Hadolint Dockerfile linter config
 ├── Makefile                             # All build/dev/test commands
 ├── .env                                 # SERVER_PORT=8080
 └── renovate.json                        # Dependency auto-update config
@@ -79,7 +80,7 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 ```bash
 make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, newman)
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
-make lint           # Run golangci-lint (60+ linters via .golangci.yml)
+make lint           # Run golangci-lint + hadolint (60+ linters via .golangci.yml)
 make sec            # Run gosec security scanner
 make vulncheck      # Run Go vulnerability check on dependencies
 make secrets        # Scan for hardcoded secrets (gitleaks)
@@ -98,17 +99,34 @@ make test-case-two  # curl test: [["ATL", "EWR"], ["SFO", "ATL"]]
 make test-case-three # curl test: 4-segment path
 make update         # Update Go dependencies
 make release        # Tag and push a new release (full checks + build)
-make build-image    # Build multi-platform Docker image (full checks + test)
+make image-build    # Build Docker image (full checks + test)
 make check          # Full pre-commit checklist (static-check + test + build)
 make ci             # Local CI pipeline (static-check + build + test + fuzz)
 make ci-full        # Full CI with coverage threshold (ci + coverage-check)
+make ci-run         # Run GitHub Actions workflow locally using act
 make coverage       # Run tests with coverage report
 make coverage-check # Verify coverage meets 80% threshold
 make clean          # Remove build artifacts and test cache
 make docker-build   # Build Docker image for local testing
 make docker-run     # Run Docker container locally
 make docker-test    # Build and smoke-test Docker container
+make renovate-validate # Validate Renovate configuration
 ```
+
+## Key Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SWAG_VERSION` | 1.16.6 | Swagger code generator |
+| `GOSEC_VERSION` | 2.24.0 | Go security scanner |
+| `GOLANGCI_VERSION` | 2.11.1 | Go meta-linter |
+| `GOVULNCHECK_VERSION` | 1.1.4 | Go vulnerability checker |
+| `GITLEAKS_VERSION` | 8.24.0 | Secrets scanner |
+| `ACTIONLINT_VERSION` | 1.7.7 | GitHub Actions linter |
+| `BENCHSTAT_VERSION` | 0.0.0-20260312031701-16a31bc5fbd0 | Benchmark comparison |
+| `HADOLINT_VERSION` | 2.12.0 | Dockerfile linter |
+| `ACT_VERSION` | 0.2.86 | Local GitHub Actions runner |
+| `NVM_VERSION` | 0.40.4 | Node.js version manager |
 
 ## Before Committing
 
@@ -177,6 +195,25 @@ Update specs when changing architecture, API, or testing strategy.
 | `benchstat` | Benchmark comparison | `make deps` |
 | `swag` | Swagger generation | `make deps` |
 | `newman` | E2E API testing | `make deps` |
+| `hadolint` | Dockerfile linter | `make lint` (auto-installed via `deps-hadolint`) |
+
+## CI/CD
+
+GitHub Actions CI workflow runs on every push to `main`, tags `v*`, and pull requests:
+
+| Job | Steps |
+|-----|-------|
+| **static-check** | golangci-lint, gosec, govulncheck, gitleaks, actionlint, Trivy filesystem scan |
+| **builds** | Build binary, upload artifact |
+| **tests** | Unit + handler tests with coverage, fuzz tests |
+| **integration** | Download binary, run server, Newman/Postman E2E tests |
+| **dast** | Run server, OWASP ZAP API security scan |
+| **image-scan** | Build Docker image, Trivy vulnerability scan |
+| **container-test** | Load Docker image, health-check, API smoke test |
+
+Release workflow runs on tag pushes (`v*.*.*`), executing full CI followed by GoReleaser.
+
+Cleanup workflow runs weekly to delete old workflow runs (retain 7 days, keep minimum 5).
 
 ## Troubleshooting
 
