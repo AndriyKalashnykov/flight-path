@@ -187,6 +187,19 @@ Update specs when changing architecture, API, or testing strategy.
 - **Build fails**: Check `go version` matches go.mod (1.26.1); run `go mod tidy` then `make build`
 - **E2E tests fail**: Ensure server is running first (`make run &`, wait a few seconds, then `make e2e`)
 
+## Skills
+
+Use the following skills when working on related files:
+
+| File(s) | Skill |
+|---------|-------|
+| `Makefile` | `/makefile` |
+| `renovate.json` | `/renovate` |
+| `README.md` | `/readme` |
+| `.github/workflows/*.yml` | `/ci-workflow` |
+
+When spawning subagents, always pass conventions from the respective skill into the agent's prompt.
+
 ## Environment
 
 - Go 1.26.1 via gvm: `GOROOT=/home/andriy/.gvm/gos/go1.26.1`
