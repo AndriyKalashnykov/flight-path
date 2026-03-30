@@ -82,24 +82,29 @@ Run `make help` to see all available targets.
 | `make docker-build` | Build Docker image for local testing |
 | `make docker-run` | Run Docker container locally |
 | `make docker-test` | Build and smoke-test Docker container |
+| `make docker-scan` | Build Docker image and run Trivy scan (CI only - requires trivy) |
 | `make image-build` | Build Docker image (full checks + test) |
-| `make trivy-fs` | Run Trivy filesystem vulnerability scan |
-| `make trivy-image` | Run Trivy image vulnerability scan |
+| `make trivy-fs` | Run Trivy filesystem vulnerability scan (CI only - requires trivy) |
+| `make trivy-image` | Run Trivy image vulnerability scan (CI only - requires trivy) |
 
 ### CI
 
 | Target | Description |
 |--------|-------------|
-| `make ci` | Run full CI pipeline locally (static-check + build + test + fuzz) |
-| `make ci-full` | Run full CI pipeline including coverage |
+| `make ci` | Run full CI pipeline locally (static-check + test + fuzz + build) |
+| `make ci-full` | Run full CI pipeline including coverage (static-check + coverage-check + fuzz + build) |
 | `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
-| `make check` | Run pre-commit checklist |
+| `make check` | Run pre-commit checklist (static-check + test + build) |
 
 ### Utilities
 
 | Target | Description |
 |--------|-------------|
+| `make help` | List available tasks |
 | `make deps` | Download and install dependencies |
+| `make deps-check` | Show required Go version and tool status |
+| `make deps-hadolint` | Install hadolint for Dockerfile linting |
+| `make deps-act` | Install act for running GitHub Actions locally |
 | `make release` | Create and push a new tag |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
 | `make renovate-validate` | Validate Renovate configuration |
@@ -220,7 +225,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 |-----|----------|-------|
 | **static-check** | push, PR, tags | golangci-lint, gosec, govulncheck, gitleaks, actionlint, Trivy filesystem scan |
 | **builds** | after static-check | Build binary, upload artifact |
-| **tests** | after static-check | Unit + handler tests with coverage, fuzz tests |
+| **tests** | after static-check | Coverage threshold check (80%+), fuzz tests |
 | **integration** | after builds + tests | Download binary, run server, Newman/Postman E2E tests |
 | **dast** | after builds | Run server, OWASP ZAP API security scan |
 | **image-scan** | after builds | Build Docker image, Trivy vulnerability scan |

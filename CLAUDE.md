@@ -32,12 +32,15 @@ flight-path/
 ├── pkg/api/
 │   ├── data.go                          # Flight struct + TestFlights test data
 │   └── version.txt                      # Semantic version (e.g., v0.0.3)
-├── docs/                                # Generated Swagger docs (don't edit manually)
+├── docs/                                # Generated Swagger docs + architecture/planning docs
 ├── specs/                               # Reverse-engineered specifications
 ├── test/
-│   └── FlightPath.postman_collection.json  # E2E test collection (6 cases: 3 happy + 3 negative)
+│   ├── FlightPath.postman_collection.json  # E2E test collection (6 cases: 3 happy + 3 negative)
+│   └── package.json                     # Newman dependency manifest
 ├── benchmarks/                          # Saved benchmark results (bench_YYYYMMDD_HHMMSS.txt)
-├── scripts/                             # build.sh, build-image.sh
+├── scripts/                             # build.sh, build-image.sh, wait-for-server.sh
+├── .zap/rules.tsv                       # OWASP ZAP scan rules for DAST job
+├── .golangci.yml                        # golangci-lint configuration (60+ linters)
 ├── Dockerfile                           # Multi-stage, multi-platform Docker build (Alpine)
 ├── .hadolint.yaml                       # Hadolint Dockerfile linter config
 ├── Makefile                             # All build/dev/test commands
@@ -79,6 +82,7 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 
 ```bash
 make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, newman)
+make deps-check     # Show required Go version and tool status
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
 make lint           # Run golangci-lint + hadolint (60+ linters via .golangci.yml)
 make sec            # Run gosec security scanner
@@ -101,8 +105,8 @@ make update         # Update Go dependencies
 make release        # Tag and push a new release (full checks + build)
 make image-build    # Build Docker image (full checks + test)
 make check          # Full pre-commit checklist (static-check + test + build)
-make ci             # Local CI pipeline (static-check + build + test + fuzz)
-make ci-full        # Full CI with coverage threshold (ci + coverage-check)
+make ci             # Local CI pipeline (static-check + test + fuzz + build)
+make ci-full        # Full CI with coverage threshold (static-check + coverage-check + fuzz + build)
 make ci-run         # Run GitHub Actions workflow locally using act
 make coverage       # Run tests with coverage report
 make coverage-check # Verify coverage meets 80% threshold
@@ -110,6 +114,8 @@ make clean          # Remove build artifacts and test cache
 make docker-build   # Build Docker image for local testing
 make docker-run     # Run Docker container locally
 make docker-test    # Build and smoke-test Docker container
+make docker-scan    # Build Docker image and run Trivy scan (CI only)
+make open-swagger   # Open browser with Swagger docs pointing to localhost
 make renovate-validate # Validate Renovate configuration
 ```
 
@@ -117,6 +123,8 @@ make renovate-validate # Validate Renovate configuration
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
+| `APP_NAME` | flight-path | Application name (used in Docker tags) |
+| `GO_VERSION` | (from go.mod) | Go version auto-parsed from `go.mod` |
 | `SWAG_VERSION` | 1.16.6 | Swagger code generator |
 | `GOSEC_VERSION` | 2.24.0 | Go security scanner |
 | `GOLANGCI_VERSION` | 2.11.1 | Go meta-linter |
@@ -131,7 +139,7 @@ make renovate-validate # Validate Renovate configuration
 ## Before Committing
 
 ```bash
-make check          # Runs: static-check (lint, sec, vulncheck, secrets, lint-ci) + test + api-docs + build
+make check          # Runs: static-check (lint, sec, vulncheck, secrets, lint-ci) + test + build
 ```
 
 ## Specifications
@@ -205,7 +213,7 @@ GitHub Actions CI workflow runs on every push to `main`, tags `v*`, and pull req
 |-----|-------|
 | **static-check** | golangci-lint, gosec, govulncheck, gitleaks, actionlint, Trivy filesystem scan |
 | **builds** | Build binary, upload artifact |
-| **tests** | Unit + handler tests with coverage, fuzz tests |
+| **tests** | Coverage threshold check (80%+), fuzz tests |
 | **integration** | Download binary, run server, Newman/Postman E2E tests |
 | **dast** | Run server, OWASP ZAP API security scan |
 | **image-scan** | Build Docker image, Trivy vulnerability scan |
