@@ -92,6 +92,12 @@ deps-act: deps
 		curl -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash -s -- -b /usr/local/bin v$(ACT_VERSION); \
 	}
 
+#deps-trivy: @ Install trivy for local vulnerability scanning
+deps-trivy:
+	@command -v trivy >/dev/null 2>&1 || { echo "Installing trivy..."; \
+		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin; \
+	}
+
 #api-docs: @ Build source code for swagger api reference
 api-docs: deps
 	@$(call go-exec,swag init --parseDependency -g main.go)
@@ -149,6 +155,10 @@ sec: deps
 #lint-ci: @ Lint GitHub Actions workflow files
 lint-ci: deps
 	@actionlint
+
+#format: @ Format Go code
+format: deps
+	@$(call go-exec,gofmt -l -w .)
 
 #static-check: @ Run code static check
 static-check: deps lint sec vulncheck secrets lint-ci
@@ -237,11 +247,11 @@ coverage-check: coverage
 	fi
 
 #ci: @ Run full CI pipeline locally
-ci: static-check test fuzz build
+ci: format static-check test fuzz build
 	@echo "Local CI pipeline passed."
 
 #ci-full: @ Run full CI pipeline including coverage
-ci-full: static-check coverage-check fuzz build
+ci-full: format static-check coverage-check fuzz build
 	@echo "Full CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
@@ -250,19 +260,19 @@ ci-run: deps-act
 		--artifact-server-path /tmp/act-artifacts
 
 #check: @ Run pre-commit checklist
-check: static-check test build
+check: format static-check test build
 	@echo "All pre-commit checks passed."
 
-#trivy-fs: @ Run Trivy filesystem vulnerability scan (CI only - requires trivy)
-trivy-fs:
+#trivy-fs: @ Run Trivy filesystem vulnerability scan (requires trivy)
+trivy-fs: deps-trivy
 	@trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --exit-code 1 .
 
-#trivy-image: @ Run Trivy image vulnerability scan (CI only - requires trivy)
-trivy-image:
+#trivy-image: @ Run Trivy image vulnerability scan (requires trivy)
+trivy-image: deps-trivy
 	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
 
 #docker-build: @ Build Docker image for local testing
-docker-build:
+docker-build: deps
 	@docker buildx build --load \
 		--build-arg GOMODCACHE=$$($(call go-exec,go env GOMODCACHE)) \
 		--build-arg GOCACHE=$$($(call go-exec,go env GOCACHE)) \
@@ -299,12 +309,21 @@ e2e: deps
 	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
 	@NODE_NO_WARNINGS=1 ./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
 
+#renovate-bootstrap: @ Install nvm and npm for Renovate
+renovate-bootstrap:
+	@command -v node >/dev/null 2>&1 || { \
+		echo "Installing nvm $(NVM_VERSION)..."; \
+		export NVM_DIR="$${NVM_DIR:-$$HOME/.nvm}"; \
+		curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v$(NVM_VERSION)/install.sh | bash; \
+		. "$$NVM_DIR/nvm.sh" && nvm install --lts; \
+	}
+
 #renovate-validate: @ Validate Renovate configuration
 renovate-validate: deps
 	@npx --yes renovate --platform=local
 
-.PHONY: help deps deps-check deps-hadolint deps-act api-docs test fuzz bench bench-save bench-compare \
-	lint vulncheck secrets sec lint-ci static-check build run image-build release update open-swagger \
+.PHONY: help deps deps-check deps-hadolint deps-act deps-trivy api-docs test fuzz bench bench-save bench-compare \
+	lint vulncheck secrets sec lint-ci format static-check build run image-build release update open-swagger \
 	test-case-one test-case-two test-case-three e2e clean coverage coverage-check \
 	ci ci-full ci-run check trivy-fs trivy-image docker-build docker-run docker-test docker-scan \
-	renovate-validate
+	renovate-bootstrap renovate-validate

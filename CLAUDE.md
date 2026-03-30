@@ -84,6 +84,7 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, newman)
 make deps-check     # Show required Go version and tool status
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
+make format         # Format Go code
 make lint           # Run golangci-lint + hadolint (60+ linters via .golangci.yml)
 make sec            # Run gosec security scanner
 make vulncheck      # Run Go vulnerability check on dependencies
@@ -104,9 +105,9 @@ make test-case-three # curl test: 4-segment path
 make update         # Update Go dependencies
 make release        # Tag and push a new release (full checks + build)
 make image-build    # Build Docker image (full checks + test)
-make check          # Full pre-commit checklist (static-check + test + build)
-make ci             # Local CI pipeline (static-check + test + fuzz + build)
-make ci-full        # Full CI with coverage threshold (static-check + coverage-check + fuzz + build)
+make check          # Full pre-commit checklist (format + static-check + test + build)
+make ci             # Local CI pipeline (format + static-check + test + fuzz + build)
+make ci-full        # Full CI with coverage threshold (format + static-check + coverage-check + fuzz + build)
 make ci-run         # Run GitHub Actions workflow locally using act
 make coverage       # Run tests with coverage report
 make coverage-check # Verify coverage meets 80% threshold
@@ -114,8 +115,11 @@ make clean          # Remove build artifacts and test cache
 make docker-build   # Build Docker image for local testing
 make docker-run     # Run Docker container locally
 make docker-test    # Build and smoke-test Docker container
-make docker-scan    # Build Docker image and run Trivy scan (CI only)
+make docker-scan    # Build Docker image and run Trivy scan
+make trivy-fs       # Run Trivy filesystem vulnerability scan (requires trivy)
+make trivy-image    # Run Trivy image vulnerability scan (requires trivy)
 make open-swagger   # Open browser with Swagger docs pointing to localhost
+make renovate-bootstrap # Install nvm and npm for Renovate
 make renovate-validate # Validate Renovate configuration
 ```
 

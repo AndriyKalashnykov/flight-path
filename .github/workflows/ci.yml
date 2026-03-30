@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -144,7 +144,7 @@ jobs:
         run: make e2e
 
   dast:
-    needs: [builds]
+    needs: [static-check, builds]
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
@@ -171,6 +171,10 @@ jobs:
           format: openapi
           rules_file_name: '.zap/rules.tsv'
           fail_action: true
+
+      - name: Cleanup
+        if: always()
+        run: pkill -f './server' 2>/dev/null || true
 
   image-scan:
     needs: [builds]

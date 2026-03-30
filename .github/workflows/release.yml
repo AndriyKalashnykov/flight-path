@@ -7,9 +7,10 @@ on:
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   ci:

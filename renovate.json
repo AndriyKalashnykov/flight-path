@@ -2,8 +2,12 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:best-practices",
-    ":semanticCommitType(chore)",
-    ":separatePatchReleases"
+    ":semanticCommitType(chore)"
+  ],
+  "enabledManagers": [
+    "gomod",
+    "github-actions",
+    "dockerfile"
   ],
   "postUpdateOptions": [
     "gomodTidy"
@@ -59,6 +63,16 @@
         "docker"
       ],
       "groupName": "Docker dependencies"
+    },
+    {
+      "description": "Group Go module dependencies",
+      "matchManagers": [
+        "gomod"
+      ],
+      "excludeDepNames": [
+        "go"
+      ],
+      "groupName": "Go dependencies"
     }
   ]
 }

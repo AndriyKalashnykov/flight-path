@@ -13,7 +13,7 @@ A Go REST API microservice that calculates flight paths from unordered flight se
 make deps      # install dev tools (golangci-lint, gosec, swag, etc.)
 make build     # generate Swagger docs + compile binary
 make test      # run unit + handler tests
-make run       # build and start the server on :8080
+make run       # build and start the server on http://localhost:8080
 ```
 
 ## Prerequisites
@@ -23,9 +23,9 @@ make run       # build and start the server on :8080
 | [Go](https://go.dev/dl/) | 1.26+ | Language runtime and compiler |
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Docker](https://www.docker.com/) | latest | Container builds and testing |
-| [Node.js](https://nodejs.org/) | LTS | Newman E2E tests (optional) |
-| [gvm](https://github.com/moovweb/gvm) | latest | Go version management (optional) |
-| [nvm](https://github.com/nvm-sh/nvm) | latest | Node.js version management (optional) |
+| [Node.js](https://nodejs.org/) | LTS | Newman E2E tests *(optional)* |
+| [gvm](https://github.com/moovweb/gvm) | latest | Go version management *(optional)* |
+| [nvm](https://github.com/nvm-sh/nvm) | latest | Node.js version management *(optional)* |
 
 Install all required dev tools:
 
@@ -68,6 +68,7 @@ Run `make help` to see all available targets.
 
 | Target | Description |
 |--------|-------------|
+| `make format` | Format Go code |
 | `make lint` | Run golangci-lint and hadolint (60+ linters via .golangci.yml) |
 | `make sec` | Run gosec security scanner |
 | `make vulncheck` | Run Go vulnerability check on dependencies |
@@ -84,17 +85,17 @@ Run `make help` to see all available targets.
 | `make docker-test` | Build and smoke-test Docker container |
 | `make docker-scan` | Build Docker image and run Trivy scan (CI only - requires trivy) |
 | `make image-build` | Build Docker image (full checks + test) |
-| `make trivy-fs` | Run Trivy filesystem vulnerability scan (CI only - requires trivy) |
-| `make trivy-image` | Run Trivy image vulnerability scan (CI only - requires trivy) |
+| `make trivy-fs` | Run Trivy filesystem vulnerability scan (requires trivy) |
+| `make trivy-image` | Run Trivy image vulnerability scan (requires trivy) |
 
 ### CI
 
 | Target | Description |
 |--------|-------------|
-| `make ci` | Run full CI pipeline locally (static-check + test + fuzz + build) |
-| `make ci-full` | Run full CI pipeline including coverage (static-check + coverage-check + fuzz + build) |
+| `make ci` | Run full CI pipeline locally (format + static-check + test + fuzz + build) |
+| `make ci-full` | Run full CI pipeline including coverage (format + static-check + coverage-check + fuzz + build) |
 | `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
-| `make check` | Run pre-commit checklist (static-check + test + build) |
+| `make check` | Run pre-commit checklist (format + static-check + test + build) |
 
 ### Utilities
 
@@ -105,6 +106,8 @@ Run `make help` to see all available targets.
 | `make deps-check` | Show required Go version and tool status |
 | `make deps-hadolint` | Install hadolint for Dockerfile linting |
 | `make deps-act` | Install act for running GitHub Actions locally |
+| `make deps-trivy` | Install trivy for local vulnerability scanning |
+| `make renovate-bootstrap` | Install nvm and npm for Renovate |
 | `make release` | Create and push a new tag |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
 | `make renovate-validate` | Validate Renovate configuration |
@@ -231,7 +234,13 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 | **image-scan** | after builds | Build Docker image, Trivy vulnerability scan |
 | **container-test** | after image-scan | Load Docker image, health-check, API smoke test |
 
-A separate [release workflow](./.github/workflows/release.yml) runs on tag pushes (`v*.*.*`), executing the full CI pipeline followed by GoReleaser to create GitHub releases and push container images.
+| Job | Triggers | Steps |
+|-----|----------|-------|
+| **goreleaser** | after ci | GoReleaser build, GitHub release, push container images |
+
+The [release workflow](./.github/workflows/release.yml) runs on tag pushes (`v*.*.*`), executing the full CI pipeline followed by GoReleaser.
+
+A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly to delete old workflow runs (retain 7 days, keep minimum 5).
 
 [Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
 
@@ -240,4 +249,4 @@ A separate [release workflow](./.github/workflows/release.yml) runs on tag pushe
 Utilized Postman collection exported to [JSON file](./test/FlightPath.postman_collection.json)
 and executes same use cases as Makefile targets `test-case-one` `test-case-two` `test-case-three`, plus negative test cases (empty body, malformed JSON, incomplete segment)
 
-![Postman/Newman end-to-end tests](./img/posman-newmanjpg.jpg)
+![Postman/Newman end-to-end tests](./img/postman-newman.jpg)
