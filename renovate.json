@@ -69,10 +69,10 @@
       "matchManagers": [
         "gomod"
       ],
-      "excludeDepNames": [
-        "go"
-      ],
-      "groupName": "Go dependencies"
+      "groupName": "Go dependencies",
+      "matchDepNames": [
+        "!go"
+      ]
     }
   ]
 }
