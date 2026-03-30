@@ -109,6 +109,7 @@ jobs:
           retention-days: 7
 
   integration:
+    if: ${{ vars.ACT != 'true' }}
     needs: [builds, tests]
     timeout-minutes: 20
     runs-on: ubuntu-latest
@@ -152,6 +153,7 @@ jobs:
         run: make e2e
 
   dast:
+    if: ${{ vars.ACT != 'true' }}
     needs: [static-check, builds]
     timeout-minutes: 15
     runs-on: ubuntu-latest
@@ -185,7 +187,6 @@ jobs:
           ./scripts/wait-for-server.sh
 
       - name: OWASP ZAP API Scan
-        if: ${{ !env.ACT }}
         uses: zaproxy/action-api-scan@5158fe4d9d8fcc75ea204db81317cce7f9e5453d # v0.10.0
         with:
           target: 'http://localhost:8080/swagger/doc.json'
@@ -234,6 +235,7 @@ jobs:
           retention-days: 1
 
   container-test:
+    if: ${{ vars.ACT != 'true' }}
     needs: [image-scan]
     timeout-minutes: 10
     runs-on: ubuntu-latest

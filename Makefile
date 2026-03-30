@@ -261,6 +261,7 @@ ci-run: deps-act
 	act push -W .github/workflows/ci.yml \
 		--container-architecture linux/amd64 \
 		--artifact-server-path /tmp/act-artifacts \
+		--var ACT=true \
 		$${GITHUB_TOKEN:+-s GITHUB_TOKEN=$$GITHUB_TOKEN}
 
 #check: @ Run pre-commit checklist
