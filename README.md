@@ -83,7 +83,7 @@ Run `make help` to see all available targets.
 | `make docker-build` | Build Docker image for local testing |
 | `make docker-run` | Run Docker container locally |
 | `make docker-test` | Build and smoke-test Docker container |
-| `make docker-scan` | Build Docker image and run Trivy scan (CI only - requires trivy) |
+| `make docker-scan` | Build Docker image and run Trivy scan (requires trivy) |
 | `make image-build` | Build Docker image (full checks + test) |
 | `make trivy-fs` | Run Trivy filesystem vulnerability scan (requires trivy) |
 | `make trivy-image` | Run Trivy image vulnerability scan (requires trivy) |

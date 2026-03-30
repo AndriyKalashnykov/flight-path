@@ -115,7 +115,7 @@ make clean          # Remove build artifacts and test cache
 make docker-build   # Build Docker image for local testing
 make docker-run     # Run Docker container locally
 make docker-test    # Build and smoke-test Docker container
-make docker-scan    # Build Docker image and run Trivy scan
+make docker-scan    # Build Docker image and run Trivy scan (requires trivy)
 make trivy-fs       # Run Trivy filesystem vulnerability scan (requires trivy)
 make trivy-image    # Run Trivy image vulnerability scan (requires trivy)
 make open-swagger   # Open browser with Swagger docs pointing to localhost
@@ -137,6 +137,7 @@ make renovate-validate # Validate Renovate configuration
 | `ACTIONLINT_VERSION` | 1.7.7 | GitHub Actions linter |
 | `BENCHSTAT_VERSION` | 0.0.0-20260312031701-16a31bc5fbd0 | Benchmark comparison |
 | `HADOLINT_VERSION` | 2.12.0 | Dockerfile linter |
+| `TRIVY_VERSION` | 0.69.3 | Vulnerability scanner |
 | `ACT_VERSION` | 0.2.86 | Local GitHub Actions runner |
 | `NVM_VERSION` | 0.40.4 | Node.js version manager |
 

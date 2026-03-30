@@ -25,6 +25,7 @@ GITLEAKS_VERSION    := 8.24.0
 ACTIONLINT_VERSION  := 1.7.7
 NVM_VERSION         := 0.40.4
 HADOLINT_VERSION    := 2.12.0
+TRIVY_VERSION       := 0.69.3
 ACT_VERSION         := 0.2.86
 
 # === gvm detection ===
@@ -94,8 +95,8 @@ deps-act: deps
 
 #deps-trivy: @ Install trivy for local vulnerability scanning
 deps-trivy:
-	@command -v trivy >/dev/null 2>&1 || { echo "Installing trivy..."; \
-		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin; \
+	@command -v trivy >/dev/null 2>&1 || { echo "Installing trivy $(TRIVY_VERSION)..."; \
+		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v$(TRIVY_VERSION); \
 	}
 
 #api-docs: @ Build source code for swagger api reference
@@ -178,7 +179,7 @@ image-build: static-check test api-docs
 
 #release: @ Create and push a new tag
 release: static-check test api-docs build
-	$(eval NT=$(NEWTAG))
+	@$(eval NT=$(NEWTAG))
 	@echo "$(NT)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "Error: Tag must match vN.N.N"; exit 1; }
 	@echo -n "Are you sure to create and push ${NT} tag? [y/N] " && read ans && [ $${ans:-N} = y ]
 	@echo ${NT} > ./pkg/api/version.txt
@@ -226,7 +227,7 @@ clean:
 	@rm -f server
 	@rm -rf $(OUTDIR)
 	@rm -f $(COVPROF)
-	@$(call go-exec,go clean -testcache)
+	@$(call go-exec,go clean -testcache) 2>/dev/null || true
 
 #coverage: @ Run tests with coverage report
 coverage: deps
@@ -299,8 +300,8 @@ docker-test: docker-build
 	docker rm -f fp-test 2>/dev/null || true; \
 	exit $$RESULT
 
-#docker-scan: @ Build Docker image and run Trivy scan (CI only - requires trivy)
-docker-scan:
+#docker-scan: @ Build Docker image and run Trivy scan (requires trivy)
+docker-scan: deps-trivy
 	@docker buildx build --load \
 		--build-arg GOMODCACHE=/go/pkg/mod \
 		--build-arg GOCACHE=/root/.cache/go-build \
