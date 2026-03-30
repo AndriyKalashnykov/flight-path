@@ -256,8 +256,11 @@ ci-full: format static-check coverage-check fuzz build
 
 #ci-run: @ Run GitHub Actions workflow locally using act
 ci-run: deps-act
-	@act push --container-architecture linux/amd64 \
-		--artifact-server-path /tmp/act-artifacts
+	@if [ -f ~/.secrets ]; then . ~/.secrets; fi; \
+	act push -W .github/workflows/ci.yml \
+		--container-architecture linux/amd64 \
+		--artifact-server-path /tmp/act-artifacts \
+		$${GITHUB_TOKEN:+-s GITHUB_TOKEN=$$GITHUB_TOKEN}
 
 #check: @ Run pre-commit checklist
 check: format static-check test build

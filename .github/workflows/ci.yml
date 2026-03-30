@@ -73,6 +73,7 @@ jobs:
 
       - name: Upload build artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        continue-on-error: true
         with:
           name: server-binary
           path: server
@@ -96,15 +97,16 @@ jobs:
       - name: Verify coverage threshold
         run: make coverage-check
 
+      - name: Run fuzz tests
+        run: make fuzz
+
       - name: Upload coverage artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        continue-on-error: true
         with:
           name: coverage-report
           path: covprof.out
           retention-days: 7
-
-      - name: Run fuzz tests
-        run: make fuzz
 
   integration:
     needs: [builds, tests]
@@ -127,9 +129,15 @@ jobs:
           node-version: lts/*
 
       - name: Download build artifact
+        id: download-binary
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        continue-on-error: true
         with:
           name: server-binary
+
+      - name: Build binary (fallback)
+        if: steps.download-binary.outcome == 'failure'
+        run: make build
 
       - name: Make binary executable
         run: chmod +x server
@@ -151,10 +159,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      - name: Install Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
       - name: Download build artifact
+        id: download-binary
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        continue-on-error: true
         with:
           name: server-binary
+
+      - name: Build binary (fallback)
+        if: steps.download-binary.outcome == 'failure'
+        run: make build
 
       - name: Make binary executable
         run: chmod +x server
@@ -165,6 +185,7 @@ jobs:
           ./scripts/wait-for-server.sh
 
       - name: OWASP ZAP API Scan
+        if: ${{ !env.ACT }}
         uses: zaproxy/action-api-scan@5158fe4d9d8fcc75ea204db81317cce7f9e5453d # v0.10.0
         with:
           target: 'http://localhost:8080/swagger/doc.json'
@@ -206,6 +227,7 @@ jobs:
 
       - name: Upload Docker image artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        continue-on-error: true
         with:
           name: docker-image
           path: flight-path.tar
@@ -213,19 +235,36 @@ jobs:
 
   container-test:
     needs: [image-scan]
-    timeout-minutes: 5
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      - name: Install Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
       - name: Download Docker image
+        id: download-image
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        continue-on-error: true
         with:
           name: docker-image
 
       - name: Load Docker image
+        if: steps.download-image.outcome == 'success'
         run: docker load -i flight-path.tar
+
+      - name: Build Docker image (fallback)
+        if: steps.download-image.outcome == 'failure'
+        run: |
+          docker buildx build --load \
+            --build-arg GOMODCACHE=/go/pkg/mod \
+            --build-arg GOCACHE=/root/.cache/go-build \
+            -t flight-path:scan .
 
       - name: Tag image for docker-test
         run: docker tag flight-path:scan flight-path:local
