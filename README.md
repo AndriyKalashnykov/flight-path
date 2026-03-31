@@ -5,7 +5,7 @@
 
 # Flight Path
 
-A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport). Built with Go 1.26 + Echo v5 + Swagger/Swaggo.
+A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport). Built with Go 1.26.1 + Echo v5 + Swagger/Swaggo.
 
 ## Quick Start
 
@@ -20,7 +20,7 @@ make run       # build and start the server on http://localhost:8080
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| [Go](https://go.dev/dl/) | 1.26+ | Language runtime and compiler |
+| [Go](https://go.dev/dl/) | 1.26.1+ | Language runtime and compiler |
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Docker](https://www.docker.com/) | latest | Container builds and testing |
 | [Node.js](https://nodejs.org/) | LTS | Newman E2E tests *(optional)* |
@@ -238,9 +238,9 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 |-----|----------|-------|
 | **goreleaser** | after ci | GoReleaser build, GitHub release, push container images |
 
-The [release workflow](./.github/workflows/release.yml) runs on tag pushes (`v*.*.*`), executing the full CI pipeline followed by GoReleaser.
+The [release workflow](./.github/workflows/release.yml) runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then executing GoReleaser.
 
-A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly to delete old workflow runs (retain 7 days, keep minimum 5).
+A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5).
 
 [Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
 

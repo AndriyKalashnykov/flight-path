@@ -1,6 +1,6 @@
 {
     "schemes": [
-        "http."
+        "http"
     ],
     "swagger": "2.0",
     "info": {

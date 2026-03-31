@@ -35,7 +35,7 @@ jobs:
           make static-check
 
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: 'fs'
           scanners: 'vuln,secret,misconfig'
@@ -44,7 +44,7 @@ jobs:
           skip-dirs: 'test/node_modules'
 
       - name: Trivy filesystem scan (MEDIUM - informational)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: 'fs'
           scanners: 'vuln,secret,misconfig'
@@ -217,7 +217,7 @@ jobs:
             -t flight-path:scan .
 
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: 'flight-path:scan'
           severity: 'CRITICAL,HIGH'

@@ -7,5 +7,5 @@ import (
 
 // SwaggerRoutes sets up routes for the Swagger API docs.
 func SwaggerRoutes(e *echo.Echo) {
-	e.GET("/swagger/*", echoSwagger.WrapHandler)
+	e.GET("/swagger/*", echoSwagger.WrapHandlerV3)
 }

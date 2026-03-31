@@ -140,7 +140,7 @@ make renovate-validate # Validate Renovate configuration
 |----------|---------|---------|
 | `APP_NAME` | flight-path | Application name (used in Docker tags) |
 | `GO_VERSION` | (from go.mod) | Go version auto-parsed from `go.mod` |
-| `SWAG_VERSION` | 1.16.6 | Swagger code generator |
+| `SWAG_VERSION` | 2.0.0-rc5 | Swagger code generator |
 | `GOSEC_VERSION` | 2.25.0 | Go security scanner |
 | `GOLANGCI_VERSION` | 2.11.4 | Go meta-linter |
 | `GOVULNCHECK_VERSION` | 1.1.4 | Go vulnerability checker |
@@ -151,6 +151,7 @@ make renovate-validate # Validate Renovate configuration
 | `TRIVY_VERSION` | 0.69.3 | Vulnerability scanner |
 | `ACT_VERSION` | 0.2.86 | Local GitHub Actions runner |
 | `NVM_VERSION` | 0.40.4 | Node.js version manager |
+| `NODE_VERSION` | 24 | Node.js major version (pinned for nvm) |
 
 ## Before Committing
 
@@ -198,13 +199,13 @@ Update specs when changing architecture, API, or testing strategy.
 - Don't manually edit generated code in `docs/`
 - Prefer readability over cleverness; don't over-engineer
 
-## Dependencies
+## Direct Dependencies
 
 | Package | Version | Purpose |
 |---|---|---|
 | `github.com/labstack/echo/v5` | v5.0.4 | Web framework |
 | `github.com/swaggo/echo-swagger/v2` | v2.0.1 | Swagger UI |
-| `github.com/swaggo/swag` | v1.16.6 | Swagger generator |
+| `github.com/swaggo/swag/v2` | v2.0.0-rc5 | Swagger generator |
 | `github.com/joho/godotenv` | v1.5.1 | Environment variables |
 
 ## Dev Tools
@@ -220,6 +221,8 @@ Update specs when changing architecture, API, or testing strategy.
 | `swag` | Swagger generation | `make deps` |
 | `newman` | E2E API testing | `make deps` |
 | `hadolint` | Dockerfile linter | `make lint` (auto-installed via `deps-hadolint`) |
+| `trivy` | Vulnerability scanner (images + filesystem) | `make deps-trivy` |
+| `act` | Local GitHub Actions runner | `make deps-act` |
 
 ## CI/CD
 
@@ -235,9 +238,11 @@ GitHub Actions CI workflow runs on every push to `main`, tags `v*`, pull request
 | **image-scan** | Build Docker image, Trivy vulnerability scan |
 | **container-test** | Load Docker image, health-check, API smoke test |
 
-Release workflow runs on tag pushes (`v*.*.*`), executing full CI followed by GoReleaser.
+Jobs `integration`, `dast`, and `container-test` are skipped when running locally with `act` (`vars.ACT == 'true'`) to avoid artifact-download and network issues.
 
-Cleanup workflow runs weekly to delete old workflow runs (retain 7 days, keep minimum 5).
+Release workflow runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then executing GoReleaser for binary/container release.
+
+Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5).
 
 ## Troubleshooting
 
@@ -250,6 +255,8 @@ Cleanup workflow runs weekly to delete old workflow runs (retain 7 days, keep mi
 
 ## Skills
 
+When spawning subagents, always pass conventions from the respective skill into the agent's prompt.
+
 Use the following skills when working on related files:
 
 | File(s) | Skill |
@@ -258,8 +265,6 @@ Use the following skills when working on related files:
 | `renovate.json` | `/renovate` |
 | `README.md` | `/readme` |
 | `.github/workflows/*.yml` | `/ci-workflow` |
-
-When spawning subagents, always pass conventions from the respective skill into the agent's prompt.
 
 ## Environment
 

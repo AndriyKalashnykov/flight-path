@@ -126,6 +126,10 @@ linters:
           - godot
           - intrange
           - modernize
+      # Swagger annotations don't need trailing periods
+      - path: main\.go
+        linters:
+          - godot
       # Relax rules for test data
       - path: pkg/api/data\.go
         linters:

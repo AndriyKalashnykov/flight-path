@@ -16,7 +16,7 @@ COVPROF := $(HOMEDIR)/covprof.out
 GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 
 # === Tool Versions (pinned) ===
-SWAG_VERSION        := 1.16.6
+SWAG_VERSION        := 2.0.0-rc5
 GOSEC_VERSION       := 2.25.0
 BENCHSTAT_VERSION   := 0.0.0-20260312031701-16a31bc5fbd0
 GOLANGCI_VERSION    := 2.11.4
@@ -24,6 +24,7 @@ GOVULNCHECK_VERSION := 1.1.4
 GITLEAKS_VERSION    := 8.30.1
 ACTIONLINT_VERSION  := 1.7.12
 NVM_VERSION         := 0.40.4
+NODE_VERSION        := 24
 HADOLINT_VERSION    := 2.14.0
 TRIVY_VERSION       := 0.69.3
 ACT_VERSION         := 0.2.86
@@ -50,7 +51,7 @@ deps:
 	else \
 		command -v go >/dev/null 2>&1 || { echo "Error: Go required. Install gvm from https://github.com/moovweb/gvm or Go from https://go.dev/dl/"; exit 1; }; \
 	fi
-	@$(call go-exec,command -v swag) >/dev/null 2>&1 || { echo "Installing swag..."; $(call go-exec,go install github.com/swaggo/swag/cmd/swag@v$(SWAG_VERSION)); }
+	@$(call go-exec,command -v swag) >/dev/null 2>&1 || { echo "Installing swag..."; $(call go-exec,go install github.com/swaggo/swag/v2/cmd/swag@v$(SWAG_VERSION)); }
 	@$(call go-exec,command -v gosec) >/dev/null 2>&1 || { echo "Installing gosec..."; $(call go-exec,go install github.com/securego/gosec/v2/cmd/gosec@v$(GOSEC_VERSION)); }
 	@$(call go-exec,command -v benchstat) >/dev/null 2>&1 || { echo "Installing benchstat..."; $(call go-exec,go install golang.org/x/perf/cmd/benchstat@v$(BENCHSTAT_VERSION)); }
 	@$(call go-exec,command -v golangci-lint) >/dev/null 2>&1 || { echo "Installing golangci-lint..."; curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$($(call go-exec,go env GOPATH))/bin v$(GOLANGCI_VERSION); }
@@ -63,7 +64,7 @@ deps:
 			echo "Installing nvm $(NVM_VERSION)..."; \
 			curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v$(NVM_VERSION)/install.sh | bash; \
 		fi; \
-		. "$$NVM_DIR/nvm.sh" && nvm install --lts && nvm use --lts; \
+		. "$$NVM_DIR/nvm.sh" && nvm install $(NODE_VERSION) && nvm use $(NODE_VERSION); \
 	}
 	@[ -f test/node_modules/.bin/newman ] || { echo "Installing newman..."; cd test && npm install; }
 
@@ -174,7 +175,7 @@ run: build
 	@export TZ="UTC"; ./server -env-file .env
 
 #image-build: @ Build Docker image (full checks + test)
-image-build: static-check test api-docs
+image-build: static-check test build
 	@./scripts/build-image.sh
 
 #release: @ Create and push a new tag
@@ -323,7 +324,7 @@ deps-renovate:
 		echo "Installing nvm $(NVM_VERSION)..."; \
 		export NVM_DIR="$${NVM_DIR:-$$HOME/.nvm}"; \
 		curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v$(NVM_VERSION)/install.sh | bash; \
-		. "$$NVM_DIR/nvm.sh" && nvm install --lts; \
+		. "$$NVM_DIR/nvm.sh" && nvm install $(NODE_VERSION); \
 	}
 
 #renovate-validate: @ Validate Renovate configuration
