@@ -36,7 +36,8 @@ flight-path/
 ├── specs/                               # Reverse-engineered specifications
 ├── test/
 │   ├── FlightPath.postman_collection.json  # E2E test collection (6 cases: 3 happy + 3 negative)
-│   └── package.json                     # Newman dependency manifest
+│   ├── package.json                     # Newman dependency manifest
+│   └── .npmrc                           # npm configuration
 ├── benchmarks/                          # Saved benchmark results (bench_YYYYMMDD_HHMMSS.txt)
 ├── scripts/                             # build.sh, build-image.sh, wait-for-server.sh
 ├── .zap/rules.tsv                       # OWASP ZAP scan rules for DAST job
@@ -45,13 +46,19 @@ flight-path/
 ├── .hadolint.yaml                       # Hadolint Dockerfile linter config
 ├── Makefile                             # All build/dev/test commands
 ├── .env                                 # SERVER_PORT=8080
+├── .goreleaser.yml                      # GoReleaser release configuration
+├── .claudeignore                        # Claude Code ignore patterns
+├── .dockerignore                        # Docker build context exclusions
+├── .gitignore                           # Git ignore patterns
+├── LICENSE                              # MIT license
+├── README.md                            # Project documentation
 └── renovate.json                        # Dependency auto-update config
 ```
 
 ## API
 
 - **POST /calculate** — Accepts `[][]string` (e.g., `[["SFO","ATL"],["ATL","EWR"]]`), returns `[]string` (e.g., `["SFO","EWR"]`)
-- **GET /** — Health check (returns status + version)
+- **GET /** — Health check (returns server status)
 - **GET /swagger/*** — Swagger UI
 - Server runs on `SERVER_PORT` from `.env` (default 8080)
 
@@ -81,8 +88,13 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 ## Common Commands
 
 ```bash
+make help           # List available tasks
 make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, newman)
 make deps-check     # Show required Go version and tool status
+make deps-hadolint  # Install hadolint for Dockerfile linting
+make deps-act       # Install act for running GitHub Actions locally
+make deps-trivy     # Install trivy for local vulnerability scanning
+make deps-renovate  # Install nvm and npm for Renovate
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
 make format         # Format Go code
 make lint           # Run golangci-lint + hadolint (60+ linters via .golangci.yml)
@@ -95,7 +107,7 @@ make fuzz           # Run fuzz tests for 30 seconds
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare latest two benchmark runs
-make static-check   # All static analysis (lint + sec + vulncheck + secrets + lint-ci)
+make static-check   # All static analysis (lint-ci + lint + sec + vulncheck + secrets)
 make build          # Generate Swagger docs + compile binary
 make run            # Build and run server locally
 make e2e            # Run Newman/Postman E2E tests (server must be running)
@@ -119,7 +131,6 @@ make docker-scan    # Build Docker image and run Trivy scan (requires trivy)
 make trivy-fs       # Run Trivy filesystem vulnerability scan (requires trivy)
 make trivy-image    # Run Trivy image vulnerability scan (requires trivy)
 make open-swagger   # Open browser with Swagger docs pointing to localhost
-make renovate-bootstrap # Install nvm and npm for Renovate
 make renovate-validate # Validate Renovate configuration
 ```
 
@@ -130,13 +141,13 @@ make renovate-validate # Validate Renovate configuration
 | `APP_NAME` | flight-path | Application name (used in Docker tags) |
 | `GO_VERSION` | (from go.mod) | Go version auto-parsed from `go.mod` |
 | `SWAG_VERSION` | 1.16.6 | Swagger code generator |
-| `GOSEC_VERSION` | 2.24.0 | Go security scanner |
-| `GOLANGCI_VERSION` | 2.11.1 | Go meta-linter |
+| `GOSEC_VERSION` | 2.25.0 | Go security scanner |
+| `GOLANGCI_VERSION` | 2.11.4 | Go meta-linter |
 | `GOVULNCHECK_VERSION` | 1.1.4 | Go vulnerability checker |
-| `GITLEAKS_VERSION` | 8.24.0 | Secrets scanner |
-| `ACTIONLINT_VERSION` | 1.7.7 | GitHub Actions linter |
+| `GITLEAKS_VERSION` | 8.30.1 | Secrets scanner |
+| `ACTIONLINT_VERSION` | 1.7.12 | GitHub Actions linter |
 | `BENCHSTAT_VERSION` | 0.0.0-20260312031701-16a31bc5fbd0 | Benchmark comparison |
-| `HADOLINT_VERSION` | 2.12.0 | Dockerfile linter |
+| `HADOLINT_VERSION` | 2.14.0 | Dockerfile linter |
 | `TRIVY_VERSION` | 0.69.3 | Vulnerability scanner |
 | `ACT_VERSION` | 0.2.86 | Local GitHub Actions runner |
 | `NVM_VERSION` | 0.40.4 | Node.js version manager |
@@ -212,7 +223,7 @@ Update specs when changing architecture, API, or testing strategy.
 
 ## CI/CD
 
-GitHub Actions CI workflow runs on every push to `main`, tags `v*`, and pull requests:
+GitHub Actions CI workflow runs on every push to `main`, tags `v*`, pull requests, and is reusable via `workflow_call` (called by release.yml):
 
 | Job | Steps |
 |-----|-------|

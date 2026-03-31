@@ -17,14 +17,14 @@ GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 
 # === Tool Versions (pinned) ===
 SWAG_VERSION        := 1.16.6
-GOSEC_VERSION       := 2.24.0
+GOSEC_VERSION       := 2.25.0
 BENCHSTAT_VERSION   := 0.0.0-20260312031701-16a31bc5fbd0
-GOLANGCI_VERSION    := 2.11.1
+GOLANGCI_VERSION    := 2.11.4
 GOVULNCHECK_VERSION := 1.1.4
-GITLEAKS_VERSION    := 8.24.0
-ACTIONLINT_VERSION  := 1.7.7
+GITLEAKS_VERSION    := 8.30.1
+ACTIONLINT_VERSION  := 1.7.12
 NVM_VERSION         := 0.40.4
-HADOLINT_VERSION    := 2.12.0
+HADOLINT_VERSION    := 2.14.0
 TRIVY_VERSION       := 0.69.3
 ACT_VERSION         := 0.2.86
 
@@ -83,7 +83,7 @@ deps-check:
 deps-hadolint:
 	@command -v hadolint >/dev/null 2>&1 || { echo "Installing hadolint $(HADOLINT_VERSION)..."; \
 		curl -sSfL -o /tmp/hadolint https://github.com/hadolint/hadolint/releases/download/v$(HADOLINT_VERSION)/hadolint-Linux-x86_64 && \
-		install -m 755 /tmp/hadolint /usr/local/bin/hadolint && \
+		sudo install -m 755 /tmp/hadolint /usr/local/bin/hadolint && \
 		rm -f /tmp/hadolint; \
 	}
 
@@ -162,7 +162,7 @@ format: deps
 	@$(call go-exec,gofmt -l -w .)
 
 #static-check: @ Run code static check
-static-check: deps lint sec vulncheck secrets lint-ci
+static-check: lint-ci lint sec vulncheck secrets
 	@echo "Static check done."
 
 #build: @ Build REST API server's binary
@@ -184,7 +184,7 @@ release: static-check test api-docs build
 	@echo -n "Are you sure to create and push ${NT} tag? [y/N] " && read ans && [ $${ans:-N} = y ]
 	@echo ${NT} > ./pkg/api/version.txt
 	@git add pkg/api/version.txt
-	@git commit -a -s -m "Cut ${NT} release"
+	@git commit -s -m "Cut ${NT} release"
 	@git tag ${NT}
 	@git push origin ${NT}
 	@git push
@@ -194,9 +194,12 @@ release: static-check test api-docs build
 update: deps
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) && go get -u ./... && go mod tidy)
 
+# === Platform Detection ===
+OPEN_CMD := $(if $(filter Darwin,$(shell uname -s)),open,xdg-open)
+
 #open-swagger: @ Open browser with Swagger docs pointing to localhost
 open-swagger:
-	@command -v xdg-open >/dev/null && xdg-open http://localhost:8080/swagger/index.html 1>/dev/null 2>&1 || open http://localhost:8080/swagger/index.html 1>/dev/null 2>&1
+	@$(OPEN_CMD) http://localhost:8080/swagger/index.html 1>/dev/null 2>&1
 
 #test-case-one: @ Test case #1 [["SFO", "EWR"]]
 test-case-one:
@@ -314,8 +317,8 @@ e2e: deps
 	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
 	@NODE_NO_WARNINGS=1 ./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
 
-#renovate-bootstrap: @ Install nvm and npm for Renovate
-renovate-bootstrap:
+#deps-renovate: @ Install nvm and npm for Renovate
+deps-renovate:
 	@command -v node >/dev/null 2>&1 || { \
 		echo "Installing nvm $(NVM_VERSION)..."; \
 		export NVM_DIR="$${NVM_DIR:-$$HOME/.nvm}"; \
@@ -331,4 +334,4 @@ renovate-validate: deps
 	lint vulncheck secrets sec lint-ci format static-check build run image-build release update open-swagger \
 	test-case-one test-case-two test-case-three e2e clean coverage coverage-check \
 	ci ci-full ci-run check trivy-fs trivy-image docker-build docker-run docker-test docker-scan \
-	renovate-bootstrap renovate-validate
+	deps-renovate renovate-validate

@@ -33,10 +33,6 @@ Install all required dev tools:
 make deps
 ```
 
-## Architecture
-
-See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for C4 diagrams (Context, Container, Component), request flow sequence diagram, and CI/CD pipeline flowchart.
-
 ## Available Make Targets
 
 Run `make help` to see all available targets.
@@ -107,13 +103,17 @@ Run `make help` to see all available targets.
 | `make deps-hadolint` | Install hadolint for Dockerfile linting |
 | `make deps-act` | Install act for running GitHub Actions locally |
 | `make deps-trivy` | Install trivy for local vulnerability scanning |
-| `make renovate-bootstrap` | Install nvm and npm for Renovate |
+| `make deps-renovate` | Install nvm and npm for Renovate |
 | `make release` | Create and push a new tag |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
 | `make renovate-validate` | Validate Renovate configuration |
 | `make test-case-one` | Test case #1 `[["SFO", "EWR"]]` |
 | `make test-case-two` | Test case #2 `[["ATL", "EWR"], ["SFO", "ATL"]]` |
 | `make test-case-three` | Test case #3 `[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]` |
+
+## Architecture
+
+See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for C4 diagrams (Context, Container, Component), request flow sequence diagram, and CI/CD pipeline flowchart.
 
 ## Security & Code Quality
 
@@ -143,7 +143,7 @@ Run `make help` to see all available targets.
 
 | Tool | Where | What it does |
 |------|-------|-------------|
-| [Trivy](https://github.com/aquasecurity/trivy) | CI only | Scans Docker images and filesystem for CVEs |
+| [Trivy](https://github.com/aquasecurity/trivy) | CI + local (`make trivy-fs`, `make docker-scan`) | Scans Docker images and filesystem for CVEs |
 
 ### Testing
 

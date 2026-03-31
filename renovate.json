@@ -7,7 +7,8 @@
   "enabledManagers": [
     "gomod",
     "github-actions",
-    "dockerfile"
+    "dockerfile",
+    "npm"
   ],
   "postUpdateOptions": [
     "gomodTidy"
