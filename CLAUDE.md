@@ -5,7 +5,7 @@
 **flight-path** is a Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
 - **Language**: Go 1.26.1 (managed via gvm)
-- **Framework**: Echo v5 (v5.0.4)
+- **Framework**: Echo v5 (v5.1.0)
 - **Docs**: Swagger/Swaggo (auto-generated)
 - **Version**: See `pkg/api/version.txt`
 - **Repo**: https://github.com/AndriyKalashnykov/flight-path
@@ -149,7 +149,7 @@ make renovate-validate # Validate Renovate configuration
 | `BENCHSTAT_VERSION` | 0.0.0-20260312031701-16a31bc5fbd0 | Benchmark comparison |
 | `HADOLINT_VERSION` | 2.14.0 | Dockerfile linter |
 | `TRIVY_VERSION` | 0.69.3 | Vulnerability scanner |
-| `ACT_VERSION` | 0.2.86 | Local GitHub Actions runner |
+| `ACT_VERSION` | 0.2.87 | Local GitHub Actions runner |
 | `NVM_VERSION` | 0.40.4 | Node.js version manager |
 | `NODE_VERSION` | 24 | Node.js major version (pinned for nvm) |
 
@@ -203,7 +203,7 @@ Update specs when changing architecture, API, or testing strategy.
 
 | Package | Version | Purpose |
 |---|---|---|
-| `github.com/labstack/echo/v5` | v5.0.4 | Web framework |
+| `github.com/labstack/echo/v5` | v5.1.0 | Web framework |
 | `github.com/swaggo/echo-swagger/v2` | v2.0.1 | Swagger UI |
 | `github.com/swaggo/swag/v2` | v2.0.0-rc5 | Swagger generator |
 | `github.com/joho/godotenv` | v1.5.1 | Environment variables |
@@ -265,6 +265,14 @@ Use the following skills when working on related files:
 | `renovate.json` | `/renovate` |
 | `README.md` | `/readme` |
 | `.github/workflows/*.yml` | `/ci-workflow` |
+
+## Upgrade Tracking
+
+Items to check each session until resolved (remove when done):
+
+- [ ] **swag v2 GA**: `swaggo/swag` v2 is still RC (v2.0.0-rc5) — check `gh api repos/swaggo/swag/releases --jq '[.[] | select(.tag_name | startswith("v2"))][0].tag_name'` for stable release, then upgrade `SWAG_VERSION` in Makefile and `go.mod`
+- [ ] **ZAP Automation Framework**: `zaproxy/action-api-scan` is actively maintained (not deprecated as of 2026-04-02). `zaproxy/action-af` exists as a more flexible alternative but has less activity. Re-evaluate if `action-api-scan` gets a deprecation notice
+- [x] ~~**Renovate Makefile coverage**: Resolved — `customManagers` regex added to `renovate.json`, inline `# renovate:` comments added to Makefile~~
 
 ## Environment
 
