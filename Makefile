@@ -17,17 +17,26 @@ GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 
 # === Tool Versions (pinned) ===
 SWAG_VERSION        := 2.0.0-rc5
+# renovate: datasource=github-releases depName=securego/gosec
 GOSEC_VERSION       := 2.25.0
 BENCHSTAT_VERSION   := 0.0.0-20260312031701-16a31bc5fbd0
+# renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_VERSION    := 2.11.4
+# renovate: datasource=github-releases depName=golang/vuln
 GOVULNCHECK_VERSION := 1.1.4
+# renovate: datasource=github-releases depName=zricethezav/gitleaks
 GITLEAKS_VERSION    := 8.30.1
+# renovate: datasource=github-releases depName=rhysd/actionlint
 ACTIONLINT_VERSION  := 1.7.12
+# renovate: datasource=github-releases depName=nvm-sh/nvm
 NVM_VERSION         := 0.40.4
 NODE_VERSION        := 24
+# renovate: datasource=github-releases depName=hadolint/hadolint
 HADOLINT_VERSION    := 2.14.0
+# renovate: datasource=github-releases depName=aquasecurity/trivy
 TRIVY_VERSION       := 0.69.3
-ACT_VERSION         := 0.2.86
+# renovate: datasource=github-releases depName=nektos/act
+ACT_VERSION         := 0.2.87
 
 # === gvm detection ===
 HAS_GVM := $(shell command -v gvm >/dev/null 2>&1 && echo true || echo false)
