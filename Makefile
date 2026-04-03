@@ -16,9 +16,11 @@ COVPROF := $(HOMEDIR)/covprof.out
 GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 
 # === Tool Versions (pinned) ===
+# renovate: datasource=github-releases depName=swaggo/swag
 SWAG_VERSION        := 2.0.0-rc5
 # renovate: datasource=github-releases depName=securego/gosec
 GOSEC_VERSION       := 2.25.0
+# renovate: datasource=go depName=golang.org/x/perf/cmd/benchstat
 BENCHSTAT_VERSION   := 0.0.0-20260312031701-16a31bc5fbd0
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_VERSION    := 2.11.4
@@ -30,6 +32,7 @@ GITLEAKS_VERSION    := 8.30.1
 ACTIONLINT_VERSION  := 1.7.12
 # renovate: datasource=github-releases depName=nvm-sh/nvm
 NVM_VERSION         := 0.40.4
+# NODE_VERSION tracks major only — managed manually, not auto-updated by Renovate
 NODE_VERSION        := 24
 # renovate: datasource=github-releases depName=hadolint/hadolint
 HADOLINT_VERSION    := 2.14.0
@@ -39,7 +42,9 @@ TRIVY_VERSION       := 0.69.3
 ACT_VERSION         := 0.2.87
 
 # === gvm detection ===
-HAS_GVM := $(shell command -v gvm >/dev/null 2>&1 && echo true || echo false)
+# gvm is a shell function (not a binary), so command -v doesn't work in Make's $(shell) context
+GVM_SHA := dd652539fa4b771840846f8319fad303c7d0a8d2
+HAS_GVM := $(shell [ -s "$$HOME/.gvm/scripts/gvm" ] && echo true || echo false)
 define go-exec
 $(if $(filter true,$(HAS_GVM)),bash -c '. $$GVM_ROOT/scripts/gvm && gvm use go$(GO_VERSION) >/dev/null && $(1)',bash -c '$(1)')
 endef
@@ -52,6 +57,15 @@ help:
 
 #deps: @ Download and install dependencies
 deps:
+	@if [ -z "$$CI" ] && [ ! -s "$$HOME/.gvm/scripts/gvm" ]; then \
+		echo "Installing gvm (Go Version Manager)..."; \
+		curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/$(GVM_SHA)/binscripts/gvm-installer | bash -s $(GVM_SHA); \
+		echo ""; \
+		echo "gvm installed. Please restart your shell or run:"; \
+		echo "  source $$HOME/.gvm/scripts/gvm"; \
+		echo "Then re-run 'make deps' to install Go $(GO_VERSION) via gvm."; \
+		exit 0; \
+	fi
 	@if [ "$(HAS_GVM)" = "true" ]; then \
 		bash -c '. $$GVM_ROOT/scripts/gvm && gvm list' 2>/dev/null | grep -q "go$(GO_VERSION)" || { \
 			echo "Installing Go $(GO_VERSION) via gvm..."; \
@@ -157,7 +171,7 @@ vulncheck: deps
 
 #secrets: @ Scan for hardcoded secrets in source code and git history
 secrets: deps
-	@gitleaks detect --source . --verbose --redact
+	@$(call go-exec,gitleaks detect --source . --verbose --redact)
 
 #sec: @ Run gosec security scanner
 sec: deps
@@ -165,7 +179,7 @@ sec: deps
 
 #lint-ci: @ Lint GitHub Actions workflow files
 lint-ci: deps
-	@actionlint
+	@$(call go-exec,actionlint)
 
 #format: @ Format Go code
 format: deps
@@ -261,11 +275,11 @@ coverage-check: coverage
 	fi
 
 #ci: @ Run full CI pipeline locally
-ci: format static-check test fuzz build
+ci: deps format static-check test coverage-check fuzz build
 	@echo "Local CI pipeline passed."
 
 #ci-full: @ Run full CI pipeline including coverage
-ci-full: format static-check coverage-check fuzz build
+ci-full: deps format static-check coverage-check fuzz build
 	@echo "Full CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
@@ -340,8 +354,25 @@ deps-renovate:
 renovate-validate: deps
 	@npx --yes renovate --platform=local
 
+#deps-prune: @ Remove unused Go module dependencies
+deps-prune: deps
+	@echo "=== Dependency Pruning ==="
+	@echo "--- Go: running go mod tidy ---"
+	@$(call go-exec,go mod tidy)
+	@echo "=== Pruning complete ==="
+
+#deps-prune-check: @ Verify no prunable dependencies (CI gate)
+deps-prune-check: deps
+	@$(call go-exec,go mod tidy)
+	@if ! git diff --exit-code go.mod go.sum >/dev/null 2>&1; then \
+		echo "ERROR: go.mod/go.sum not tidy. Run 'make deps-prune'."; \
+		git checkout go.mod go.sum; \
+		exit 1; \
+	fi
+	@echo "No prunable dependencies found."
+
 .PHONY: help deps deps-check deps-hadolint deps-act deps-trivy api-docs test fuzz bench bench-save bench-compare \
 	lint vulncheck secrets sec lint-ci format static-check build run image-build release update open-swagger \
 	test-case-one test-case-two test-case-three e2e clean coverage coverage-check \
 	ci ci-full ci-run check trivy-fs trivy-image docker-build docker-run docker-test docker-scan \
-	deps-renovate renovate-validate
+	deps-renovate renovate-validate deps-prune deps-prune-check

@@ -90,11 +90,11 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 ```bash
 make help           # List available tasks
 make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, newman)
-make deps-check     # Show required Go version and tool status
+make deps-check     # Show required Go version, gvm status, and tool status
 make deps-hadolint  # Install hadolint for Dockerfile linting
 make deps-act       # Install act for running GitHub Actions locally
 make deps-trivy     # Install trivy for local vulnerability scanning
-make deps-renovate  # Install nvm and npm for Renovate
+make deps-renovate  # Install nvm for Node.js version management and npm for Renovate validation
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
 make format         # Format Go code
 make lint           # Run golangci-lint + hadolint (60+ linters via .golangci.yml)
@@ -118,7 +118,7 @@ make update         # Update Go dependencies
 make release        # Tag and push a new release (full checks + build)
 make image-build    # Build Docker image (full checks + test)
 make check          # Full pre-commit checklist (format + static-check + test + build)
-make ci             # Local CI pipeline (format + static-check + test + fuzz + build)
+make ci             # Local CI pipeline (deps + format + static-check + test + coverage-check + fuzz + build)
 make ci-full        # Full CI with coverage threshold (format + static-check + coverage-check + fuzz + build)
 make ci-run         # Run GitHub Actions workflow locally using act
 make coverage       # Run tests with coverage report
@@ -132,6 +132,8 @@ make trivy-fs       # Run Trivy filesystem vulnerability scan (requires trivy)
 make trivy-image    # Run Trivy image vulnerability scan (requires trivy)
 make open-swagger   # Open browser with Swagger docs pointing to localhost
 make renovate-validate # Validate Renovate configuration
+make deps-prune     # Remove unused Go module dependencies
+make deps-prune-check # Verify no prunable dependencies (CI gate)
 ```
 
 ## Key Variables
@@ -139,7 +141,7 @@ make renovate-validate # Validate Renovate configuration
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `APP_NAME` | flight-path | Application name (used in Docker tags) |
-| `GO_VERSION` | (from go.mod) | Go version auto-parsed from `go.mod` |
+| `GO_VERSION` | (auto-extracted from go.mod) | Go version auto-parsed from `go.mod` via regex |
 | `SWAG_VERSION` | 2.0.0-rc5 | Swagger code generator |
 | `GOSEC_VERSION` | 2.25.0 | Go security scanner |
 | `GOLANGCI_VERSION` | 2.11.4 | Go meta-linter |
@@ -150,6 +152,7 @@ make renovate-validate # Validate Renovate configuration
 | `HADOLINT_VERSION` | 2.14.0 | Dockerfile linter |
 | `TRIVY_VERSION` | 0.69.3 | Vulnerability scanner |
 | `ACT_VERSION` | 0.2.87 | Local GitHub Actions runner |
+| `GVM_SHA` | dd652539... | Go version manager (pinned by commit SHA) |
 | `NVM_VERSION` | 0.40.4 | Node.js version manager |
 | `NODE_VERSION` | 24 | Node.js major version (pinned for nvm) |
 
@@ -234,7 +237,7 @@ GitHub Actions CI workflow runs on every push to `main`, tags `v*`, pull request
 | **builds** | Build binary, upload artifact |
 | **tests** | Coverage threshold check (80%+), fuzz tests |
 | **integration** | Download binary, run server, Newman/Postman E2E tests |
-| **dast** | Run server, OWASP ZAP API security scan |
+| **dast** | Run server, OWASP ZAP API security scan (after static-check + builds + tests) |
 | **image-scan** | Build Docker image, Trivy vulnerability scan |
 | **container-test** | Load Docker image, health-check, API smoke test |
 
@@ -250,7 +253,7 @@ Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs 
 - **Tool not found** (`swag`, `golangci-lint`, etc.): Run `make deps` and ensure `$(go env GOPATH)/bin` is in PATH
 - **Swagger UI shows stale docs**: Run `make api-docs`, restart server, hard-refresh browser
 - **Tests fail after changes**: Run `go test -v ./...` for verbose output; `go clean -testcache` to clear cache
-- **Build fails**: Check `go version` matches go.mod (1.26.1); run `go mod tidy` then `make build`
+- **Build fails**: Check `go version` matches go.mod (1.26.1); if mismatch, use gvm (`gvm use go1.26.1`) or reinstall, then run `go mod tidy` and `make build`
 - **E2E tests fail**: Ensure server is running first (`make run &`, wait a few seconds, then `make e2e`)
 
 ## Skills
@@ -271,7 +274,7 @@ Use the following skills when working on related files:
 Items to check each session until resolved (remove when done):
 
 - [ ] **swag v2 GA**: `swaggo/swag` v2 is still RC (v2.0.0-rc5) — check `gh api repos/swaggo/swag/releases --jq '[.[] | select(.tag_name | startswith("v2"))][0].tag_name'` for stable release, then upgrade `SWAG_VERSION` in Makefile and `go.mod`
-- [ ] **ZAP Automation Framework**: `zaproxy/action-api-scan` is actively maintained (not deprecated as of 2026-04-02). `zaproxy/action-af` exists as a more flexible alternative but has less activity. Re-evaluate if `action-api-scan` gets a deprecation notice
+- [ ] **ZAP Automation Framework**: `zaproxy/action-api-scan` is actively maintained (not deprecated as of 2026-04-03). `zaproxy/action-af` exists as a more flexible alternative but has less activity. Re-evaluate if `action-api-scan` gets a deprecation notice
 - [x] ~~**Renovate Makefile coverage**: Resolved — `customManagers` regex added to `renovate.json`, inline `# renovate:` comments added to Makefile~~
 
 ## Environment

@@ -70,7 +70,7 @@ Run `make help` to see all available targets.
 | `make vulncheck` | Run Go vulnerability check on dependencies |
 | `make secrets` | Scan for hardcoded secrets in source code and git history |
 | `make lint-ci` | Lint GitHub Actions workflow files |
-| `make static-check` | Run code static check (lint + sec + vulncheck + secrets + lint-ci) |
+| `make static-check` | Run code static check (lint-ci + lint + sec + vulncheck + secrets) |
 
 ### Docker
 
@@ -88,7 +88,7 @@ Run `make help` to see all available targets.
 
 | Target | Description |
 |--------|-------------|
-| `make ci` | Run full CI pipeline locally (format + static-check + test + fuzz + build) |
+| `make ci` | Run full CI pipeline locally (deps + format + static-check + test + coverage-check + fuzz + build) |
 | `make ci-full` | Run full CI pipeline including coverage (format + static-check + coverage-check + fuzz + build) |
 | `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
 | `make check` | Run pre-commit checklist (format + static-check + test + build) |
@@ -107,6 +107,8 @@ Run `make help` to see all available targets.
 | `make release` | Create and push a new tag |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
 | `make renovate-validate` | Validate Renovate configuration |
+| `make deps-prune` | Remove unused Go module dependencies |
+| `make deps-prune-check` | Verify no prunable dependencies (CI gate) |
 | `make test-case-one` | Test case #1 `[["SFO", "EWR"]]` |
 | `make test-case-two` | Test case #2 `[["ATL", "EWR"], ["SFO", "ATL"]]` |
 | `make test-case-three` | Test case #3 `[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]` |
@@ -230,7 +232,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 | **builds** | after static-check | Build binary, upload artifact |
 | **tests** | after static-check | Coverage threshold check (80%+), fuzz tests |
 | **integration** | after builds + tests | Download binary, run server, Newman/Postman E2E tests |
-| **dast** | after builds | Run server, OWASP ZAP API security scan |
+| **dast** | after builds + tests | Run server, OWASP ZAP API security scan |
 | **image-scan** | after builds | Build Docker image, Trivy vulnerability scan |
 | **container-test** | after image-scan | Load Docker image, health-check, API smoke test |
 
