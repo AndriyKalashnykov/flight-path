@@ -19,6 +19,7 @@ jobs:
     steps:
       - name: Delete old workflow runs
         run: |
+          # shellcheck disable=SC2086
           CUTOFF=$(date -u -d "${RETAIN_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
           gh run list --repo "${{ github.repository }}" \
             --json databaseId,createdAt --limit 200 \
