@@ -9,19 +9,16 @@ description: Project-specific context and knowledge base
 
 ## Architecture Notes
 
-- `FindItinerary()` in `api.go` uses `sync.Map` for source/destination tracking — unusual for a non-concurrent algorithm, potential simplification target
-- `FindItineraryOptimized()` exists only in `api_bench_test.go` — uses plain maps, O(n), not used in production
+- `FindItinerary()` in `api.go` uses plain maps for source/destination tracking — O(n) time and space
 - `Handler` struct is empty (`type Handler struct{}`), DI-ready but no dependencies injected yet
-- Middleware: RequestLogger, Recover, CORS (currently allows `"*"` — restrict for production)
+- Middleware: RequestLogger, Recover, CORS (configurable via `CORS_ORIGIN` env var, defaults to `"*"`), Secure headers
 
 ## Known Tech Debt
 
-- **No unit tests**: Only benchmark tests exist in `api_bench_test.go`. Testing rules describe extensive patterns but none are implemented yet
 - **Test data in public package**: `TestFlights` (19 segments) lives in `pkg/api/data.go` — should move to `internal/` or `_test.go`
-- **Missing `.goreleaser.yml`**: Release workflow in `.github/workflows/release.yml` references it but the file doesn't exist
-- **CORS wildcard**: `main.go` uses `"*"` for allowed origins
+- **CORS wildcard**: `main.go` defaults to `"*"` for allowed origins when `CORS_ORIGIN` is unset
 
 ## CI Pipeline
 
-- Two workflows: `ci.yml` (lint → build → test → e2e) and `release.yml` (goreleaser on tags)
+- Three workflows: `ci.yml` (static-check → builds/tests → integration/dast/image-scan/container-test), `release.yml` (goreleaser on tags via workflow_call), `cleanup-runs.yml` (weekly cleanup)
 - Renovate auto-merges all dependency updates with `chore(all):` prefix
