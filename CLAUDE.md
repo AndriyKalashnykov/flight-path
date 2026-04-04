@@ -36,8 +36,8 @@ flight-path/
 ├── specs/                               # Reverse-engineered specifications
 ├── test/
 │   ├── FlightPath.postman_collection.json  # E2E test collection (6 cases: 3 happy + 3 negative)
-│   ├── package.json                     # Newman dependency manifest
-│   └── .npmrc                           # npm configuration
+│   ├── package.json                     # Newman dependency manifest (pnpm)
+│   └── .npmrc                           # pnpm configuration
 ├── benchmarks/                          # Saved benchmark results (bench_YYYYMMDD_HHMMSS.txt)
 ├── scripts/                             # build.sh, build-image.sh, wait-for-server.sh
 ├── .zap/rules.tsv                       # OWASP ZAP scan rules for DAST job
@@ -94,7 +94,7 @@ make deps-check     # Show required Go version, gvm status, and tool status
 make deps-hadolint  # Install hadolint for Dockerfile linting
 make deps-act       # Install act for running GitHub Actions locally
 make deps-trivy     # Install trivy for local vulnerability scanning
-make deps-renovate  # Install nvm for Node.js version management and npm for Renovate validation
+make deps-renovate  # Install nvm for Node.js version management and pnpm for Renovate validation
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
 make format         # Format Go code
 make lint           # Run golangci-lint + hadolint (60+ linters via .golangci.yml)
@@ -275,7 +275,18 @@ Items to check each session until resolved (remove when done):
 
 - [ ] **swag v2 GA**: `swaggo/swag` v2 is still RC (v2.0.0-rc5) — check `gh api repos/swaggo/swag/releases --jq '[.[] | select(.tag_name | startswith("v2"))][0].tag_name'` for stable release, then upgrade `SWAG_VERSION` in Makefile and `go.mod`
 - [ ] **ZAP Automation Framework**: `zaproxy/action-api-scan` is actively maintained (not deprecated as of 2026-04-03). `zaproxy/action-af` exists as a more flexible alternative but has less activity. Re-evaluate if `action-api-scan` gets a deprecation notice
+- [ ] **Newman DEP0176**: Newman 6.2.2 emits `[DEP0176] DeprecationWarning: fs.F_OK is deprecated` from `newman/lib/run/secure-fs.js:146`. No newer Newman version available (6.2.2 is latest). Check `pnpm view newman version` for a fix release
 - [x] ~~**Renovate Makefile coverage**: Resolved — `customManagers` regex added to `renovate.json`, inline `# renovate:` comments added to Makefile~~
+
+## Upgrade Backlog
+
+Items identified by upgrade analysis (2026-04-04). Review periodically, act when conditions change:
+
+- [ ] **godotenv low activity**: Last commit 2025-10-21, last release v1.6.0-pre.2 (Dec 2024). Functionally complete — no action unless repo goes archived. Fallback: stdlib `os.Getenv` + helper
+- [ ] **Newman sandbox lag**: Newman 6.2.2 bundles postman-sandbox 4.7.1 (upstream 6.6.1) and postman-runtime 7.39.1 (upstream 7.53.0). Check `pnpm view newman version` for Newman 7.x or new 6.x
+- [x] ~~**npm→pnpm migration + overrides audit**: Migrated to pnpm (2026-04-04). npm `overrides` → `pnpm.overrides`. Removed stale `uuid` override. Remaining 7 overrides (flatted, node-forge, underscore, handlebars, jose, lodash, qs) prevent HIGH/CRITICAL CVEs~~
+- [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
+- [x] ~~**.goreleaser.yml dead config**: Removed Windows `format_overrides` block (2026-04-04)~~
 
 ## Environment
 

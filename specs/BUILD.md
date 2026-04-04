@@ -11,7 +11,7 @@
 | gosec | latest | Security scanning |
 | swag | latest | Swagger generation |
 | benchstat | latest | Benchmark comparison |
-| newman | latest (npm) | Postman collection runner |
+| newman | latest (pnpm) | Postman collection runner |
 
 ## Build Flags
 
@@ -31,7 +31,7 @@ Installs all missing tools using `command -v` checks:
 3. **benchstat** -- `go install golang.org/x/perf/cmd/benchstat@latest`
 4. **golangci-lint** -- via install script
 5. **Node.js** -- `nvm install --lts && nvm use --lts` (if node not found)
-6. **newman** -- `npm install --location=global newman`
+6. **newman** -- `cd test && pnpm install`
 
 ## Build Pipeline (`make build`)
 

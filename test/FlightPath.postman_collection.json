@@ -5,6 +5,58 @@
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "21490464"
 	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global JSON schemas for Ajv response validation",
+					"",
+					"// Success: array of exactly 2 IATA airport codes (3 uppercase letters)",
+					"var successSchema = {",
+					"    type: \"array\",",
+					"    items: { type: \"string\", pattern: \"^[A-Z]{3}$\" },",
+					"    minItems: 2,",
+					"    maxItems: 2",
+					"};",
+					"",
+					"// Error: object with required Error string, optional Index integer",
+					"var errorSchema = {",
+					"    type: \"object\",",
+					"    required: [\"Error\"],",
+					"    properties: {",
+					"        Error: { type: \"string\", minLength: 1 },",
+					"        Index: { type: \"integer\" }",
+					"    },",
+					"    additionalProperties: false",
+					"};",
+					"",
+					"pm.globals.set(\"successSchema\", JSON.stringify(successSchema));",
+					"pm.globals.set(\"errorSchema\", JSON.stringify(errorSchema));"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Collection-level schema validation runs for every request",
+					"var Ajv = require('ajv');",
+					"var ajv = new Ajv({ allErrors: true });",
+					"var schemaKey = pm.response.code === 200 ? \"successSchema\" : \"errorSchema\";",
+					"var schema = JSON.parse(pm.globals.get(schemaKey));",
+					"var validate = ajv.compile(schema);",
+					"",
+					"pm.test(\"Response matches JSON schema\", function () {",
+					"    var valid = validate(pm.response.json());",
+					"    pm.expect(valid, valid ? '' : ajv.errorsText(validate.errors)).to.be.true;",
+					"});"
+				]
+			}
+		}
+	],
 	"item": [
 		{
 			"name": "UseCase01",
@@ -14,20 +66,13 @@
 					"script": {
 						"exec": [
 							"pm.test(\"status code is 200\", function () {",
-							"  pm.response.to.have.status(200);",
+							"    pm.response.to.have.status(200);",
 							"});",
 							"",
-							"pm.test(\"Response must be valid and have a body\", function() {",
-							"    pm.response.to.be.withBody;",
-							"    pm.response.to.be.json;",
-							"});",
-							"",
-							"var responseJSON = pm.response.json()",
-							"",
-							"",
-							"pm.test(\"Response must hava valid data\", function () {",
-							"    pm.expect(responseJSON[0]).to.be.equal(\"SFO\");",
-							"    pm.expect(responseJSON[1]).to.be.equal(\"EWR\");",
+							"pm.test(\"Response has correct airports\", function () {",
+							"    var responseJSON = pm.response.json();",
+							"    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
+							"    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
 							"});"
 						],
 						"type": "text/javascript"
@@ -68,20 +113,13 @@
 					"script": {
 						"exec": [
 							"pm.test(\"status code is 200\", function () {",
-							"  pm.response.to.have.status(200);",
+							"    pm.response.to.have.status(200);",
 							"});",
 							"",
-							"pm.test(\"Response must be valid and have a body\", function() {",
-							"    pm.response.to.be.withBody;",
-							"    pm.response.to.be.json;",
-							"});",
-							"",
-							"var responseJSON = pm.response.json()",
-							"",
-							"",
-							"pm.test(\"Response must hava valid data\", function () {",
-							"    pm.expect(responseJSON[0]).to.be.equal(\"SFO\");",
-							"    pm.expect(responseJSON[1]).to.be.equal(\"EWR\");",
+							"pm.test(\"Response has correct airports\", function () {",
+							"    var responseJSON = pm.response.json();",
+							"    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
+							"    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
 							"});"
 						],
 						"type": "text/javascript"
@@ -122,20 +160,13 @@
 					"script": {
 						"exec": [
 							"pm.test(\"status code is 200\", function () {",
-							"  pm.response.to.have.status(200);",
+							"    pm.response.to.have.status(200);",
 							"});",
 							"",
-							"pm.test(\"Response must be valid and have a body\", function() {",
-							"    pm.response.to.be.withBody;",
-							"    pm.response.to.be.json;",
-							"});",
-							"",
-							"var responseJSON = pm.response.json()",
-							"",
-							"",
-							"pm.test(\"Response must hava valid data\", function () {",
-							"    pm.expect(responseJSON[0]).to.be.equal(\"SFO\");",
-							"    pm.expect(responseJSON[1]).to.be.equal(\"EWR\");",
+							"pm.test(\"Response has correct airports\", function () {",
+							"    var responseJSON = pm.response.json();",
+							"    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
+							"    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
 							"});"
 						],
 						"type": "text/javascript"
@@ -176,17 +207,11 @@
 					"script": {
 						"exec": [
 							"pm.test(\"status code is 400\", function () {",
-							"  pm.response.to.have.status(400);",
+							"    pm.response.to.have.status(400);",
 							"});",
 							"",
-							"pm.test(\"Response must be valid and have a body\", function() {",
-							"    pm.response.to.be.withBody;",
-							"    pm.response.to.be.json;",
-							"});",
-							"",
-							"var responseJSON = pm.response.json();",
-							"",
-							"pm.test(\"Response must have error about empty segments\", function () {",
+							"pm.test(\"Error mentions empty segments\", function () {",
+							"    var responseJSON = pm.response.json();",
 							"    pm.expect(responseJSON.Error).to.include(\"empty\");",
 							"});"
 						],
@@ -228,17 +253,11 @@
 					"script": {
 						"exec": [
 							"pm.test(\"status code is 400\", function () {",
-							"  pm.response.to.have.status(400);",
+							"    pm.response.to.have.status(400);",
 							"});",
 							"",
-							"pm.test(\"Response must be valid and have a body\", function() {",
-							"    pm.response.to.be.withBody;",
-							"    pm.response.to.be.json;",
-							"});",
-							"",
-							"var responseJSON = pm.response.json();",
-							"",
-							"pm.test(\"Response must have error about parsing\", function () {",
+							"pm.test(\"Error mentions parsing\", function () {",
+							"    var responseJSON = pm.response.json();",
 							"    pm.expect(responseJSON.Error).to.include(\"parse\");",
 							"});"
 						],
@@ -280,17 +299,11 @@
 					"script": {
 						"exec": [
 							"pm.test(\"status code is 400\", function () {",
-							"  pm.response.to.have.status(400);",
+							"    pm.response.to.have.status(400);",
 							"});",
 							"",
-							"pm.test(\"Response must be valid and have a body\", function() {",
-							"    pm.response.to.be.withBody;",
-							"    pm.response.to.be.json;",
-							"});",
-							"",
-							"var responseJSON = pm.response.json();",
-							"",
-							"pm.test(\"Response must have error about source and destination\", function () {",
+							"pm.test(\"Error mentions source and destination\", function () {",
+							"    var responseJSON = pm.response.json();",
 							"    pm.expect(responseJSON.Error).to.include(\"source and destination\");",
 							"});"
 						],

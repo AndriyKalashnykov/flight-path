@@ -8,7 +8,7 @@
     "gomod",
     "github-actions",
     "dockerfile",
-    "npm",
+    "pnpm",
     "custom.regex"
   ],
   "customManagers": [

@@ -103,7 +103,7 @@ Run `make help` to see all available targets.
 | `make deps-hadolint` | Install hadolint for Dockerfile linting |
 | `make deps-act` | Install act for running GitHub Actions locally |
 | `make deps-trivy` | Install trivy for local vulnerability scanning |
-| `make deps-renovate` | Install nvm and npm for Renovate |
+| `make deps-renovate` | Install nvm and pnpm for Renovate |
 | `make release` | Create and push a new tag |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
 | `make renovate-validate` | Validate Renovate configuration |
@@ -249,6 +249,8 @@ A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly (Sundays 
 ## Postman/Newman end-to-end tests
 
 Utilized Postman collection exported to [JSON file](./test/FlightPath.postman_collection.json)
-and executes same use cases as Makefile targets `test-case-one` `test-case-two` `test-case-three`, plus negative test cases (empty body, malformed JSON, incomplete segment)
+and executes same use cases as Makefile targets `test-case-one` `test-case-two` `test-case-three`, plus negative test cases (empty body, malformed JSON, incomplete segment).
+
+Uses hybrid validation: Ajv JSON Schema validation for response structure (global schemas defined at collection level) and Chai assertions for exact business values
 
 ![Postman/Newman end-to-end tests](./img/postman-newman.jpg)

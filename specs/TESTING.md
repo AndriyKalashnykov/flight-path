@@ -57,6 +57,21 @@ make bench-compare  # Compare latest two with benchstat
 **Location**: `test/FlightPath.postman_collection.json`
 **Prerequisite**: Server running on `localhost:8080`
 
+### Validation Strategy
+
+Hybrid approach — Ajv JSON Schema validation for response structure, Chai assertions for exact values:
+
+- **Collection pre-request**: Defines two global JSON schemas (`successSchema`, `errorSchema`) stored via `pm.globals`
+- **Collection test**: Ajv validates every response against the appropriate schema (auto-selected by status code)
+- **Request tests**: Status code check + business value assertions
+
+#### Global Schemas
+
+| Schema | Type | Constraints |
+|---|---|---|
+| `successSchema` | `array` | Exactly 2 items, each a 3-letter uppercase string (`^[A-Z]{3}$`) |
+| `errorSchema` | `object` | Required `Error` (string, minLength 1), optional `Index` (integer), no additional properties |
+
 ### Happy Path Cases
 
 | Test | Input | Expected |
@@ -70,7 +85,7 @@ make bench-compare  # Compare latest two with benchstat
 | Test | Input | Expected Status | Error Contains |
 |---|---|---|---|
 | UseCase04_EmptyBody | `[]` | 400 | "empty" |
-| UseCase05_MalformedJSON | `not valid json` | 500 | "parse" |
+| UseCase05_MalformedJSON | `not valid json` | 400 | "parse" |
 | UseCase06_IncompleteSegment | `[["SFO"]]` | 400 | "source and destination" |
 
 ```bash

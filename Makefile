@@ -89,7 +89,8 @@ deps:
 		fi; \
 		. "$$NVM_DIR/nvm.sh" && nvm install $(NODE_VERSION) && nvm use $(NODE_VERSION); \
 	}
-	@[ -f test/node_modules/.bin/newman ] || { echo "Installing newman..."; cd test && npm install; }
+	@command -v pnpm >/dev/null 2>&1 || { echo "Installing pnpm via corepack..."; corepack enable pnpm; }
+	@[ -f test/node_modules/.bin/newman ] || { echo "Installing newman..."; cd test && pnpm install; }
 
 #deps-check: @ Show required Go version and tool status
 deps-check:
@@ -339,9 +340,9 @@ docker-scan: deps-trivy
 #e2e: @ Run Postman/Newman end-to-end tests
 e2e: deps
 	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
-	@NODE_NO_WARNINGS=1 ./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
+	@./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
 
-#deps-renovate: @ Install nvm and npm for Renovate
+#deps-renovate: @ Install nvm and pnpm for Renovate
 deps-renovate:
 	@command -v node >/dev/null 2>&1 || { \
 		echo "Installing nvm $(NVM_VERSION)..."; \
@@ -349,6 +350,7 @@ deps-renovate:
 		curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v$(NVM_VERSION)/install.sh | bash; \
 		. "$$NVM_DIR/nvm.sh" && nvm install $(NODE_VERSION); \
 	}
+	@command -v pnpm >/dev/null 2>&1 || { echo "Installing pnpm via corepack..."; corepack enable pnpm; }
 
 #renovate-validate: @ Validate Renovate configuration
 renovate-validate: deps
