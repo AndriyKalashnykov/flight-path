@@ -231,7 +231,7 @@ Update specs when changing architecture, API, or testing strategy.
 
 ## CI/CD
 
-GitHub Actions CI workflow runs on every push to `main`, tags `v*`, pull requests, and is reusable via `workflow_call` (called by release.yml):
+GitHub Actions CI workflow runs on push to `main`, tags `v*`, pull requests, and is reusable via `workflow_call` (called by release.yml). Non-critical files are excluded via `paths-ignore` (docs, images, benchmarks, `.claude/**`, metadata) — `CLAUDE.md` is re-included via `!CLAUDE.md` negation. Tags and `workflow_call` are unaffected by `paths-ignore`.
 
 | Job | Steps |
 |-----|-------|

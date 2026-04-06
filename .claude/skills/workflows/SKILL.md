@@ -79,7 +79,7 @@ make build-image                         # Multi-platform build + push to Docker
 
 ## CI Pipeline (GitHub Actions)
 
-Pipeline in `.github/workflows/ci.yml`, runs on push and PRs:
+Pipeline in `.github/workflows/ci.yml`, runs on push and PRs (with `paths-ignore` for non-critical files like docs, images, benchmarks, and metadata — `CLAUDE.md` is excluded from ignore via `!CLAUDE.md` negation):
 
 | Job | Depends on | What it runs |
 |---|---|---|
