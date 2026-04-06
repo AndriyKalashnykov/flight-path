@@ -44,7 +44,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # assignee_trigger: claude  # Uncomment to also trigger when issues are assigned to "claude"
-          claude_args: "--max-turns 25"
+          claude_args: "--max-turns 50"
 
   # Automation mode: automatic code review on every non-draft PR open/update.
   # Prompt provided — runs in automation mode with scoped-down permissions (read-only content).
