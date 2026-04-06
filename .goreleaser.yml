@@ -32,14 +32,16 @@ archives:
       {{- .Os }}_
       {{- .Arch }}
 
-dockers:
-  - image_templates:
-      - "ghcr.io/andriykalashnykov/flight-path:{{ .Version }}"
-      - "ghcr.io/andriykalashnykov/flight-path:latest"
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--build-arg=GOMODCACHE=/go/pkg/mod"
-      - "--build-arg=GOCACHE=/root/.cache/go-build"
+dockers_v2:
+  - images:
+      - "ghcr.io/andriykalashnykov/flight-path"
+    tags:
+      - "{{ .Version }}"
+      - latest
+    dockerfile: Dockerfile.goreleaser
+    platforms:
+      - linux/amd64
+      - linux/arm64
 
 changelog:
   sort: asc

@@ -43,6 +43,7 @@ flight-path/
 ├── .zap/rules.tsv                       # OWASP ZAP scan rules for DAST job
 ├── .golangci.yml                        # golangci-lint configuration (60+ linters)
 ├── Dockerfile                           # Multi-stage, multi-platform Docker build (Alpine)
+├── Dockerfile.goreleaser                # Single-stage Dockerfile for GoReleaser releases
 ├── .hadolint.yaml                       # Hadolint Dockerfile linter config
 ├── Makefile                             # All build/dev/test commands
 ├── .env                                 # SERVER_PORT=8080
@@ -280,11 +281,13 @@ Items to check each session until resolved (remove when done):
 
 ## Upgrade Backlog
 
-Items identified by upgrade analysis (2026-04-04). Review periodically, act when conditions change:
+Items identified by upgrade analysis. Review periodically, act when conditions change:
 
-- [ ] **godotenv low activity**: Last commit 2025-10-21, last release v1.6.0-pre.2 (Dec 2024). Functionally complete — no action unless repo goes archived. Fallback: stdlib `os.Getenv` + helper
+- [ ] **godotenv low activity**: Last commit 2025-10-21, last release v1.5.1 (Feb 2023). Functionally complete — no action unless repo goes archived. Fallback: stdlib `os.Getenv` + helper
 - [ ] **Newman sandbox lag**: Newman 6.2.2 bundles postman-sandbox 4.7.1 (upstream 6.6.1) and postman-runtime 7.39.1 (upstream 7.53.0). Check `pnpm view newman version` for Newman 7.x or new 6.x
 - [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
+- [x] ~~**GoReleaser `dockers` deprecation**: Migrated to `dockers_v2` with separate `Dockerfile.goreleaser` (2026-04-06)~~
+- [ ] **swaggo/swag v1 direct dep**: `swag init` generates `docs/docs.go` importing `github.com/swaggo/swag` (v1 path). This is expected behavior of swag v2 RC — the generated code still references the v1 module. Will resolve when v2 GA changes the import path
 
 ## Environment
 
