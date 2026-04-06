@@ -278,6 +278,7 @@ Items to check each session until resolved (remove when done):
 - [ ] **swag v2 GA**: `swaggo/swag` v2 is still RC (v2.0.0-rc5) — check `gh api repos/swaggo/swag/releases --jq '[.[] | select(.tag_name | startswith("v2"))][0].tag_name'` for stable release, then upgrade `SWAG_VERSION` in Makefile and `go.mod`
 - [ ] **ZAP Automation Framework**: `zaproxy/action-api-scan` is actively maintained (not deprecated as of 2026-04-06). `zaproxy/action-af` exists as a more flexible alternative but has less activity. Re-evaluate if `action-api-scan` gets a deprecation notice
 - [ ] **Newman DEP0176**: Newman 6.2.2 emits `[DEP0176] DeprecationWarning: fs.F_OK is deprecated` from `newman/lib/run/secure-fs.js:146`. No newer Newman version available (6.2.2 is latest). Check `pnpm view newman version` for a fix release
+- [ ] **echo-swagger v2: remove swag v1 dep**: PR [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146) and issue [#147](https://github.com/swaggo/echo-swagger/issues/147) — migrates echo-swagger to swag/v2 exclusively, removing the transitive swag v1 dependency. Check `gh pr view 146 --repo swaggo/echo-swagger --json state --jq '.state'` — when merged, run `go get github.com/swaggo/echo-swagger/v2@latest && go mod tidy` to drop swag v1 from our go.mod
 
 ## Upgrade Backlog
 
@@ -287,7 +288,7 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 - [ ] **Newman sandbox lag**: Newman 6.2.2 bundles postman-sandbox 4.7.1 (upstream 6.6.1) and postman-runtime 7.39.1 (upstream 7.53.0). Check `pnpm view newman version` for Newman 7.x or new 6.x
 - [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
 - [x] ~~**GoReleaser `dockers` deprecation**: Migrated to `dockers_v2` with separate `Dockerfile.goreleaser` (2026-04-06)~~
-- [ ] **swaggo/swag v1 direct dep**: `swag init` generates `docs/docs.go` importing `github.com/swaggo/swag` (v1 path). This is expected behavior of swag v2 RC — the generated code still references the v1 module. Will resolve when v2 GA changes the import path
+- [ ] **swaggo/swag v1 indirect dep**: `echo-swagger/v2` pulls in `swag v1` transitively. Fix submitted upstream as [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146). Will auto-resolve when PR is merged and we update echo-swagger
 
 ## Environment
 
