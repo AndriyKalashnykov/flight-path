@@ -13,6 +13,7 @@ OUTDIR  := $(HOMEDIR)/output
 COVPROF := $(HOMEDIR)/covprof.out
 
 # === Go Version (from go.mod) ===
+# renovate: datasource=golang-version depName=go
 GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 
 # === Tool Versions (pinned) ===
@@ -32,7 +33,7 @@ GITLEAKS_VERSION    := 8.30.1
 ACTIONLINT_VERSION  := 1.7.12
 # renovate: datasource=github-releases depName=nvm-sh/nvm
 NVM_VERSION         := 0.40.4
-# NODE_VERSION tracks major only — managed manually, not auto-updated by Renovate
+# NODE_VERSION tracks major only — pinned manually (Renovate cannot track major-only values)
 NODE_VERSION        := 24
 # renovate: datasource=github-releases depName=hadolint/hadolint
 HADOLINT_VERSION    := 2.14.0
@@ -279,7 +280,7 @@ coverage-check: coverage
 ci: deps format static-check test coverage-check fuzz build
 	@echo "Local CI pipeline passed."
 
-#ci-full: @ Run full CI pipeline including coverage
+#ci-full: @ Run full CI with coverage threshold (format + static-check + coverage-check + fuzz + build)
 ci-full: deps format static-check coverage-check fuzz build
 	@echo "Full CI pipeline passed."
 

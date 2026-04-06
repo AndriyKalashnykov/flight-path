@@ -4,7 +4,7 @@
 
 **flight-path** is a Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
-- **Language**: Go 1.26.1 (managed via gvm)
+- **Language**: Go 1.26.1 (via gvm, optional — system Go works too)
 - **Framework**: Echo v5 (v5.1.0)
 - **Docs**: Swagger/Swaggo (auto-generated)
 - **Version**: See `pkg/api/version.txt`
@@ -47,6 +47,7 @@ flight-path/
 ├── Makefile                             # All build/dev/test commands
 ├── .env                                 # SERVER_PORT=8080
 ├── .goreleaser.yml                      # GoReleaser release configuration
+├── .claude/                             # Claude Code session/config files
 ├── .claudeignore                        # Claude Code ignore patterns
 ├── .dockerignore                        # Docker build context exclusions
 ├── .gitignore                           # Git ignore patterns
@@ -274,9 +275,8 @@ Use the following skills when working on related files:
 Items to check each session until resolved (remove when done):
 
 - [ ] **swag v2 GA**: `swaggo/swag` v2 is still RC (v2.0.0-rc5) — check `gh api repos/swaggo/swag/releases --jq '[.[] | select(.tag_name | startswith("v2"))][0].tag_name'` for stable release, then upgrade `SWAG_VERSION` in Makefile and `go.mod`
-- [ ] **ZAP Automation Framework**: `zaproxy/action-api-scan` is actively maintained (not deprecated as of 2026-04-03). `zaproxy/action-af` exists as a more flexible alternative but has less activity. Re-evaluate if `action-api-scan` gets a deprecation notice
+- [ ] **ZAP Automation Framework**: `zaproxy/action-api-scan` is actively maintained (not deprecated as of 2026-04-06). `zaproxy/action-af` exists as a more flexible alternative but has less activity. Re-evaluate if `action-api-scan` gets a deprecation notice
 - [ ] **Newman DEP0176**: Newman 6.2.2 emits `[DEP0176] DeprecationWarning: fs.F_OK is deprecated` from `newman/lib/run/secure-fs.js:146`. No newer Newman version available (6.2.2 is latest). Check `pnpm view newman version` for a fix release
-- [x] ~~**Renovate Makefile coverage**: Resolved — `customManagers` regex added to `renovate.json`, inline `# renovate:` comments added to Makefile~~
 
 ## Upgrade Backlog
 
@@ -284,9 +284,7 @@ Items identified by upgrade analysis (2026-04-04). Review periodically, act when
 
 - [ ] **godotenv low activity**: Last commit 2025-10-21, last release v1.6.0-pre.2 (Dec 2024). Functionally complete — no action unless repo goes archived. Fallback: stdlib `os.Getenv` + helper
 - [ ] **Newman sandbox lag**: Newman 6.2.2 bundles postman-sandbox 4.7.1 (upstream 6.6.1) and postman-runtime 7.39.1 (upstream 7.53.0). Check `pnpm view newman version` for Newman 7.x or new 6.x
-- [x] ~~**npm→pnpm migration + overrides audit**: Migrated to pnpm (2026-04-04). npm `overrides` → `pnpm.overrides`. Removed stale `uuid` override. Remaining 7 overrides (flatted, node-forge, underscore, handlebars, jose, lodash, qs) prevent HIGH/CRITICAL CVEs~~
 - [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
-- [x] ~~**.goreleaser.yml dead config**: Removed Windows `format_overrides` block (2026-04-04)~~
 
 ## Environment
 

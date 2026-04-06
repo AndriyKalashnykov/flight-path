@@ -8,7 +8,7 @@
     "gomod",
     "github-actions",
     "dockerfile",
-    "pnpm",
+    "npm",
     "custom.regex"
   ],
   "customManagers": [
@@ -27,7 +27,6 @@
     "gomodTidy"
   ],
   "commitMessagePrefix": "chore(all): ",
-  "commitMessageAction": "update",
   "commitBody": "Signed-off-by: Renovate Bot <bot@renovateapp.com>",
   "labels": [
     "dependencies"
