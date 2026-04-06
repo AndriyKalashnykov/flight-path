@@ -41,7 +41,7 @@ jobs:
           scanners: 'vuln,secret,misconfig'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
-          skip-dirs: 'test/node_modules'
+          skip-dirs: 'test/node_modules,.pnpm-store'
 
       - name: Trivy filesystem scan (MEDIUM - informational)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
@@ -50,7 +50,7 @@ jobs:
           scanners: 'vuln,secret,misconfig'
           severity: 'MEDIUM'
           exit-code: '0'
-          skip-dirs: 'test/node_modules'
+          skip-dirs: 'test/node_modules,.pnpm-store'
 
   builds:
     needs: [static-check]
