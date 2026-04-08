@@ -48,7 +48,7 @@ flight-path/
 ├── Makefile                             # All build/dev/test commands
 ├── .env                                 # SERVER_PORT=8080
 ├── .goreleaser.yml                      # GoReleaser release configuration
-├── .claude/                             # Claude Code session/config files
+├── .claude/                             # Claude Code commands, agents, skills, rules, and settings
 ├── .claudeignore                        # Claude Code ignore patterns
 ├── .dockerignore                        # Docker build context exclusions
 ├── .gitignore                           # Git ignore patterns

@@ -12,8 +12,7 @@ HOMEDIR := $(CURDIR)
 OUTDIR  := $(HOMEDIR)/output
 COVPROF := $(HOMEDIR)/covprof.out
 
-# === Go Version (from go.mod) ===
-# renovate: datasource=golang-version depName=go
+# === Go Version (from go.mod — tracked by Renovate's gomod manager, not here) ===
 GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 
 # === Tool Versions (pinned) ===
@@ -131,7 +130,7 @@ api-docs: deps
 
 #test: @ Run tests
 test: deps
-	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -v ./...)
+	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -race -v ./...)
 
 #fuzz: @ Run fuzz tests for 30 seconds
 fuzz: deps
@@ -157,15 +156,15 @@ bench-compare: deps
 			exit 1; \
 		fi; \
 		echo "Comparing: $$OLD_FILE (old) vs $$NEW_FILE (new)"; \
-		benchstat $$OLD_FILE $$NEW_FILE; \
+		$(call go-exec,benchstat $$OLD_FILE $$NEW_FILE); \
 	else \
-		benchstat $(OLD) $(NEW); \
+		$(call go-exec,benchstat $(OLD) $(NEW)); \
 	fi
 
 #lint: @ Run golangci-lint and hadolint (60+ linters via .golangci.yml)
 lint: deps deps-hadolint
 	@$(call go-exec,golangci-lint run ./...)
-	@hadolint Dockerfile
+	@hadolint Dockerfile Dockerfile.goreleaser
 
 #vulncheck: @ Run Go vulnerability check on dependencies
 vulncheck: deps
@@ -261,7 +260,7 @@ clean:
 #coverage: @ Run tests with coverage report
 coverage: deps
 	@mkdir -p $(OUTDIR)
-	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -coverprofile=$(COVPROF) -covermode=atomic ./internal/...)
+	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -race -coverprofile=$(COVPROF) -covermode=atomic ./internal/...)
 	@$(call go-exec,go tool cover -func=$(COVPROF))
 	@$(call go-exec,go tool cover -html=$(COVPROF) -o $(OUTDIR)/coverage.html)
 	@echo "Coverage report: $(OUTDIR)/coverage.html"
@@ -355,7 +354,7 @@ deps-renovate:
 
 #renovate-validate: @ Validate Renovate configuration
 renovate-validate: deps
-	@npx --yes renovate --platform=local
+	@pnpm dlx renovate --platform=local
 
 #deps-prune: @ Remove unused Go module dependencies
 deps-prune: deps
