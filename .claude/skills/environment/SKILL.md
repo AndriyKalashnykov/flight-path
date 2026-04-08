@@ -11,11 +11,11 @@ description: >
 ## Go (via gvm)
 
 ```bash
-GOROOT=/home/andriy/.gvm/gos/go1.26.1
-GOPATH=/home/andriy/.gvm/pkgsets/go1.26.1/global
+GOROOT=/home/andriy/.gvm/gos/go1.26.2
+GOPATH=/home/andriy/.gvm/pkgsets/go1.26.2/global
 ```
 
-Activated via `~/.zshrc`: `gvm use go1.26.1 --default`
+Activated via `~/.zshrc`: `gvm use go1.26.2 --default`
 
 ## Node.js (via nvm)
 

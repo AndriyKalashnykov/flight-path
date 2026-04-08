@@ -4,7 +4,7 @@
 
 **flight-path** is a Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
-- **Language**: Go 1.26.1 (via gvm, optional — system Go works too)
+- **Language**: Go 1.26.2 (via gvm, optional — system Go works too)
 - **Framework**: Echo v5 (v5.1.0)
 - **Docs**: Swagger/Swaggo (auto-generated)
 - **Version**: See `pkg/api/version.txt`
@@ -255,7 +255,7 @@ Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs 
 - **Tool not found** (`swag`, `golangci-lint`, etc.): Run `make deps` and ensure `$(go env GOPATH)/bin` is in PATH
 - **Swagger UI shows stale docs**: Run `make api-docs`, restart server, hard-refresh browser
 - **Tests fail after changes**: Run `go test -v ./...` for verbose output; `go clean -testcache` to clear cache
-- **Build fails**: Check `go version` matches go.mod (1.26.1); if mismatch, use gvm (`gvm use go1.26.1`) or reinstall, then run `go mod tidy` and `make build`
+- **Build fails**: Check `go version` matches go.mod (1.26.2); if mismatch, use gvm (`gvm use go1.26.2`) or reinstall, then run `go mod tidy` and `make build`
 - **E2E tests fail**: Ensure server is running first (`make run &`, wait a few seconds, then `make e2e`)
 
 ## Skills
@@ -292,6 +292,6 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 
 ## Environment
 
-- Go 1.26.1 via gvm: `GOROOT=/home/andriy/.gvm/gos/go1.26.1`
+- Go 1.26.2 via gvm: `GOROOT=/home/andriy/.gvm/gos/go1.26.2`
 - Node.js via nvm (for Newman)
 - Environment variables loaded from `.env` (`SERVER_PORT=8080`)

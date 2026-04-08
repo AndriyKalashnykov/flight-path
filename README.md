@@ -5,7 +5,7 @@
 
 # Flight Path
 
-A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport). Built with Go 1.26.1 + Echo v5 + Swagger/Swaggo.
+A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport). Built with Go 1.26.2 + Echo v5 + Swagger/Swaggo.
 
 ## Quick Start
 
@@ -20,7 +20,7 @@ make run       # build and start the server on http://localhost:8080
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| [Go](https://go.dev/dl/) | 1.26.1+ (from `go.mod`) | Language runtime and compiler |
+| [Go](https://go.dev/dl/) | 1.26.2+ (from `go.mod`) | Language runtime and compiler |
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Git](https://git-scm.com/) | 2.0+ | Version control |
 | [Docker](https://www.docker.com/) | latest | Container builds and testing |
