@@ -251,7 +251,7 @@ Jobs `integration`, `dast`, and `container-test` are skipped when running locall
 
 Release workflow runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then executing GoReleaser for binary/container release.
 
-Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5).
+Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches.
 
 ## Troubleshooting
 

@@ -236,6 +236,21 @@ jobs:
       - name: Make binary executable
         run: chmod +x server
 
+      - name: Get ZAP cache key
+        id: zap-week
+        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache ZAP Docker image
+        id: zap-cache
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: /tmp/zap-image.tar
+          key: zap-stable-${{ steps.zap-week.outputs.week }}
+
+      - name: Load cached ZAP image
+        if: steps.zap-cache.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/zap-image.tar
+
       - name: Start server
         run: |
           ./server -env-file .env &
@@ -248,6 +263,10 @@ jobs:
           format: openapi
           rules_file_name: '.zap/rules.tsv'
           fail_action: true
+
+      - name: Save ZAP image for cache
+        if: steps.zap-cache.outputs.cache-hit != 'true'
+        run: docker save ghcr.io/zaproxy/zaproxy:stable -o /tmp/zap-image.tar
 
       - name: Cleanup
         if: always()
