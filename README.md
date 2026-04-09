@@ -5,7 +5,18 @@
 
 # Flight Path
 
-A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport). Built with Go 1.26.2 + Echo v5 + Swagger/Swaggo.
+A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
+
+| Component | Technology |
+|-----------|------------|
+| Language | Go 1.26.2 |
+| Framework | Echo v5.1.0 |
+| API Docs | Swagger (swaggo/swag v2) |
+| Testing | go test (unit, bench, fuzz), Newman/Postman (E2E) |
+| Linting | golangci-lint v2.11.4 (60+ linters) |
+| Container | Docker (multi-stage Alpine) |
+| CI/CD | GitHub Actions + GoReleaser |
+| Dependencies | Renovate |
 
 ## Quick Start
 
@@ -176,7 +187,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 | **tests** | after static-check | Coverage threshold check (80%+), fuzz tests |
 | **integration** | after builds + tests | Download binary, run server, Newman/Postman E2E tests |
 | **dast** | after builds + tests | Run server, OWASP ZAP API security scan |
-| **image-scan** | after builds | Build Docker image, Trivy vulnerability scan |
+| **image-scan** | after static-check | Build Docker image, Trivy vulnerability scan |
 | **container-test** | after image-scan | Load Docker image, health-check, API smoke test |
 
 | Job | Triggers | Steps |
