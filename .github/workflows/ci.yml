@@ -57,9 +57,15 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
+      - name: Cache Go tool binaries
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: ~/go/bin
+          key: go-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
+
       - name: Lint, security scan, vulncheck, secrets, CI lint
         run: |
-          export PATH=$PATH:/home/runner/go/bin
+          export PATH=$PATH:~/go/bin
           make static-check
 
       - name: Trivy filesystem scan
@@ -96,8 +102,16 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
+      - name: Cache Go tool binaries
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: ~/go/bin
+          key: go-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
+
       - name: Build
-        run: make build
+        run: |
+          export PATH=$PATH:~/go/bin
+          make build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
@@ -121,6 +135,12 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: true
+
+      - name: Cache Go tool binaries
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: ~/go/bin
+          key: go-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
 
       - name: Verify coverage threshold
         run: make coverage-check
@@ -157,6 +177,12 @@ jobs:
         with:
           node-version: lts/*
 
+      - name: Cache Newman
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: test/node_modules
+          key: newman-${{ runner.os }}-${{ hashFiles('test/pnpm-lock.yaml') }}
+
       - name: Download build artifact
         id: download-binary
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -182,18 +208,12 @@ jobs:
 
   dast:
     if: ${{ vars.ACT != 'true' }}
-    needs: [static-check, builds, tests]
+    needs: [builds, tests]
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
-        with:
-          go-version-file: 'go.mod'
-          cache: true
 
       - name: Download build artifact
         id: download-binary
@@ -201,6 +221,13 @@ jobs:
         continue-on-error: true
         with:
           name: server-binary
+
+      - name: Install Go (fallback only)
+        if: steps.download-binary.outcome == 'failure'
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
 
       - name: Build binary (fallback)
         if: steps.download-binary.outcome == 'failure'
@@ -227,7 +254,7 @@ jobs:
         run: pkill -f './server' 2>/dev/null || true
 
   image-scan:
-    needs: [builds]
+    needs: [static-check]
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
@@ -238,11 +265,16 @@ jobs:
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
       - name: Build Docker image
-        run: |
-          docker buildx build --load \
-            --build-arg GOMODCACHE=/go/pkg/mod \
-            --build-arg GOCACHE=/root/.cache/go-build \
-            -t flight-path:scan .
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: .
+          load: true
+          tags: flight-path:scan
+          build-args: |
+            GOMODCACHE=/go/pkg/mod
+            GOCACHE=/root/.cache/go-build
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
@@ -282,13 +314,21 @@ jobs:
         if: steps.download-image.outcome == 'success'
         run: docker load -i flight-path.tar
 
+      - name: Set up Docker Buildx (fallback)
+        if: steps.download-image.outcome == 'failure'
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
       - name: Build Docker image (fallback)
         if: steps.download-image.outcome == 'failure'
-        run: |
-          docker buildx build --load \
-            --build-arg GOMODCACHE=/go/pkg/mod \
-            --build-arg GOCACHE=/root/.cache/go-build \
-            -t flight-path:scan .
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: .
+          load: true
+          tags: flight-path:scan
+          build-args: |
+            GOMODCACHE=/go/pkg/mod
+            GOCACHE=/root/.cache/go-build
+          cache-from: type=gha
 
       - name: Tag image for docker-test
         run: docker tag flight-path:scan flight-path:local
