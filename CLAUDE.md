@@ -44,7 +44,6 @@ flight-path/
 ├── .zap/rules.tsv                       # OWASP ZAP scan rules for DAST job
 ├── .golangci.yml                        # golangci-lint configuration (70+ linters)
 ├── Dockerfile                           # Multi-stage, multi-platform Docker build (Alpine)
-├── Dockerfile.goreleaser                # Single-stage Dockerfile for GoReleaser releases
 ├── .hadolint.yaml                       # Hadolint Dockerfile linter config
 ├── Makefile                             # All build/dev/test commands
 ├── .env                                 # SERVER_PORT=8080
@@ -291,7 +290,7 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 - [ ] **godotenv low activity**: Last commit 2025-10-21, last release v1.5.1 (Feb 2023). Functionally complete — no action unless repo goes archived. Fallback: stdlib `os.Getenv` + helper
 - [ ] **Newman sandbox lag**: Newman 6.2.2 bundles postman-sandbox 4.7.1 (upstream 6.6.1) and postman-runtime 7.39.1 (upstream 7.53.0). Check `pnpm view newman version` for Newman 7.x or new 6.x
 - [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
-- [x] ~~**GoReleaser `dockers` deprecation**: Migrated to `dockers_v2` with separate `Dockerfile.goreleaser` (2026-04-06)~~
+- [x] ~~**GoReleaser `dockers` deprecation**: Migrated to `dockers_v2` with separate `Dockerfile.goreleaser` (2026-04-06). Superseded on 2026-04-09: image publishing moved out of goreleaser into a dedicated hardened `docker` job in `release.yml` (Trivy scan + smoke test + provenance/SBOM + cosign keyless signing). `Dockerfile.goreleaser` removed.~~
 - [ ] **swaggo/swag v1 indirect dep**: `echo-swagger/v2` pulls in `swag v1` transitively. Fix submitted upstream as [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146). Will auto-resolve when PR is merged and we update echo-swagger
 
 ## Environment

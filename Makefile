@@ -164,7 +164,7 @@ bench-compare: deps
 #lint: @ Run golangci-lint and hadolint (60+ linters via .golangci.yml)
 lint: deps deps-hadolint
 	@$(call go-exec,golangci-lint run ./...)
-	@hadolint Dockerfile Dockerfile.goreleaser
+	@hadolint Dockerfile
 
 #vulncheck: @ Run Go vulnerability check on dependencies
 vulncheck: deps

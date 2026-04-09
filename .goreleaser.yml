@@ -32,17 +32,6 @@ archives:
       {{- .Os }}_
       {{- .Arch }}
 
-dockers_v2:
-  - images:
-      - "ghcr.io/andriykalashnykov/flight-path"
-    tags:
-      - "{{ .Version }}"
-      - latest
-    dockerfile: Dockerfile.goreleaser
-    platforms:
-      - linux/amd64
-      - linux/arm64
-
 changelog:
   sort: asc
   use: github

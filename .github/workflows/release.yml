@@ -26,7 +26,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
-      packages: write
     steps:
 
     - name: Checkout
@@ -40,16 +39,6 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
-
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
-      with:
-        registry: ghcr.io
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
       with:
@@ -57,3 +46,122 @@ jobs:
         args: release --clean -f ./.goreleaser.yml
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write   # cosign keyless OIDC (Sigstore Fulcio)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        with:
+          images: ghcr.io/andriykalashnykov/flight-path
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+          flavor: |
+            latest=true
+
+      # =================================================================
+      # GATE 1: Local single-arch build for scanning + smoke testing
+      # =================================================================
+      - name: Build image for scan (single-arch, load locally)
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: flight-path:scan
+          build-args: |
+            GOMODCACHE=/go/pkg/mod
+            GOCACHE=/root/.cache/go-build
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # =================================================================
+      # GATE 2: Trivy image scan (CRITICAL/HIGH blocking)
+      # =================================================================
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: 'flight-path:scan'
+          scanners: 'vuln,secret,misconfig'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+
+      # =================================================================
+      # GATE 3: Smoke test the locally-built image
+      # =================================================================
+      - name: Tag image for smoke test
+        run: docker tag flight-path:scan flight-path:local
+
+      - name: Smoke-test container
+        run: make docker-smoke-test
+
+      - name: Cleanup smoke-test container
+        if: always()
+        run: docker rm -f fp-test 2>/dev/null || true
+
+      # =================================================================
+      # All gates passed -> publish multi-arch with attestations
+      # =================================================================
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (multi-arch + provenance + SBOM)
+        id: push
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            GOMODCACHE=/go/pkg/mod
+            GOCACHE=/root/.cache/go-build
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # =================================================================
+      # Post-push: cosign keyless signing (Sigstore OIDC)
+      # =================================================================
+      - name: Install cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+
+      - name: Sign image with cosign (keyless)
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            echo "-> cosign sign ${tag}@${DIGEST}"
+            cosign sign --yes "${tag}@${DIGEST}"
+          done <<< "${TAGS}"
