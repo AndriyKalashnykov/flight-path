@@ -78,7 +78,7 @@ jobs:
                   job_id: job.id
                 });
                 const lines = logs.data.split('\n');
-                const tail = lines.slice(-150).join('\n');
+                const tail = lines.slice(-100).join('\n').substring(0, 4000);
                 errorDetails.push(`### Job: ${job.name}\n\`\`\`\n${tail}\n\`\`\``);
               } catch (e) {
                 errorDetails.push(`### Job: ${job.name}\nCould not fetch logs: ${e.message}`);
@@ -148,5 +148,6 @@ jobs:
             - Only change files that directly address the CI failure
             - Do not refactor, add features, or make unrelated improvements
             - Use conventional commit messages (fix:, chore:, etc.)
+            - NEVER modify files in .github/workflows/, CLAUDE.md, .claude/, or any file containing credentials
           allowed_tools: "Bash,Edit,Read,Write,Glob,Grep,WebFetch,mcp__github_comment__update_claude_comment"
           claude_args: "--max-turns 30"

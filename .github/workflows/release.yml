@@ -53,7 +53,7 @@ jobs:
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
       with:
-        version: 'v2.15.2'
+        version: 'v2.15.2' # renovate: depName=goreleaser/goreleaser datasource=github-releases
         args: release --clean -f ./.goreleaser.yml
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

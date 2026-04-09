@@ -4,6 +4,14 @@
     "config:best-practices",
     ":semanticCommitType(chore)"
   ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/__tests__/**",
+    "**/tests/**",
+    "**/fixtures/**"
+  ],
   "enabledManagers": [
     "gomod",
     "github-actions",
@@ -21,12 +29,24 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)( versioning=(?<versioning>[^\\s]+))?\\n[A-Z_]+\\s*:=\\s*(?<currentValue>[^\\s]+)"
       ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update GoReleaser version in release workflow",
+      "managerFilePatterns": [
+        "/\\.github/workflows/release\\.yml$/"
+      ],
+      "matchStrings": [
+        "version:\\s*'v(?<currentValue>[^']+)'\\s*# renovate: depName=goreleaser/goreleaser datasource=github-releases"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "goreleaser/goreleaser"
     }
   ],
   "postUpdateOptions": [
     "gomodTidy"
   ],
-  "commitMessagePrefix": "chore(all): ",
+  "commitMessagePrefix": "chore(deps): ",
   "commitBody": "Signed-off-by: Renovate Bot <bot@renovateapp.com>",
   "labels": [
     "dependencies"
@@ -93,6 +113,13 @@
         "custom.regex"
       ],
       "groupName": "Makefile tools"
+    },
+    {
+      "description": "Group Node.js dependencies",
+      "matchManagers": [
+        "npm"
+      ],
+      "groupName": "Node.js dependencies"
     }
   ]
 }

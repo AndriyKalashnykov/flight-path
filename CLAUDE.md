@@ -37,11 +37,12 @@ flight-path/
 ├── test/
 │   ├── FlightPath.postman_collection.json  # E2E test collection (6 cases: 3 happy + 3 negative)
 │   ├── package.json                     # Newman dependency manifest (pnpm)
+│   ├── pnpm-lock.yaml                   # pnpm lock file (reproducible builds)
 │   └── .npmrc                           # pnpm configuration
 ├── benchmarks/                          # Saved benchmark results (bench_YYYYMMDD_HHMMSS.txt)
 ├── scripts/                             # build.sh, build-image.sh, wait-for-server.sh
 ├── .zap/rules.tsv                       # OWASP ZAP scan rules for DAST job
-├── .golangci.yml                        # golangci-lint configuration (60+ linters)
+├── .golangci.yml                        # golangci-lint configuration (70+ linters)
 ├── Dockerfile                           # Multi-stage, multi-platform Docker build (Alpine)
 ├── Dockerfile.goreleaser                # Single-stage Dockerfile for GoReleaser releases
 ├── .hadolint.yaml                       # Hadolint Dockerfile linter config
@@ -99,7 +100,7 @@ make deps-trivy     # Install trivy for local vulnerability scanning
 make deps-renovate  # Install nvm for Node.js version management and pnpm for Renovate validation
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
 make format         # Format Go code
-make lint           # Run golangci-lint + hadolint (60+ linters via .golangci.yml)
+make lint           # Run golangci-lint + hadolint (70+ linters via .golangci.yml)
 make sec            # Run gosec security scanner
 make vulncheck      # Run Go vulnerability check on dependencies
 make secrets        # Scan for hardcoded secrets (gitleaks)
@@ -128,6 +129,7 @@ make coverage-check # Verify coverage meets 80% threshold
 make clean          # Remove build artifacts and test cache
 make docker-build   # Build Docker image for local testing
 make docker-run     # Run Docker container locally
+make docker-smoke-test # Smoke-test a pre-built Docker container (no rebuild)
 make docker-test    # Build and smoke-test Docker container
 make docker-scan    # Build Docker image and run Trivy scan (requires trivy)
 make trivy-fs       # Run Trivy filesystem vulnerability scan (requires trivy)
@@ -217,7 +219,7 @@ Update specs when changing architecture, API, or testing strategy.
 
 | Tool | Purpose | Install |
 |---|---|---|
-| `golangci-lint` | Meta-linter (60+ linters via `.golangci.yml`) | `make deps` |
+| `golangci-lint` | Meta-linter (70+ linters via `.golangci.yml`) | `make deps` |
 | `gosec` | Security scanner | `make deps` |
 | `govulncheck` | Dependency vulnerability check | `make deps` |
 | `gitleaks` | Secrets detection | `make deps` |
@@ -233,14 +235,16 @@ Update specs when changing architecture, API, or testing strategy.
 
 GitHub Actions CI workflow runs on push to `main`, tags `v*`, pull requests, and is reusable via `workflow_call` (called by release.yml). Non-critical files are excluded via `paths-ignore` (docs, images, benchmarks, `.claude/**`, metadata) — `CLAUDE.md` is re-included via `!CLAUDE.md` negation. Tags and `workflow_call` are unaffected by `paths-ignore`.
 
+Claude Code workflow (`claude.yml`) provides interactive mode (responds to `@claude` mentions with author association filter) and automated PR review on every non-draft PR. Claude CI Fix workflow (`claude-ci-fix.yml`) auto-triggers on CI failures for same-repo PR branches to attempt automated fixes.
+
 | Job | Steps |
 |-----|-------|
 | **static-check** | golangci-lint, gosec, govulncheck, gitleaks, actionlint, Trivy filesystem scan |
 | **builds** | Build binary, upload artifact |
 | **tests** | Coverage threshold check (80%+), fuzz tests |
 | **integration** | Download binary, run server, Newman/Postman E2E tests |
-| **dast** | Run server, OWASP ZAP API security scan (after static-check + builds + tests) |
-| **image-scan** | Build Docker image, Trivy vulnerability scan |
+| **dast** | Run server, OWASP ZAP API security scan (after builds + tests) |
+| **image-scan** | Build Docker image, Trivy vulnerability scan (after static-check) |
 | **container-test** | Load Docker image, health-check, API smoke test |
 
 Jobs `integration`, `dast`, and `container-test` are skipped when running locally with `act` (`vars.ACT == 'true'`) to avoid artifact-download and network issues.

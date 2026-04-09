@@ -334,7 +334,7 @@ jobs:
         run: docker tag flight-path:scan flight-path:local
 
       - name: Smoke-test container
-        run: make docker-test
+        run: make docker-smoke-test
 
       - name: Cleanup
         if: always()

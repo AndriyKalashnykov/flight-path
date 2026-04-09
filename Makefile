@@ -20,7 +20,7 @@ GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 SWAG_VERSION        := 2.0.0-rc5
 # renovate: datasource=github-releases depName=securego/gosec
 GOSEC_VERSION       := 2.25.0
-# renovate: datasource=go depName=golang.org/x/perf/cmd/benchstat
+# renovate: datasource=go depName=golang.org/x/perf/cmd/benchstat versioning=loose
 BENCHSTAT_VERSION   := 0.0.0-20260312031701-16a31bc5fbd0
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_VERSION    := 2.11.4
@@ -316,6 +316,19 @@ docker-run: docker-build
 	@docker run --rm -p 8080:8080 -e SERVER_PORT=8080 \
 		--entrypoint sh $(APP_NAME):local -c "touch /tmp/.env && /main -env-file /tmp/.env"
 
+#docker-smoke-test: @ Smoke-test a pre-built Docker container (no rebuild)
+docker-smoke-test:
+	@docker run -d --name fp-test -p 8080:8080 -e SERVER_PORT=8080 \
+		--entrypoint sh $(APP_NAME):local -c "touch /tmp/.env && /main -env-file /tmp/.env"; \
+	RESULT=0; \
+	for i in $$(seq 1 10); do curl -sf http://localhost:8080/ >/dev/null 2>&1 && break; sleep 1; done; \
+	curl -sf http://localhost:8080/ && echo "Health: OK" || { echo "Health: FAIL"; docker logs fp-test; RESULT=1; }; \
+	curl -sf -X POST http://localhost:8080/calculate \
+		-H 'Content-Type: application/json' \
+		-d '[["SFO","ATL"],["ATL","EWR"]]' && echo "API: OK" || { echo "API: FAIL"; docker logs fp-test; RESULT=1; }; \
+	docker rm -f fp-test 2>/dev/null || true; \
+	exit $$RESULT
+
 #docker-test: @ Build and smoke-test Docker container
 docker-test: docker-build
 	@docker run -d --name fp-test -p 8080:8080 -e SERVER_PORT=8080 \
@@ -376,5 +389,5 @@ deps-prune-check: deps
 .PHONY: help deps deps-check deps-hadolint deps-act deps-trivy api-docs test fuzz bench bench-save bench-compare \
 	lint vulncheck secrets sec lint-ci format static-check build run image-build release update open-swagger \
 	test-case-one test-case-two test-case-three e2e clean coverage coverage-check \
-	ci ci-full ci-run check trivy-fs trivy-image docker-build docker-run docker-test docker-scan \
+	ci ci-full ci-run check trivy-fs trivy-image docker-build docker-run docker-smoke-test docker-test docker-scan \
 	deps-renovate renovate-validate deps-prune deps-prune-check

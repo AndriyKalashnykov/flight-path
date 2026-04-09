@@ -13,7 +13,7 @@ A Go REST API microservice that calculates flight paths from unordered flight se
 | Framework | Echo v5.1.0 |
 | API Docs | Swagger (swaggo/swag v2) |
 | Testing | go test (unit, bench, fuzz), Newman/Postman (E2E) |
-| Linting | golangci-lint v2.11.4 (60+ linters) |
+| Linting | golangci-lint v2.11.4 (70+ linters) |
 | Container | Docker (multi-stage Alpine) |
 | CI/CD | GitHub Actions + GoReleaser |
 | Dependencies | Renovate |
@@ -65,7 +65,7 @@ Run `make help` to see all available targets.
 | `make fuzz` | Run fuzz tests for 30 seconds |
 | `make bench` | Run bench tests |
 | `make bench-save` | Save benchmark results to file |
-| `make bench-compare` | Compare two benchmark files (usage: `make bench-compare OLD=file1.txt NEW=file2.txt`) |
+| `make bench-compare` | Compare two benchmark files (auto-discovers latest two, or: `make bench-compare OLD=file1.txt NEW=file2.txt`) |
 | `make coverage` | Run tests with coverage report |
 | `make coverage-check` | Verify coverage meets 80% threshold |
 | `make e2e` | Run Postman/Newman end-to-end tests |
@@ -75,7 +75,7 @@ Run `make help` to see all available targets.
 | Target | Description |
 |--------|-------------|
 | `make format` | Format Go code |
-| `make lint` | Run golangci-lint and hadolint (60+ linters via .golangci.yml) |
+| `make lint` | Run golangci-lint and hadolint (70+ linters via .golangci.yml) |
 | `make sec` | Run gosec security scanner |
 | `make vulncheck` | Run Go vulnerability check on dependencies |
 | `make secrets` | Scan for hardcoded secrets in source code and git history |
@@ -88,6 +88,7 @@ Run `make help` to see all available targets.
 |--------|-------------|
 | `make docker-build` | Build Docker image for local testing |
 | `make docker-run` | Run Docker container locally |
+| `make docker-smoke-test` | Smoke-test a pre-built Docker container (no rebuild) |
 | `make docker-test` | Build and smoke-test Docker container |
 | `make docker-scan` | Build Docker image and run Trivy scan (requires trivy) |
 | `make image-build` | Build Docker image (full checks + test) |
@@ -147,7 +148,7 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for C4 diagrams (Context, Con
 
 | Tool | Command | What it does |
 |------|---------|-------------|
-| [golangci-lint](https://github.com/golangci/golangci-lint) | `make lint` | Meta-linter running 60+ linters (configured via `.golangci.yml`) |
+| [golangci-lint](https://github.com/golangci/golangci-lint) | `make lint` | Meta-linter running 70+ linters (configured via `.golangci.yml`) |
 | [hadolint](https://github.com/hadolint/hadolint) | `make lint` | Dockerfile linter |
 | [actionlint](https://github.com/rhysd/actionlint) | `make lint-ci` | Lints GitHub Actions workflow files |
 
@@ -195,6 +196,10 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 | **goreleaser** | after ci | GoReleaser build, GitHub release, push container images |
 
 The [release workflow](./.github/workflows/release.yml) runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then executing GoReleaser.
+
+A [Claude Code workflow](./.github/workflows/claude.yml) provides interactive mode (responds to `@claude` mentions from trusted authors) and automated PR review on every non-draft PR.
+
+A [Claude CI Fix workflow](./.github/workflows/claude-ci-fix.yml) auto-triggers on CI failures for same-repo PR branches to attempt automated fixes with anti-recursion guards.
 
 A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5).
 
