@@ -48,11 +48,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -63,10 +62,11 @@ jobs:
           path: ~/go/bin
           key: go-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
 
-      - name: Lint, security scan, vulncheck, secrets, CI lint
-        run: |
-          export PATH=$PATH:~/go/bin
-          make static-check
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Static check
+        run: make static-check
 
       - name: Trivy filesystem scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
@@ -86,18 +86,15 @@ jobs:
           exit-code: '0'
           skip-dirs: 'test/node_modules,.pnpm-store'
 
-  builds:
+  build:
     needs: [static-check]
     timeout-minutes: 10
     runs-on: ubuntu-latest
-
     steps:
-
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -108,10 +105,11 @@ jobs:
           path: ~/go/bin
           key: go-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
 
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
       - name: Build
-        run: |
-          export PATH=$PATH:~/go/bin
-          make build
+        run: make build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
@@ -121,17 +119,15 @@ jobs:
           path: server
           retention-days: 1
 
-  tests:
+  test:
     needs: [static-check]
     timeout-minutes: 10
     runs-on: ubuntu-latest
-    name: tests
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -142,7 +138,7 @@ jobs:
           path: ~/go/bin
           key: go-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
 
-      - name: Verify coverage threshold
+      - name: Test with coverage
         run: make coverage-check
 
       - name: Run fuzz tests
@@ -158,7 +154,7 @@ jobs:
 
   integration:
     if: ${{ vars.ACT != 'true' }}
-    needs: [builds, tests]
+    needs: [build, test]
     timeout-minutes: 15
     runs-on: ubuntu-latest
 
@@ -166,8 +162,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -208,7 +203,7 @@ jobs:
 
   dast:
     if: ${{ vars.ACT != 'true' }}
-    needs: [builds, tests]
+    needs: [build, test]
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
@@ -222,7 +217,7 @@ jobs:
         with:
           name: server-binary
 
-      - name: Install Go (fallback only)
+      - name: Set up Go (fallback only)
         if: steps.download-binary.outcome == 'failure'
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
@@ -256,7 +251,7 @@ jobs:
           ./server -env-file .env &
           ./scripts/wait-for-server.sh
 
-      - name: OWASP ZAP API Scan
+      - name: OWASP ZAP API scan
         uses: zaproxy/action-api-scan@5158fe4d9d8fcc75ea204db81317cce7f9e5453d # v0.10.0
         with:
           target: 'http://localhost:8080/swagger/doc.json'
@@ -283,7 +278,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
-      - name: Build Docker image
+      - name: Build image for scan
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
           context: .
@@ -352,7 +347,7 @@ jobs:
       - name: Tag image for docker-test
         run: docker tag flight-path:scan flight-path:local
 
-      - name: Smoke-test container
+      - name: Smoke test
         run: make docker-smoke-test
 
       - name: Cleanup
