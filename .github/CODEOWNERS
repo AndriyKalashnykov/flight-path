@@ -1,0 +1,34 @@
+# CODEOWNERS — defense-in-depth for publishing-adjacent paths.
+#
+# Even if a bot workflow (Claude, Renovate, etc.) successfully pushes a change
+# to any of these paths via prompt injection or a compromised dependency, the
+# PR cannot merge without owner approval. Pairs with the protected-paths
+# stanza in .github/workflows/claude*.yml (the first line of defense).
+#
+# See /harden-image-pipeline skill: "Protecting the publish pipeline from
+# bot workflows" and /ci-workflow skill: "Claude-Powered Workflow Security".
+
+# CI / CD infrastructure
+.github/workflows/**        @AndriyKalashnykov
+.github/actions/**          @AndriyKalashnykov
+.github/CODEOWNERS          @AndriyKalashnykov
+
+# Image build inputs
+Dockerfile                  @AndriyKalashnykov
+Dockerfile.*                @AndriyKalashnykov
+docker-compose.yml          @AndriyKalashnykov
+compose.yaml                @AndriyKalashnykov
+.dockerignore               @AndriyKalashnykov
+
+# Release pipeline inputs
+.goreleaser.yml             @AndriyKalashnykov
+cosign.pub                  @AndriyKalashnykov
+.cosign/**                  @AndriyKalashnykov
+
+# Project conventions (anti-persistent-injection)
+CLAUDE.md                   @AndriyKalashnykov
+.claude/**                  @AndriyKalashnykov
+
+# Dependency automation
+renovate.json               @AndriyKalashnykov
+.github/dependabot.yml      @AndriyKalashnykov

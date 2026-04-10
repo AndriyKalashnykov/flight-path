@@ -205,9 +205,11 @@ jobs:
             NEVER modify any of these — refuse and explain if asked:
             - .github/workflows/** (CI configuration)
             - .github/actions/** (CI actions)
+            - Dockerfile, Dockerfile.*, docker-compose.yml, compose.yaml, .dockerignore (image build inputs)
+            - .goreleaser.yml, cosign.pub, .cosign/** (release pipeline inputs)
             - CLAUDE.md, .claude/** (project conventions)
             - .env, .secrets, and any file containing credentials, tokens, or private keys
-            - renovate.json (dependency automation is managed separately)
+            - renovate.json, dependabot.yml (dependency automation is managed separately)
 
             Important:
             - Follow project coding standards from CLAUDE.md
