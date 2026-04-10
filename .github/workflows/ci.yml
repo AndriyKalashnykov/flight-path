@@ -253,104 +253,10 @@ jobs:
         if: always()
         run: pkill -f './server' 2>/dev/null || true
 
-  image-scan:
-    needs: [static-check]
-    timeout-minutes: 10
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
-
-      # Weekly cache-bust for the apk upgrade layer — ensures the image always
-      # picks up new Alpine security patches even when the Dockerfile is unchanged.
-      - name: Compute apk cache-bust week
-        id: apk-week
-        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
-
-      - name: Build image for scan
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
-        with:
-          context: .
-          platforms: linux/amd64
-          load: true
-          tags: flight-path:scan
-          build-args: |
-            GOMODCACHE=/go/pkg/mod
-            GOCACHE=/root/.cache/go-build
-            APK_UPGRADE_WEEK=${{ steps.apk-week.outputs.week }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Trivy image scan
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
-        with:
-          image-ref: 'flight-path:scan'
-          scanners: 'vuln,secret,misconfig'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-          ignore-unfixed: true
-
-      - name: Save Docker image for reuse
-        run: docker save flight-path:scan -o flight-path.tar
-
-      - name: Upload Docker image artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
-        continue-on-error: true
-        with:
-          name: docker-image
-          path: flight-path.tar
-          retention-days: 1
-
-  container-test:
-    if: ${{ vars.ACT != 'true' }}
-    needs: [image-scan]
-    timeout-minutes: 10
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Download Docker image
-        id: download-image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        continue-on-error: true
-        with:
-          name: docker-image
-
-      - name: Load Docker image
-        if: steps.download-image.outcome == 'success'
-        run: docker load -i flight-path.tar
-
-      # Fallback path: rebuild image locally if artifact download failed
-      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
-        if: steps.download-image.outcome == 'failure'
-
-      - name: Build image for scan
-        if: steps.download-image.outcome == 'failure'
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
-        with:
-          context: .
-          load: true
-          tags: flight-path:scan
-          build-args: |
-            GOMODCACHE=/go/pkg/mod
-            GOCACHE=/root/.cache/go-build
-          cache-from: type=gha
-
-      - name: Tag image for smoke test
-        run: docker tag flight-path:scan flight-path:local
-
-      - name: Smoke test
-        run: make docker-smoke-test
-
-      - name: Cleanup
-        if: always()
-        run: docker rm -f fp-test 2>/dev/null || true
-
   # Release: binaries via GoReleaser. Tag-gated — only runs on v*.*.* pushes.
   goreleaser:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [static-check, build, test, integration, dast, image-scan, container-test]
+    needs: [static-check, build, test, integration, dast, docker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -373,18 +279,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Release: container images. Tag-gated — only runs on v*.*.* pushes.
-  # Pre-push gates (Trivy image scan + smoke test) → multi-arch push (Pattern A:
-  # clean image index so GHCR "OS / Arch" tab renders) → cosign keyless signing.
+  # Unified docker validation + release pipeline. Runs on every push/PR:
+  # builds single-arch + Trivy scan + smoke test + multi-arch build (without
+  # push). On v*.*.* tag pushes, additionally logs in to GHCR, pushes the
+  # multi-arch image, and cosign-signs by digest. On non-tag pushes the login,
+  # push, and cosign steps are skipped via step-level `if:` — the job runs to
+  # completion and turns green, validating the full release pipeline on every
+  # commit. Dockerfile regressions, multi-arch build issues, and cosign
+  # installer breakage are caught on the commit that introduced them, not on
+  # release day.
   docker:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [static-check, build, test, integration, dast, image-scan, container-test]
+    needs: [static-check, build, test]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
-      packages: write    # push to GHCR
-      id-token: write    # cosign keyless OIDC (Sigstore Fulcio)
+      packages: write    # exercised only by the tag-gated push step
+      id-token: write    # exercised only by the tag-gated cosign sign step
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -407,8 +318,10 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+        # Only apply `latest=true` on tag pushes so non-tag builds don't
+        # generate spurious `:latest` tags in the local metadata.
           flavor: |
-            latest=true
+            latest=${{ startsWith(github.ref, 'refs/tags/') }}
 
       # =================================================================
       # GATE 1: Local single-arch build for scanning + smoke testing
@@ -449,14 +362,17 @@ jobs:
       - name: Smoke test
         run: make docker-smoke-test
 
-      - name: Cleanup
+      - name: Cleanup smoke container
         if: always()
         run: docker rm -f fp-test 2>/dev/null || true
 
       # =================================================================
-      # All gates passed -> publish multi-arch with clean image index
+      # Multi-arch build — runs on EVERY push. Catches multi-arch build
+      # regressions on the commit that introduced them. `push` is gated by
+      # the ref: false on non-tag pushes (validation only), true on tags.
       # =================================================================
       - name: Log in to GHCR
+        if: startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
           registry: ghcr.io
@@ -470,13 +386,12 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ startsWith(github.ref, 'refs/tags/') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Pattern A default: clean image index so GHCR "OS / Arch" tab renders.
-          # Cosign keyless signing (below) provides supply-chain verification
-          # without buildkit's in-manifest attestations (which add Platform:
-          # unknown/unknown entries that break the GHCR Packages UI).
+          # Cosign keyless signing (below, tag-gated) provides supply-chain
+          # verification without buildkit's in-manifest attestations.
           provenance: false
           sbom: false
           build-args: |
@@ -487,12 +402,14 @@ jobs:
           cache-to: type=gha,mode=max
 
       # =================================================================
-      # Post-push: cosign keyless signing (Sigstore OIDC)
+      # Post-push: cosign keyless signing (Sigstore OIDC). Tag-only.
       # =================================================================
       - name: Install cosign
+        if: startsWith(github.ref, 'refs/tags/')
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
       - name: Sign image with cosign
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
           DIGEST: ${{ steps.push.outputs.digest }}
@@ -511,7 +428,7 @@ jobs:
   # still passes correctly.
   ci-pass:
     if: always()
-    needs: [static-check, build, test, integration, dast, image-scan, container-test, goreleaser, docker]
+    needs: [static-check, build, test, integration, dast, docker, goreleaser]
     timeout-minutes: 2
     runs-on: ubuntu-latest
     steps:

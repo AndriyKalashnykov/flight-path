@@ -191,11 +191,9 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All j
 | **test** | after static-check | Coverage threshold check (80%+), fuzz tests |
 | **integration** | after build + test | Download binary, run server, Newman/Postman E2E tests |
 | **dast** | after build + test | Run server, OWASP ZAP API security scan |
-| **image-scan** | after static-check | Build Docker image, Trivy vulnerability scan, save image artifact |
-| **container-test** | after image-scan | Load Docker image, health-check, API smoke test |
+| **docker** | after static-check + build + test (every push) | Single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make docker-smoke-test` + multi-arch build. On `v*.*.*` tag pushes, additionally logs in to GHCR, pushes multi-arch (clean image index, Pattern A), and cosign-signs by digest. On non-tag pushes the login/push/sign steps are skipped — the job still runs end-to-end to catch Dockerfile and multi-arch build regressions on the commit that introduced them, not on release day. |
 | **goreleaser** | tag push only, after all upstream | GoReleaser build, GitHub release (binaries, archives, checksums, changelog) |
-| **docker** | tag push only, after all upstream | Build local image, Trivy scan, smoke test, multi-arch push (clean image index), cosign keyless signing |
-| **ci-pass** | `if: always()`, needs all | Single branch-protection gate that fails if any upstream job failed. On non-tag pushes, `goreleaser` and `docker` are `skipped` (not `failure`), so ci-pass still passes correctly. On tag pushes, ci-pass waits for both and only goes green after the full release has verified clean. |
+| **ci-pass** | `if: always()`, needs all | Single branch-protection gate that fails if any upstream job failed. On non-tag pushes, `goreleaser` is `skipped` (not `failure`) and `docker` runs normally, so ci-pass still passes correctly. On tag pushes, ci-pass waits for all jobs and only goes green after the full release has verified clean. |
 
 ### Required Secrets and Variables
 
@@ -210,15 +208,15 @@ Set variables via **Settings > Secrets and variables > Actions > Variables tab >
 
 ### Pre-push image hardening
 
-The `docker` job runs the following gates **before** any image is pushed to GHCR. Any failure blocks the release.
+The `docker` job runs the following gates on **every push**. Gates 1–3 run unconditionally (catching Dockerfile and Trivy regressions on every commit). Gate 4 (multi-arch build) runs on every push but only pushes to GHCR on `v*.*.*` tag pushes. Gate 5 (cosign signing) is tag-only. Any failure blocks the release.
 
-| # | Gate | Catches | Tool |
-|---|---|---|---|
-| 1 | Build local single-arch image | Build regressions on the runner architecture | `docker/build-push-action` with `load: true` |
-| 2 | **Trivy image scan** (CRITICAL/HIGH blocking) | CVEs in base image, OS packages, build layers; secrets; misconfigs | `aquasecurity/trivy-action` with `image-ref:` |
-| 3 | **Smoke test** | Image boots, health endpoint responds, `/calculate` returns correct result | `make docker-smoke-test` |
-| 4 | Multi-arch build + push (clean image index) | Publishes for both `linux/amd64` and `linux/arm64` with `provenance: false` + `sbom: false` so the GHCR "OS / Arch" tab renders correctly | `docker/build-push-action` |
-| 5 | **Cosign keyless OIDC signing** | Sigstore signature on the manifest digest (no long-lived keys) — the supply-chain verification primitive for this image | `sigstore/cosign-installer` + `cosign sign` |
+| # | Gate | Catches | Tool | When |
+|---|---|---|---|---|
+| 1 | Build local single-arch image | Build regressions on the runner architecture | `docker/build-push-action` with `load: true` | every push |
+| 2 | **Trivy image scan** (CRITICAL/HIGH blocking) | CVEs in base image, OS packages, build layers; secrets; misconfigs | `aquasecurity/trivy-action` with `image-ref:` | every push |
+| 3 | **Smoke test** | Image boots, health endpoint responds, `/calculate` returns correct result | `make docker-smoke-test` | every push |
+| 4 | Multi-arch build + conditional push (clean image index) | Multi-arch build regressions (linux/arm64 cross-compile issues); on tags, publishes with `provenance: false` + `sbom: false` so the GHCR "OS / Arch" tab renders correctly | `docker/build-push-action` with `push: ${{ startsWith(github.ref, 'refs/tags/') }}` | every push (build); tag only (push) |
+| 5 | **Cosign keyless OIDC signing** | Sigstore signature on the manifest digest (no long-lived keys) — the supply-chain verification primitive for this image | `sigstore/cosign-installer` + `cosign sign` | tag only |
 
 Inspect the published multi-arch manifest:
 
