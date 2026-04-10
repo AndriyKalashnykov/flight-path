@@ -24,12 +24,14 @@ GOSEC_VERSION       := 2.25.0
 BENCHSTAT_VERSION   := 0.0.0-20260312031701-16a31bc5fbd0
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_VERSION    := 2.11.4
-# renovate: datasource=github-releases depName=golang/vuln
+# renovate: datasource=go depName=golang.org/x/vuln/cmd/govulncheck
 GOVULNCHECK_VERSION := 1.1.4
 # renovate: datasource=github-releases depName=zricethezav/gitleaks
 GITLEAKS_VERSION    := 8.30.1
 # renovate: datasource=github-releases depName=rhysd/actionlint
 ACTIONLINT_VERSION  := 1.7.12
+# renovate: datasource=github-releases depName=koalaman/shellcheck
+SHELLCHECK_VERSION  := 0.11.0
 # renovate: datasource=github-releases depName=nvm-sh/nvm
 NVM_VERSION         := 0.40.4
 # NODE_VERSION tracks major only — pinned manually (Renovate cannot track major-only values)
@@ -40,6 +42,13 @@ HADOLINT_VERSION    := 2.14.0
 TRIVY_VERSION       := 0.69.3
 # renovate: datasource=github-releases depName=nektos/act
 ACT_VERSION         := 0.2.87
+# renovate: datasource=docker depName=minlag/mermaid-cli
+MERMAID_CLI_VERSION := 11.12.0
+
+# Ensure tools installed to ~/.local/bin (hadolint, act, shellcheck, etc.) are
+# on PATH for every recipe — needed inside the act runner container where this
+# path is not preconfigured. Exported so every sub-shell the recipes spawn inherits it.
+export PATH := $(HOME)/.local/bin:$(PATH)
 
 # === gvm detection ===
 # gvm is a shell function (not a binary), so command -v doesn't work in Make's $(shell) context
@@ -107,21 +116,34 @@ deps-check:
 #deps-hadolint: @ Install hadolint for Dockerfile linting
 deps-hadolint:
 	@command -v hadolint >/dev/null 2>&1 || { echo "Installing hadolint $(HADOLINT_VERSION)..."; \
+		mkdir -p $$HOME/.local/bin; \
 		curl -sSfL -o /tmp/hadolint https://github.com/hadolint/hadolint/releases/download/v$(HADOLINT_VERSION)/hadolint-Linux-x86_64 && \
-		sudo install -m 755 /tmp/hadolint /usr/local/bin/hadolint && \
+		install -m 755 /tmp/hadolint $$HOME/.local/bin/hadolint && \
 		rm -f /tmp/hadolint; \
+	}
+
+#deps-shellcheck: @ Install shellcheck for shell script linting
+deps-shellcheck:
+	@command -v shellcheck >/dev/null 2>&1 || { echo "Installing shellcheck $(SHELLCHECK_VERSION)..."; \
+		mkdir -p $$HOME/.local/bin; \
+		curl -sSfL -o /tmp/shellcheck.tar.xz https://github.com/koalaman/shellcheck/releases/download/v$(SHELLCHECK_VERSION)/shellcheck-v$(SHELLCHECK_VERSION).linux.x86_64.tar.xz && \
+		tar -xJf /tmp/shellcheck.tar.xz -C /tmp && \
+		install -m 755 /tmp/shellcheck-v$(SHELLCHECK_VERSION)/shellcheck $$HOME/.local/bin/shellcheck && \
+		rm -rf /tmp/shellcheck-v$(SHELLCHECK_VERSION) /tmp/shellcheck.tar.xz; \
 	}
 
 #deps-act: @ Install act for running GitHub Actions locally
 deps-act: deps
 	@command -v act >/dev/null 2>&1 || { echo "Installing act $(ACT_VERSION)..."; \
-		curl -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash -s -- -b /usr/local/bin v$(ACT_VERSION); \
+		mkdir -p $$HOME/.local/bin; \
+		curl -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh | bash -s -- -b $$HOME/.local/bin v$(ACT_VERSION); \
 	}
 
 #deps-trivy: @ Install trivy for local vulnerability scanning
 deps-trivy:
 	@command -v trivy >/dev/null 2>&1 || { echo "Installing trivy $(TRIVY_VERSION)..."; \
-		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v$(TRIVY_VERSION); \
+		mkdir -p $$HOME/.local/bin; \
+		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $$HOME/.local/bin v$(TRIVY_VERSION); \
 	}
 
 #api-docs: @ Build source code for swagger api reference
@@ -161,7 +183,7 @@ bench-compare: deps
 		$(call go-exec,benchstat $(OLD) $(NEW)); \
 	fi
 
-#lint: @ Run golangci-lint and hadolint (60+ linters via .golangci.yml)
+#lint: @ Run golangci-lint and hadolint (comprehensive linting via .golangci.yml)
 lint: deps deps-hadolint
 	@$(call go-exec,golangci-lint run ./...)
 	@hadolint Dockerfile
@@ -179,7 +201,7 @@ sec: deps
 	@$(call go-exec,gosec ./...)
 
 #lint-ci: @ Lint GitHub Actions workflow files
-lint-ci: deps
+lint-ci: deps deps-shellcheck
 	@$(call go-exec,actionlint)
 
 #format: @ Format Go code
@@ -187,15 +209,15 @@ format: deps
 	@$(call go-exec,gofmt -l -w .)
 
 #static-check: @ Run code static check
-static-check: lint-ci lint sec vulncheck secrets
-	@echo "Static check done."
+static-check: lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint
+	@echo "Static check passed."
 
 #build: @ Build REST API server's binary
-build: api-docs
+build: deps api-docs
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) && go build -a -o server main.go)
 
 #run: @ Run REST API locally
-run: build
+run: deps build
 	@export TZ="UTC"; ./server -env-file .env
 
 #image-build: @ Build Docker image (full checks + test)
@@ -203,7 +225,7 @@ image-build: static-check test build
 	@./scripts/build-image.sh
 
 #release: @ Create and push a new tag
-release: static-check test api-docs build
+release: ci
 	@$(eval NT=$(NEWTAG))
 	@echo "$(NT)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "Error: Tag must match vN.N.N"; exit 1; }
 	@echo -n "Are you sure to create and push ${NT} tag? [y/N] " && read ans && [ $${ans:-N} = y ]
@@ -276,15 +298,12 @@ coverage-check: coverage
 	fi
 
 #ci: @ Run full CI pipeline locally
-ci: deps format static-check test coverage-check fuzz build
+ci: deps format static-check test coverage-check build fuzz deps-prune-check
 	@echo "Local CI pipeline passed."
-
-#ci-full: @ Run full CI with coverage threshold (format + static-check + coverage-check + fuzz + build)
-ci-full: deps format static-check coverage-check fuzz build
-	@echo "Full CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
 ci-run: deps-act
+	@docker container prune -f 2>/dev/null || true
 	@if [ -f ~/.secrets ]; then . ~/.secrets; fi; \
 	act push -W .github/workflows/ci.yml \
 		--container-architecture linux/amd64 \
@@ -292,20 +311,24 @@ ci-run: deps-act
 		--var ACT=true \
 		$${GITHUB_TOKEN:+-s GITHUB_TOKEN=$$GITHUB_TOKEN}
 
-#check: @ Run pre-commit checklist
-check: format static-check test build
+#check: @ Run pre-commit checklist (alias for ci)
+check: ci
 	@echo "All pre-commit checks passed."
 
 #trivy-fs: @ Run Trivy filesystem vulnerability scan (requires trivy)
 trivy-fs: deps-trivy
-	@trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --exit-code 1 .
+	@trivy fs \
+		--scanners vuln,secret,misconfig \
+		--severity CRITICAL,HIGH \
+		--skip-dirs test/node_modules,.pnpm-store \
+		--exit-code 1 .
 
 #trivy-image: @ Run Trivy image vulnerability scan (requires trivy)
 trivy-image: deps-trivy
 	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
 
 #docker-build: @ Build Docker image for local testing
-docker-build: deps
+docker-build: deps build
 	@docker buildx build --load \
 		--build-arg GOMODCACHE=$$($(call go-exec,go env GOMODCACHE)) \
 		--build-arg GOCACHE=$$($(call go-exec,go env GOCACHE)) \
@@ -343,7 +366,7 @@ docker-test: docker-build
 	exit $$RESULT
 
 #docker-scan: @ Build Docker image and run Trivy scan (requires trivy)
-docker-scan: deps-trivy
+docker-scan: deps-trivy build
 	@docker buildx build --load \
 		--build-arg GOMODCACHE=/go/pkg/mod \
 		--build-arg GOCACHE=/root/.cache/go-build \
@@ -355,19 +378,38 @@ e2e: deps
 	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
 	@./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
 
-#deps-renovate: @ Install nvm and pnpm for Renovate
-deps-renovate:
-	@command -v node >/dev/null 2>&1 || { \
-		echo "Installing nvm $(NVM_VERSION)..."; \
-		export NVM_DIR="$${NVM_DIR:-$$HOME/.nvm}"; \
-		curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v$(NVM_VERSION)/install.sh | bash; \
-		. "$$NVM_DIR/nvm.sh" && nvm install $(NODE_VERSION); \
-	}
-	@command -v pnpm >/dev/null 2>&1 || { echo "Installing pnpm via corepack..."; corepack enable pnpm; }
-
 #renovate-validate: @ Validate Renovate configuration
 renovate-validate: deps
 	@pnpm dlx renovate --platform=local
+
+#mermaid-lint: @ Validate Mermaid diagrams in markdown files
+mermaid-lint:
+	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker is required for mermaid-lint"; exit 1; }
+	@set -eu; \
+	MD_FILES=$$(grep -lF '```mermaid' README.md CLAUDE.md docs/*.md specs/*.md 2>/dev/null || true); \
+	if [ -z "$$MD_FILES" ]; then \
+		echo "No Mermaid blocks found — skipping."; \
+		exit 0; \
+	fi; \
+	FAILED=0; \
+	for md in $$MD_FILES; do \
+		echo "Validating Mermaid blocks in $$md..."; \
+		LOG=$$(mktemp); \
+		if docker run --rm -v "$$PWD:/data" \
+			minlag/mermaid-cli:$(MERMAID_CLI_VERSION) \
+			-i "/data/$$md" -o "/tmp/$$(basename $$md .md).svg" >"$$LOG" 2>&1; then \
+			echo "  [OK] All blocks rendered cleanly."; \
+		else \
+			echo "  [FAIL] Parse error in $$md:"; \
+			sed 's/^/    /' "$$LOG"; \
+			FAILED=$$((FAILED + 1)); \
+		fi; \
+		rm -f "$$LOG"; \
+	done; \
+	if [ "$$FAILED" -gt 0 ]; then \
+		echo "Mermaid lint: $$FAILED file(s) had parse errors."; \
+		exit 1; \
+	fi
 
 #deps-prune: @ Remove unused Go module dependencies
 deps-prune: deps
@@ -386,8 +428,8 @@ deps-prune-check: deps
 	fi
 	@echo "No prunable dependencies found."
 
-.PHONY: help deps deps-check deps-hadolint deps-act deps-trivy api-docs test fuzz bench bench-save bench-compare \
-	lint vulncheck secrets sec lint-ci format static-check build run image-build release update open-swagger \
+.PHONY: help deps deps-check deps-hadolint deps-shellcheck deps-act deps-trivy api-docs test fuzz bench bench-save bench-compare \
+	lint vulncheck secrets sec lint-ci format static-check mermaid-lint build run image-build release update open-swagger \
 	test-case-one test-case-two test-case-three e2e clean coverage coverage-check \
-	ci ci-full ci-run check trivy-fs trivy-image docker-build docker-run docker-smoke-test docker-test docker-scan \
-	deps-renovate renovate-validate deps-prune deps-prune-check
+	ci ci-run check trivy-fs trivy-image docker-build docker-run docker-smoke-test docker-test docker-scan \
+	renovate-validate deps-prune deps-prune-check

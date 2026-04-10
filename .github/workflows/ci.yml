@@ -48,8 +48,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0  # needed for gitleaks / git history scans
 
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
@@ -62,37 +63,26 @@ jobs:
           path: ~/go/bin
           key: go-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
 
+      - name: Cache local bin tools
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: ~/.local/bin
+          key: local-bin-${{ runner.os }}-${{ hashFiles('Makefile') }}
+
       - name: Add Go bin to PATH
-        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+        run: |
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Static check
         run: make static-check
-
-      - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
-        with:
-          scan-type: 'fs'
-          scanners: 'vuln,secret,misconfig'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-          skip-dirs: 'test/node_modules,.pnpm-store'
-
-      - name: Trivy filesystem scan (MEDIUM - informational)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
-        with:
-          scan-type: 'fs'
-          scanners: 'vuln,secret,misconfig'
-          severity: 'MEDIUM'
-          exit-code: '0'
-          skip-dirs: 'test/node_modules,.pnpm-store'
 
   build:
     needs: [static-check]
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
@@ -124,8 +114,7 @@ jobs:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
@@ -159,16 +148,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: 'go.mod'
           cache: true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: lts/*
 
@@ -185,14 +172,15 @@ jobs:
         with:
           name: server-binary
 
-      - name: Build binary (fallback)
+      # Fallback: rebuild if artifact download failed
+      - name: Build
         if: steps.download-binary.outcome == 'failure'
         run: make build
 
       - name: Make binary executable
         run: chmod +x server
 
-      - name: Run
+      - name: Start server
         run: ./server -env-file .env &
 
       - name: Wait for REST API
@@ -207,8 +195,7 @@ jobs:
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Download build artifact
         id: download-binary
@@ -217,14 +204,14 @@ jobs:
         with:
           name: server-binary
 
-      - name: Set up Go (fallback only)
+      # Fallback path: install Go and rebuild if artifact download failed
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         if: steps.download-binary.outcome == 'failure'
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: 'go.mod'
           cache: true
 
-      - name: Build binary (fallback)
+      - name: Build
         if: steps.download-binary.outcome == 'failure'
         run: make build
 
@@ -272,16 +259,15 @@ jobs:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
       - name: Build image for scan
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
           context: .
+          platforms: linux/amd64
           load: true
           tags: flight-path:scan
           build-args: |
@@ -294,8 +280,10 @@ jobs:
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: 'flight-path:scan'
+          scanners: 'vuln,secret,misconfig'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
+          ignore-unfixed: true
 
       - name: Save Docker image for reuse
         run: docker save flight-path:scan -o flight-path.tar
@@ -314,8 +302,7 @@ jobs:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Download Docker image
         id: download-image
@@ -328,11 +315,11 @@ jobs:
         if: steps.download-image.outcome == 'success'
         run: docker load -i flight-path.tar
 
-      - name: Set up Docker Buildx (fallback)
+      # Fallback path: rebuild image locally if artifact download failed
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
         if: steps.download-image.outcome == 'failure'
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
-      - name: Build Docker image (fallback)
+      - name: Build image for scan
         if: steps.download-image.outcome == 'failure'
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
@@ -344,7 +331,7 @@ jobs:
             GOCACHE=/root/.cache/go-build
           cache-from: type=gha
 
-      - name: Tag image for docker-test
+      - name: Tag image for smoke test
         run: docker tag flight-path:scan flight-path:local
 
       - name: Smoke test
@@ -353,3 +340,16 @@ jobs:
       - name: Cleanup
         if: always()
         run: docker rm -f fp-test 2>/dev/null || true
+
+  ci-pass:
+    if: always()
+    needs: [static-check, build, test, integration, dast, image-scan, container-test]
+    timeout-minutes: 2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all jobs passed
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi

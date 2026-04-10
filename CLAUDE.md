@@ -31,28 +31,32 @@ flight-path/
 │   └── swagger.go                       # Swagger routes
 ├── pkg/api/
 │   ├── data.go                          # Flight struct + TestFlights test data
-│   └── version.txt                      # Semantic version (e.g., v0.0.3)
-├── docs/                                # Generated Swagger docs + architecture/planning docs
-├── specs/                               # Reverse-engineered specifications
+│   └── version.txt                      # Semantic version
+├── docs/                                # Generated Swagger docs + architecture/planning docs (ARCHITECTURE.md has Mermaid diagrams)
+├── specs/                               # Reverse-engineered specifications (see specs/README.md for index)
 ├── test/
 │   ├── FlightPath.postman_collection.json  # E2E test collection (6 cases: 3 happy + 3 negative)
 │   ├── package.json                     # Newman dependency manifest (pnpm)
 │   ├── pnpm-lock.yaml                   # pnpm lock file (reproducible builds)
 │   └── .npmrc                           # pnpm configuration
+├── img/                                 # README screenshots (Swagger UI, Newman output)
 ├── benchmarks/                          # Saved benchmark results (bench_YYYYMMDD_HHMMSS.txt)
 ├── scripts/                             # build.sh, build-image.sh, wait-for-server.sh
 ├── .zap/rules.tsv                       # OWASP ZAP scan rules for DAST job
-├── .golangci.yml                        # golangci-lint configuration (70+ linters)
+├── .golangci.yml                        # golangci-lint configuration (default: all)
 ├── Dockerfile                           # Multi-stage, multi-platform Docker build (Alpine)
 ├── .hadolint.yaml                       # Hadolint Dockerfile linter config
 ├── Makefile                             # All build/dev/test commands
 ├── .env                                 # SERVER_PORT=8080
-├── .goreleaser.yml                      # GoReleaser release configuration
+├── .goreleaser.yml                      # GoReleaser release configuration (binaries only; images via release.yml docker job)
 ├── .claude/                             # Claude Code commands, agents, skills, rules, and settings
 ├── .claudeignore                        # Claude Code ignore patterns
 ├── .dockerignore                        # Docker build context exclusions
 ├── .gitignore                           # Git ignore patterns
+├── go.mod                               # Go module definition (source of truth for Go version)
+├── go.sum                               # Go module checksums
 ├── LICENSE                              # MIT license
+├── MEMORY.md                            # Project-local Claude Code memory notes
 ├── README.md                            # Project documentation
 └── renovate.json                        # Dependency auto-update config
 ```
@@ -93,23 +97,24 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 make help           # List available tasks
 make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, newman)
 make deps-check     # Show required Go version, gvm status, and tool status
-make deps-hadolint  # Install hadolint for Dockerfile linting
-make deps-act       # Install act for running GitHub Actions locally
-make deps-trivy     # Install trivy for local vulnerability scanning
-make deps-renovate  # Install nvm for Node.js version management and pnpm for Renovate validation
+make deps-hadolint  # Install hadolint for Dockerfile linting (to $HOME/.local/bin)
+make deps-shellcheck # Install shellcheck for shell script linting (to $HOME/.local/bin)
+make deps-act       # Install act for running GitHub Actions locally (to $HOME/.local/bin)
+make deps-trivy     # Install trivy for local vulnerability scanning (to $HOME/.local/bin)
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
 make format         # Format Go code
-make lint           # Run golangci-lint + hadolint (70+ linters via .golangci.yml)
+make lint           # Run golangci-lint + hadolint (comprehensive linting via .golangci.yml)
 make sec            # Run gosec security scanner
 make vulncheck      # Run Go vulnerability check on dependencies
 make secrets        # Scan for hardcoded secrets (gitleaks)
-make lint-ci        # Lint GitHub Actions workflow files (actionlint)
+make lint-ci        # Lint GitHub Actions workflow files (actionlint + shellcheck)
+make mermaid-lint   # Validate Mermaid diagrams in markdown files (minlag/mermaid-cli Docker)
 make test           # Run all tests (unit + handler tests via go test -v ./...)
 make fuzz           # Run fuzz tests for 30 seconds
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare latest two benchmark runs
-make static-check   # All static analysis (lint-ci + lint + sec + vulncheck + secrets)
+make static-check   # All static analysis (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint)
 make build          # Generate Swagger docs + compile binary
 make run            # Build and run server locally
 make e2e            # Run Newman/Postman E2E tests (server must be running)
@@ -117,11 +122,10 @@ make test-case-one  # curl test: [["SFO", "EWR"]]
 make test-case-two  # curl test: [["ATL", "EWR"], ["SFO", "ATL"]]
 make test-case-three # curl test: 4-segment path
 make update         # Update Go dependencies
-make release        # Tag and push a new release (full checks + build)
+make release        # Tag and push a new release (runs full `ci` pipeline first)
 make image-build    # Build Docker image (full checks + test)
-make check          # Full pre-commit checklist (format + static-check + test + build)
-make ci             # Local CI pipeline (deps + format + static-check + test + coverage-check + fuzz + build)
-make ci-full        # Full CI with coverage threshold (format + static-check + coverage-check + fuzz + build)
+make check          # Full pre-commit checklist (alias for make ci)
+make ci             # Local CI pipeline (deps + format + static-check + test + coverage-check + build + fuzz + deps-prune-check)
 make ci-run         # Run GitHub Actions workflow locally using act
 make coverage       # Run tests with coverage report
 make coverage-check # Verify coverage meets 80% threshold
@@ -155,6 +159,8 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 | `HADOLINT_VERSION` | 2.14.0 | Dockerfile linter |
 | `TRIVY_VERSION` | 0.69.3 | Vulnerability scanner |
 | `ACT_VERSION` | 0.2.87 | Local GitHub Actions runner |
+| `SHELLCHECK_VERSION` | 0.11.0 | Shell script linter (used by actionlint) |
+| `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image) |
 | `GVM_SHA` | dd652539... | Go version manager (pinned by commit SHA) |
 | `NVM_VERSION` | 0.40.4 | Node.js version manager |
 | `NODE_VERSION` | 24 | Node.js major version (pinned for nvm) |
@@ -162,7 +168,7 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 ## Before Committing
 
 ```bash
-make check          # Runs: static-check (lint, sec, vulncheck, secrets, lint-ci) + test + build
+make check          # Alias for `make ci` — full local pipeline (format + static-check + test + coverage-check + build + fuzz + deps-prune-check)
 ```
 
 ## Specifications
@@ -218,7 +224,7 @@ Update specs when changing architecture, API, or testing strategy.
 
 | Tool | Purpose | Install |
 |---|---|---|
-| `golangci-lint` | Meta-linter (70+ linters via `.golangci.yml`) | `make deps` |
+| `golangci-lint` | Meta-linter (configured via `.golangci.yml`) | `make deps` |
 | `gosec` | Security scanner | `make deps` |
 | `govulncheck` | Dependency vulnerability check | `make deps` |
 | `gitleaks` | Secrets detection | `make deps` |
@@ -227,28 +233,31 @@ Update specs when changing architecture, API, or testing strategy.
 | `swag` | Swagger generation | `make deps` |
 | `newman` | E2E API testing | `make deps` |
 | `hadolint` | Dockerfile linter | `make lint` (auto-installed via `deps-hadolint`) |
-| `trivy` | Vulnerability scanner (images + filesystem) | `make deps-trivy` |
+| `shellcheck` | Shell script linter (used by actionlint inside `run:` steps) | `make lint-ci` (auto-installed via `deps-shellcheck`) |
+| `mermaid-cli` | Mermaid diagram validator (runs as Docker image) | `make mermaid-lint` (pulls image on demand) |
+| `trivy` | Vulnerability scanner (images + filesystem) | `make static-check` or `make deps-trivy` |
 | `act` | Local GitHub Actions runner | `make deps-act` |
 
 ## CI/CD
 
 GitHub Actions CI workflow runs on push to `main`, tags `v*`, pull requests, and is reusable via `workflow_call` (called by release.yml). Non-critical files are excluded via `paths-ignore` (docs, images, benchmarks, `.claude/**`, metadata) — `CLAUDE.md` is re-included via `!CLAUDE.md` negation. Tags and `workflow_call` are unaffected by `paths-ignore`.
 
-Claude Code workflow (`claude.yml`) provides interactive mode (responds to `@claude` mentions with author association filter) and automated PR review on every non-draft PR. Claude CI Fix workflow (`claude-ci-fix.yml`) auto-triggers on CI failures for same-repo PR branches to attempt automated fixes.
+Claude Code workflow (`claude.yml`) provides interactive mode (responds to `@claude` mentions, restricted to `OWNER`/`MEMBER`/`COLLABORATOR` author associations) and automated PR review on every non-draft PR. Claude CI Fix workflow (`claude-ci-fix.yml`) auto-triggers on CI failures via `workflow_run` (same-repo branches only) and uses a dual anti-recursion guard (bot-author check + `claude-fix-attempted` label) plus a 12K total input cap on CI logs to prevent prompt-injection context stuffing.
 
 | Job | Steps |
 |-----|-------|
-| **static-check** | golangci-lint, gosec, govulncheck, gitleaks, actionlint, Trivy filesystem scan |
-| **builds** | Build binary, upload artifact |
-| **tests** | Coverage threshold check (80%+), fuzz tests |
-| **integration** | Download binary, run server, Newman/Postman E2E tests |
-| **dast** | Run server, OWASP ZAP API security scan (after builds + tests) |
-| **image-scan** | Build Docker image, Trivy vulnerability scan (after static-check) |
-| **container-test** | Load Docker image, health-check, API smoke test |
+| **static-check** | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
+| **build** | Build binary, upload `server-binary` artifact |
+| **test** | Coverage threshold check (80%+), fuzz tests, upload coverage artifact |
+| **integration** | Download binary (fallback rebuild), run server, Newman/Postman E2E tests |
+| **dast** | Download binary (fallback rebuild), run server, OWASP ZAP API security scan |
+| **image-scan** | Build Docker image, Trivy vulnerability scan (CRITICAL/HIGH blocking), save image artifact for container-test |
+| **container-test** | Load Docker image from artifact, health-check, API smoke test |
+| **ci-pass** | Aggregator gate job (`if: always()`, `needs:` all upstream) — single required check for branch protection |
 
 Jobs `integration`, `dast`, and `container-test` are skipped when running locally with `act` (`vars.ACT == 'true'`) to avoid artifact-download and network issues.
 
-Release workflow runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then executing GoReleaser for binary/container release.
+Release workflow runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then running `goreleaser` (binaries only — archives, checksums, changelog, GitHub release) and a dedicated hardened `docker` job (Trivy image scan + smoke test + multi-arch push with `provenance: mode=max` + `sbom: true` + cosign keyless OIDC signing by digest) **in parallel**.
 
 Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches.
 
@@ -263,8 +272,6 @@ Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs 
 
 ## Skills
 
-When spawning subagents, always pass conventions from the respective skill into the agent's prompt.
-
 Use the following skills when working on related files:
 
 | File(s) | Skill |
@@ -272,7 +279,9 @@ Use the following skills when working on related files:
 | `Makefile` | `/makefile` |
 | `renovate.json` | `/renovate` |
 | `README.md` | `/readme` |
-| `.github/workflows/*.yml` | `/ci-workflow` |
+| `.github/workflows/*.{yml,yaml}` | `/ci-workflow` |
+
+When spawning subagents, always pass conventions from the respective skill into the agent's prompt.
 
 ## Upgrade Tracking
 
@@ -295,6 +304,7 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 
 ## Environment
 
-- Go 1.26.2 via gvm: `GOROOT=/home/andriy/.gvm/gos/go1.26.2`
+- Go 1.26.2 via gvm: `GOROOT=$HOME/.gvm/gos/go1.26.2`
 - Node.js via nvm (for Newman)
+- User-writable tool install dir: `$HOME/.local/bin` (hadolint, shellcheck, act, trivy) — exported to `PATH` by the Makefile
 - Environment variables loaded from `.env` (`SERVER_PORT=8080`)

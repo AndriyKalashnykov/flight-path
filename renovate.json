@@ -6,11 +6,7 @@
   ],
   "ignorePaths": [
     "**/node_modules/**",
-    "**/bower_components/**",
-    "**/vendor/**",
-    "**/__tests__/**",
-    "**/tests/**",
-    "**/fixtures/**"
+    "**/vendor/**"
   ],
   "enabledManagers": [
     "gomod",
@@ -34,7 +30,7 @@
       "customType": "regex",
       "description": "Update GoReleaser version in release workflow",
       "managerFilePatterns": [
-        "/\\.github/workflows/release\\.yml$/"
+        ".github/workflows/release.yml"
       ],
       "matchStrings": [
         "version:\\s*'v(?<currentValue>[^']+)'\\s*# renovate: depName=goreleaser/goreleaser datasource=github-releases"
@@ -46,7 +42,8 @@
   "postUpdateOptions": [
     "gomodTidy"
   ],
-  "commitMessagePrefix": "chore(deps): ",
+  "commitMessagePrefix": "chore(all): ",
+  "commitMessageAction": "update",
   "commitBody": "Signed-off-by: Renovate Bot <bot@renovateapp.com>",
   "labels": [
     "dependencies"

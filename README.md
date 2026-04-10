@@ -13,7 +13,7 @@ A Go REST API microservice that calculates flight paths from unordered flight se
 | Framework | Echo v5.1.0 |
 | API Docs | Swagger (swaggo/swag v2) |
 | Testing | go test (unit, bench, fuzz), Newman/Postman (E2E) |
-| Linting | golangci-lint v2.11.4 (70+ linters) |
+| Linting | golangci-lint v2.11.4, hadolint, actionlint, shellcheck, mermaid-cli |
 | Container | Docker (multi-stage Alpine) |
 | CI/CD | GitHub Actions + GoReleaser |
 | Dependencies | Renovate |
@@ -24,7 +24,8 @@ A Go REST API microservice that calculates flight paths from unordered flight se
 make deps      # install dev tools (golangci-lint, gosec, swag, etc.)
 make build     # generate Swagger docs + compile binary
 make test      # run unit + handler tests
-make run       # build and start the server on http://localhost:8080
+make run       # build and start the server
+# Open http://localhost:8080/swagger/index.html
 ```
 
 ## Prerequisites
@@ -75,12 +76,13 @@ Run `make help` to see all available targets.
 | Target | Description |
 |--------|-------------|
 | `make format` | Format Go code |
-| `make lint` | Run golangci-lint and hadolint (70+ linters via .golangci.yml) |
+| `make lint` | Run golangci-lint and hadolint (comprehensive linting via .golangci.yml) |
 | `make sec` | Run gosec security scanner |
 | `make vulncheck` | Run Go vulnerability check on dependencies |
 | `make secrets` | Scan for hardcoded secrets in source code and git history |
 | `make lint-ci` | Lint GitHub Actions workflow files |
-| `make static-check` | Run code static check |
+| `make mermaid-lint` | Validate Mermaid diagrams in markdown files |
+| `make static-check` | Run code static check (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
 
 ### Docker
 
@@ -99,10 +101,9 @@ Run `make help` to see all available targets.
 
 | Target | Description |
 |--------|-------------|
-| `make ci` | Run full CI pipeline locally (deps + format + static-check + test + coverage-check + fuzz + build) |
-| `make ci-full` | Run full CI pipeline including coverage (format + static-check + coverage-check + fuzz + build) |
+| `make ci` | Run full CI pipeline locally (deps + format + static-check + test + coverage-check + build + fuzz + deps-prune-check) |
 | `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
-| `make check` | Run pre-commit checklist (format + static-check + test + build) |
+| `make check` | Run pre-commit checklist (alias for `make ci`) |
 
 ### Utilities
 
@@ -112,9 +113,9 @@ Run `make help` to see all available targets.
 | `make deps` | Download and install dependencies |
 | `make deps-check` | Show required Go version and tool status |
 | `make deps-hadolint` | Install hadolint for Dockerfile linting |
+| `make deps-shellcheck` | Install shellcheck for shell script linting |
 | `make deps-act` | Install act for running GitHub Actions locally |
 | `make deps-trivy` | Install trivy for local vulnerability scanning |
-| `make deps-renovate` | Install nvm and pnpm for Renovate |
 | `make release` | Create and push a new tag |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
 | `make renovate-validate` | Validate Renovate configuration |
@@ -148,9 +149,11 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for C4 diagrams (Context, Con
 
 | Tool | Command | What it does |
 |------|---------|-------------|
-| [golangci-lint](https://github.com/golangci/golangci-lint) | `make lint` | Meta-linter running 70+ linters (configured via `.golangci.yml`) |
+| [golangci-lint](https://github.com/golangci/golangci-lint) | `make lint` | Meta-linter with comprehensive rule set (configured via `.golangci.yml`) |
 | [hadolint](https://github.com/hadolint/hadolint) | `make lint` | Dockerfile linter |
-| [actionlint](https://github.com/rhysd/actionlint) | `make lint-ci` | Lints GitHub Actions workflow files |
+| [actionlint](https://github.com/rhysd/actionlint) | `make lint-ci` | Lints GitHub Actions workflow files (uses shellcheck internally) |
+| [shellcheck](https://github.com/koalaman/shellcheck) | `make lint-ci` | Validates shell scripts inside workflow `run:` steps |
+| [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) | `make mermaid-lint` | Validates Mermaid diagrams in markdown files against GitHub's renderer |
 
 ### Container Security
 
@@ -181,22 +184,39 @@ Auto-generated OpenAPI spec: [`docs/swagger.json`](./docs/swagger.json)
 
 GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 
-| Job | Triggers | Steps |
-|-----|----------|-------|
-| **static-check** | push, PR, tags | golangci-lint, gosec, govulncheck, gitleaks, actionlint, Trivy filesystem scan |
-| **builds** | after static-check | Build binary, upload artifact |
-| **tests** | after static-check | Coverage threshold check (80%+), fuzz tests |
-| **integration** | after builds + tests | Download binary, run server, Newman/Postman E2E tests |
-| **dast** | after builds + tests | Run server, OWASP ZAP API security scan |
-| **image-scan** | after static-check | Build Docker image, Trivy vulnerability scan |
-| **container-test** | after image-scan | Load Docker image, health-check, API smoke test |
+### CI workflow jobs (`ci.yml`)
 
 | Job | Triggers | Steps |
 |-----|----------|-------|
+| **static-check** | push, PR, tags | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
+| **build** | after static-check | Build binary, upload artifact |
+| **test** | after static-check | Coverage threshold check (80%+), fuzz tests |
+| **integration** | after build + test | Download binary, run server, Newman/Postman E2E tests |
+| **dast** | after build + test | Run server, OWASP ZAP API security scan |
+| **image-scan** | after static-check | Build Docker image, Trivy vulnerability scan, save image artifact |
+| **container-test** | after image-scan | Load Docker image, health-check, API smoke test |
+| **ci-pass** | `if: always()`, needs all | Single branch-protection gate that fails if any upstream job failed |
+
+### Release workflow jobs (`release.yml`)
+
+| Job | Triggers | Steps |
+|-----|----------|-------|
+| **ci** | tag push | Reuses `ci.yml` via `workflow_call` for full validation |
 | **goreleaser** | after ci | GoReleaser build, GitHub release (binaries, archives, checksums, changelog) |
 | **docker** | after ci | Build local image, Trivy scan, smoke test, multi-arch push with provenance + SBOM, cosign keyless signing |
 
 The [release workflow](./.github/workflows/release.yml) runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then executing GoReleaser (binaries) and the hardened docker job (container images) in parallel.
+
+### Required Secrets and Variables
+
+| Name | Type | Used by | How to obtain |
+|------|------|---------|---------------|
+| `CLAUDE_CONFIG_TOKEN` | Secret | `claude.yml`, `claude-ci-fix.yml` | PAT with `contents: read` for [`AndriyKalashnykov/claude-config`](https://github.com/AndriyKalashnykov/claude-config) — allows workflows to check out shared Claude configuration |
+| `ANTHROPIC_API_KEY` | Secret | `claude.yml`, `claude-ci-fix.yml` | [console.anthropic.com](https://console.anthropic.com/) API key — powers the Claude Code action |
+| `ACT` | Variable | `integration`, `dast`, `container-test` jobs | Set to `true` **only** when running locally via `act` (via `--var ACT=true` in `make ci-run`). Leave unset on GitHub Actions runners. Guards jobs that don't work under act (cross-job artifact download, ZAP Docker-in-Docker). |
+
+Set secrets via **Settings > Secrets and variables > Actions > New repository secret**.
+Set variables via **Settings > Secrets and variables > Actions > Variables tab > New repository variable**.
 
 ### Pre-push image hardening
 
