@@ -140,8 +140,13 @@ jobs:
           path: covprof.out
           retention-days: 7
 
-  integration:
-    if: ${{ vars.ACT != 'true' }}
+  # MANDATORY e2e job for Go REST API projects — runs on every push AND under
+  # act via `make ci-run`. No `vars.ACT` guard: the job falls back to building
+  # the binary locally if artifact download fails (which it does under act),
+  # so it works end-to-end in both environments. Language-specific e2e: Newman
+  # + Postman collection for flight-path (Go REST API); swap for Playwright /
+  # Cypress / Failsafe / pytest+requests as appropriate per project.
+  e2e:
     needs: [build, test]
     timeout-minutes: 15
     runs-on: ubuntu-latest
@@ -171,7 +176,9 @@ jobs:
         with:
           name: server-binary
 
-      # Fallback: rebuild if artifact download failed
+      # Fallback: rebuild if artifact download failed (e.g., under act,
+      # cross-job artifact download is unreliable; continue-on-error + this
+      # fallback make the job work in both GHA and act environments).
       - name: Build
         if: steps.download-binary.outcome == 'failure'
         run: make build
@@ -256,7 +263,7 @@ jobs:
   # Release: binaries via GoReleaser. Tag-gated — only runs on v*.*.* pushes.
   goreleaser:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [static-check, build, test, integration, dast, docker]
+    needs: [static-check, build, test, e2e, dast, docker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -428,7 +435,7 @@ jobs:
   # still passes correctly.
   ci-pass:
     if: always()
-    needs: [static-check, build, test, integration, dast, docker, goreleaser]
+    needs: [static-check, build, test, e2e, dast, docker, goreleaser]
     timeout-minutes: 2
     runs-on: ubuntu-latest
     steps:

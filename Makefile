@@ -42,6 +42,8 @@ HADOLINT_VERSION    := 2.14.0
 TRIVY_VERSION       := 0.69.3
 # renovate: datasource=github-releases depName=nektos/act
 ACT_VERSION         := 0.2.87
+# renovate: datasource=github-releases depName=goreleaser/goreleaser
+GORELEASER_VERSION  := 2.15.2
 # renovate: datasource=docker depName=minlag/mermaid-cli
 MERMAID_CLI_VERSION := 11.12.0
 
@@ -146,6 +148,16 @@ deps-trivy:
 		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $$HOME/.local/bin v$(TRIVY_VERSION); \
 	}
 
+#deps-goreleaser: @ Install goreleaser for local release config validation
+deps-goreleaser:
+	@command -v goreleaser >/dev/null 2>&1 || { echo "Installing goreleaser $(GORELEASER_VERSION)..."; \
+		mkdir -p $$HOME/.local/bin; \
+		curl -sSfL "https://github.com/goreleaser/goreleaser/releases/download/v$(GORELEASER_VERSION)/goreleaser_Linux_x86_64.tar.gz" -o /tmp/goreleaser.tar.gz && \
+		tar -xzf /tmp/goreleaser.tar.gz -C /tmp goreleaser && \
+		install -m 755 /tmp/goreleaser $$HOME/.local/bin/goreleaser && \
+		rm -f /tmp/goreleaser.tar.gz /tmp/goreleaser; \
+	}
+
 #api-docs: @ Build source code for swagger api reference
 api-docs: deps
 	@$(call go-exec,swag init --parseDependency -g main.go)
@@ -208,8 +220,12 @@ lint-ci: deps deps-shellcheck
 format: deps
 	@$(call go-exec,gofmt -l -w .)
 
+#release-check: @ Validate .goreleaser.yml syntax and config
+release-check: deps-goreleaser
+	@goreleaser check
+
 #static-check: @ Run code static check
-static-check: lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint
+static-check: lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint release-check
 	@echo "Static check passed."
 
 #build: @ Build REST API server's binary
@@ -297,7 +313,9 @@ coverage-check: coverage
 		echo "PASS: Coverage meets 80% threshold"; \
 	fi
 
-#ci: @ Run full CI pipeline locally
+#ci: @ Run full CI pipeline locally (unit + static + build + fuzz + prune-check).
+# For full e2e validation via Newman, use `make ci-run` which drives act
+# through the `e2e` job (Newman runs against the built binary).
 ci: deps format static-check test coverage-check build fuzz deps-prune-check
 	@echo "Local CI pipeline passed."
 
@@ -373,10 +391,19 @@ docker-scan: deps-trivy build
 		-t $(APP_NAME):scan .
 	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
 
-#e2e: @ Run Postman/Newman end-to-end tests
+#e2e: @ Run Postman/Newman end-to-end tests (requires server already running)
 e2e: deps
 	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
 	@./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
+
+#e2e-full: @ Build + start server + run e2e + stop server (self-contained; called by `make ci`)
+e2e-full: build
+	@pkill -f './server' 2>/dev/null || true
+	@./server -env-file .env >/tmp/flight-path-e2e.log 2>&1 &
+	@./scripts/wait-for-server.sh
+	@EXIT=0; ./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json || EXIT=$$?; \
+		pkill -f './server' 2>/dev/null || true; \
+		exit $$EXIT
 
 #renovate-validate: @ Validate Renovate configuration
 renovate-validate: deps
@@ -428,8 +455,8 @@ deps-prune-check: deps
 	fi
 	@echo "No prunable dependencies found."
 
-.PHONY: help deps deps-check deps-hadolint deps-shellcheck deps-act deps-trivy api-docs test fuzz bench bench-save bench-compare \
-	lint vulncheck secrets sec lint-ci format static-check mermaid-lint build run image-build release update open-swagger \
+.PHONY: help deps deps-check deps-hadolint deps-shellcheck deps-act deps-trivy deps-goreleaser api-docs test fuzz bench bench-save bench-compare \
+	lint vulncheck secrets sec lint-ci format static-check mermaid-lint release-check build run image-build release update open-swagger \
 	test-case-one test-case-two test-case-three e2e clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image docker-build docker-run docker-smoke-test docker-test docker-scan \
-	renovate-validate deps-prune deps-prune-check
+	renovate-validate deps-prune deps-prune-check e2e-full

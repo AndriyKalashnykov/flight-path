@@ -82,7 +82,8 @@ Run `make help` to see all available targets.
 | `make secrets` | Scan for hardcoded secrets in source code and git history |
 | `make lint-ci` | Lint GitHub Actions workflow files |
 | `make mermaid-lint` | Validate Mermaid diagrams in markdown files |
-| `make static-check` | Run code static check (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
+| `make release-check` | Validate `.goreleaser.yml` syntax and config via `goreleaser check` |
+| `make static-check` | Run code static check (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
 
 ### Docker
 
@@ -116,6 +117,7 @@ Run `make help` to see all available targets.
 | `make deps-shellcheck` | Install shellcheck for shell script linting |
 | `make deps-act` | Install act for running GitHub Actions locally |
 | `make deps-trivy` | Install trivy for local vulnerability scanning |
+| `make deps-goreleaser` | Install goreleaser for `.goreleaser.yml` validation |
 | `make release` | Create and push a new tag |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
 | `make renovate-validate` | Validate Renovate configuration |
@@ -189,7 +191,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All j
 | **static-check** | push, PR, tags | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
 | **build** | after static-check | Build binary, upload artifact |
 | **test** | after static-check | Coverage threshold check (80%+), fuzz tests |
-| **integration** | after build + test | Download binary, run server, Newman/Postman E2E tests |
+| **e2e** | after build + test | Download binary (or rebuild fallback), run server, Newman/Postman E2E tests. Runs on every push AND under `act` (no `vars.ACT` guard) — the fallback path rebuilds the binary when cross-job artifact download fails. |
 | **dast** | after build + test | Run server, OWASP ZAP API security scan |
 | **docker** | after static-check + build + test (every push) | Single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make docker-smoke-test` + multi-arch build. On `v*.*.*` tag pushes, additionally logs in to GHCR, pushes multi-arch (clean image index, Pattern A), and cosign-signs by digest. On non-tag pushes the login/push/sign steps are skipped — the job still runs end-to-end to catch Dockerfile and multi-arch build regressions on the commit that introduced them, not on release day. |
 | **goreleaser** | tag push only, after all upstream | GoReleaser build, GitHub release (binaries, archives, checksums, changelog) |
@@ -201,7 +203,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All j
 |------|------|---------|---------------|
 | `CLAUDE_CONFIG_TOKEN` | Secret | `claude.yml`, `claude-ci-fix.yml` | PAT with `contents: read` for [`AndriyKalashnykov/claude-config`](https://github.com/AndriyKalashnykov/claude-config) — allows workflows to check out shared Claude configuration |
 | `ANTHROPIC_API_KEY` | Secret | `claude.yml`, `claude-ci-fix.yml` | [console.anthropic.com](https://console.anthropic.com/) API key — powers the Claude Code action |
-| `ACT` | Variable | `integration`, `dast`, `container-test` jobs | Set to `true` **only** when running locally via `act` (via `--var ACT=true` in `make ci-run`). Leave unset on GitHub Actions runners. Guards jobs that don't work under act (cross-job artifact download, ZAP Docker-in-Docker). |
+| `ACT` | Variable | `dast` job | Set to `true` **only** when running locally via `act` (via `--var ACT=true` in `make ci-run`). Leave unset on GitHub Actions runners. Guards the `dast` job, which needs Docker-in-Docker for OWASP ZAP and doesn't run cleanly under act. The `e2e` job runs under act unconditionally (it falls back to rebuilding the binary when cross-job artifact download fails). |
 
 Set secrets via **Settings > Secrets and variables > Actions > New repository secret**.
 Set variables via **Settings > Secrets and variables > Actions > Variables tab > New repository variable**.
@@ -245,8 +247,18 @@ A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly (Sundays 
 ## Postman/Newman end-to-end tests
 
 Utilized Postman collection exported to [JSON file](./test/FlightPath.postman_collection.json)
-and executes same use cases as Makefile targets `test-case-one` `test-case-two` `test-case-three`, plus negative test cases (empty body, malformed JSON, incomplete segment).
+and executes 11 test cases:
 
-Uses hybrid validation: Ajv JSON Schema validation for response structure (global schemas defined at collection level) and Chai assertions for exact business values
+- **HealthCheck** — `GET /` returns `{"data": "..."}`
+- **UseCase01–03** — happy paths matching `test-case-one`, `test-case-two`, `test-case-three` (1, 2, 4 segments)
+- **UseCase04_EmptyBody** — `[]` → 400 "empty segments"
+- **UseCase05_MalformedJSON** — `not valid json` → 400 "parse"
+- **UseCase06_IncompleteSegment** — `[["SFO"]]` → 400 "source and destination"
+- **UseCase07_ExtraItemsInSegmentIgnored** — `[["SFO","EWR","JFK"]]` → 200, first two elements used
+- **UseCase08_TenSegmentChain** — 10 scrambled segments resolving LAX→SFO, exercises the algorithm on longer inputs
+- **UseCase09_ObjectRoot** — `{"foo":"bar"}` → 400 "parse" (wrong root JSON type)
+- **UseCase10_SecondSegmentIncomplete** — `[["SFO","EWR"],["JFK"]]` → 400 with `Index: 1` pointing at the offending segment
+
+Uses hybrid validation: Ajv JSON Schema validation for `/calculate` response structure (global schemas defined at collection level) and Chai assertions for exact business values. The collection-level schema check skips non-`/calculate` requests so the HealthCheck assertions run in isolation.
 
 ![Postman/Newman end-to-end tests](./img/postman-newman.jpg)

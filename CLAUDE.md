@@ -35,7 +35,7 @@ flight-path/
 ├── docs/                                # Generated Swagger docs + architecture/planning docs (ARCHITECTURE.md has Mermaid diagrams)
 ├── specs/                               # Reverse-engineered specifications (see specs/README.md for index)
 ├── test/
-│   ├── FlightPath.postman_collection.json  # E2E test collection (6 cases: 3 happy + 3 negative)
+│   ├── FlightPath.postman_collection.json  # E2E test collection (11 cases: HealthCheck + 5 happy + 5 negative)
 │   ├── package.json                     # Newman dependency manifest (pnpm)
 │   ├── pnpm-lock.yaml                   # pnpm lock file (reproducible builds)
 │   └── .npmrc                           # pnpm configuration
@@ -101,6 +101,7 @@ make deps-hadolint  # Install hadolint for Dockerfile linting (to $HOME/.local/b
 make deps-shellcheck # Install shellcheck for shell script linting (to $HOME/.local/bin)
 make deps-act       # Install act for running GitHub Actions locally (to $HOME/.local/bin)
 make deps-trivy     # Install trivy for local vulnerability scanning (to $HOME/.local/bin)
+make deps-goreleaser # Install goreleaser for .goreleaser.yml validation (to $HOME/.local/bin)
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
 make format         # Format Go code
 make lint           # Run golangci-lint + hadolint (comprehensive linting via .golangci.yml)
@@ -109,12 +110,13 @@ make vulncheck      # Run Go vulnerability check on dependencies
 make secrets        # Scan for hardcoded secrets (gitleaks)
 make lint-ci        # Lint GitHub Actions workflow files (actionlint + shellcheck)
 make mermaid-lint   # Validate Mermaid diagrams in markdown files (minlag/mermaid-cli Docker)
+make release-check  # Validate .goreleaser.yml syntax and config (goreleaser check)
 make test           # Run all tests (unit + handler tests via go test -v ./...)
 make fuzz           # Run fuzz tests for 30 seconds
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare latest two benchmark runs
-make static-check   # All static analysis (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint)
+make static-check   # All static analysis (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check)
 make build          # Generate Swagger docs + compile binary
 make run            # Build and run server locally
 make e2e            # Run Newman/Postman E2E tests (server must be running)
@@ -159,6 +161,7 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 | `HADOLINT_VERSION` | 2.14.0 | Dockerfile linter |
 | `TRIVY_VERSION` | 0.69.3 | Vulnerability scanner |
 | `ACT_VERSION` | 0.2.87 | Local GitHub Actions runner |
+| `GORELEASER_VERSION` | 2.15.2 | GoReleaser (config validator via `goreleaser check` in every push) |
 | `SHELLCHECK_VERSION` | 0.11.0 | Shell script linter (used by actionlint) |
 | `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image) |
 | `GVM_SHA` | dd652539... | Go version manager (pinned by commit SHA) |
@@ -251,13 +254,13 @@ All jobs live in `.github/workflows/ci.yml` (single-file layout matching the `/c
 | **static-check** | all | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
 | **build** | all | Build binary, upload `server-binary` artifact |
 | **test** | all | Coverage threshold check (80%+), fuzz tests, upload coverage artifact |
-| **integration** | all (skipped in act) | Download binary (fallback rebuild), run server, Newman/Postman E2E tests |
+| **e2e** | all | Download binary (fallback rebuild), run server, Newman/Postman E2E tests. Canonical name for the mandatory end-to-end test job — wraps `make e2e`. Runs on every push AND under `act` via `make ci-run` (no `vars.ACT` guard). |
 | **dast** | all (skipped in act) | Download binary (fallback rebuild), run server, OWASP ZAP API security scan |
 | **docker** | all (push/sign steps tag-gated) | Gates 1–3 run every push: single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make docker-smoke-test`. Gate 4 multi-arch build runs every push (`push: ${{ startsWith(github.ref, 'refs/tags/') }}`). On `v*.*.*` tags: additionally logs in to GHCR, pushes with clean image index (Pattern A: `provenance: false` + `sbom: false`), installs cosign, and signs by digest. Catches Dockerfile + multi-arch regressions on the commit that introduced them, not on release day. |
 | **goreleaser** | tag push only | GoReleaser builds multi-platform binaries, archives, checksums, changelog, and GitHub Release |
 | **ci-pass** | always | Aggregator gate (`if: always()`, `needs:` all upstream including docker + goreleaser) — single required check for branch protection. On non-tag pushes, goreleaser is `skipped` (not `failure`) and docker runs normally to validate the full pipeline. On tag pushes, ci-pass waits for everything and only goes green after the full release verifies clean. |
 
-Jobs `integration` and `dast` are skipped when running locally with `act` (`vars.ACT == 'true'`) to avoid artifact-download and network issues. The `docker` job runs fine under act (all gates execute; the tag-gated push/sign steps are skipped on non-tag pushes).
+The `dast` job is skipped when running locally with `act` (`vars.ACT == 'true'`) because OWASP ZAP needs Docker-in-Docker. The `e2e` and `docker` jobs run cleanly under act: `e2e` rebuilds the binary locally when cross-job artifact download fails, and `docker` exercises all gates (the tag-gated push/sign steps are skipped on non-tag pushes).
 
 There is no separate `release.yml` — the tag-push release pipeline lives inside `ci.yml` as tag-gated sibling jobs, so `ci-pass` aggregates both CI and release phases into a single green check.
 
