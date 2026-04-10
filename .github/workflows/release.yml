@@ -140,8 +140,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          provenance: mode=max
-          sbom: true
+          # Pattern A default: clean image index so GHCR "OS / Arch" tab renders.
+          # Cosign keyless signing (below) provides supply-chain verification
+          # without buildkit's in-manifest attestations (which add Platform:
+          # unknown/unknown entries that break the GHCR Packages UI).
+          provenance: false
+          sbom: false
           build-args: |
             GOMODCACHE=/go/pkg/mod
             GOCACHE=/root/.cache/go-build

@@ -257,7 +257,7 @@ Claude Code workflow (`claude.yml`) provides interactive mode (responds to `@cla
 
 Jobs `integration`, `dast`, and `container-test` are skipped when running locally with `act` (`vars.ACT == 'true'`) to avoid artifact-download and network issues.
 
-Release workflow runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then running `goreleaser` (binaries only — archives, checksums, changelog, GitHub release) and a dedicated hardened `docker` job (Trivy image scan + smoke test + multi-arch push with `provenance: mode=max` + `sbom: true` + cosign keyless OIDC signing by digest) **in parallel**.
+Release workflow runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then running `goreleaser` (binaries only — archives, checksums, changelog, GitHub release) and a dedicated hardened `docker` job (Trivy image scan + smoke test + multi-arch push with clean image index (`provenance: false` + `sbom: false` — Pattern A default, so the GHCR "OS / Arch" tab renders) + cosign keyless OIDC signing by digest) **in parallel**.
 
 Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches.
 

@@ -203,7 +203,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 |-----|----------|-------|
 | **ci** | tag push | Reuses `ci.yml` via `workflow_call` for full validation |
 | **goreleaser** | after ci | GoReleaser build, GitHub release (binaries, archives, checksums, changelog) |
-| **docker** | after ci | Build local image, Trivy scan, smoke test, multi-arch push with provenance + SBOM, cosign keyless signing |
+| **docker** | after ci | Build local image, Trivy scan, smoke test, multi-arch push (clean image index), cosign keyless signing |
 
 The [release workflow](./.github/workflows/release.yml) runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then executing GoReleaser (binaries) and the hardened docker job (container images) in parallel.
 
@@ -227,16 +227,16 @@ The `docker` job runs the following gates **before** any image is pushed to GHCR
 | 1 | Build local single-arch image | Build regressions on the runner architecture | `docker/build-push-action` with `load: true` |
 | 2 | **Trivy image scan** (CRITICAL/HIGH blocking) | CVEs in base image, OS packages, build layers; secrets; misconfigs | `aquasecurity/trivy-action` with `image-ref:` |
 | 3 | **Smoke test** | Image boots, health endpoint responds, `/calculate` returns correct result | `make docker-smoke-test` |
-| 4 | Multi-arch build + push | Publishes for both `linux/amd64` and `linux/arm64` | `docker/build-push-action` |
-| 5 | **SLSA L2 build provenance** | Cryptographic record of how the image was built | `docker/build-push-action` native attestation (`provenance: mode=max`) |
-| 6 | **SBOM attestation** | Software Bill of Materials embedded in the manifest | `docker/build-push-action` native attestation (`sbom: true`) |
-| 7 | **Cosign keyless OIDC signing** | Sigstore signature on the manifest digest (no long-lived keys) | `sigstore/cosign-installer` + `cosign sign` |
+| 4 | Multi-arch build + push (clean image index) | Publishes for both `linux/amd64` and `linux/arm64` with `provenance: false` + `sbom: false` so the GHCR "OS / Arch" tab renders correctly | `docker/build-push-action` |
+| 5 | **Cosign keyless OIDC signing** | Sigstore signature on the manifest digest (no long-lived keys) — the supply-chain verification primitive for this image | `sigstore/cosign-installer` + `cosign sign` |
 
-Inspect a published image's attestations:
+Inspect the published multi-arch manifest:
 
 ```bash
 docker buildx imagetools inspect ghcr.io/andriykalashnykov/flight-path:<tag>
 ```
+
+Expect `linux/amd64` and `linux/arm64` platform entries with no `unknown/unknown` rows.
 
 Verify a published image's cosign signature:
 
