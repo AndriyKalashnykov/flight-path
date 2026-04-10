@@ -263,6 +263,12 @@ jobs:
 
       - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
+      # Weekly cache-bust for the apk upgrade layer — ensures the image always
+      # picks up new Alpine security patches even when the Dockerfile is unchanged.
+      - name: Compute apk cache-bust week
+        id: apk-week
+        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
+
       - name: Build image for scan
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
@@ -273,6 +279,7 @@ jobs:
           build-args: |
             GOMODCACHE=/go/pkg/mod
             GOCACHE=/root/.cache/go-build
+            APK_UPGRADE_WEEK=${{ steps.apk-week.outputs.week }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

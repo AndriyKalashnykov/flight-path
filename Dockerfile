@@ -16,6 +16,13 @@ RUN --mount=type=cache,target="$GOMODCACHE" \
 # runtime image
 FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659 AS runtime
 WORKDIR /
+# Weekly cache-bust for security updates. CI passes APK_UPGRADE_WEEK=$(date -u +%Y-W%V)
+# as a build-arg so the `apk upgrade` layer re-runs at least once per week, picking
+# up new CVE fixes from the Alpine package repo even when the Dockerfile is unchanged.
+# Without this, the cached layer can serve stale package versions for weeks after a
+# CVE is fixed upstream (e.g., CVE-2026-28390 openssl: apk repo has 3.5.6-r0 but the
+# cached layer still ships 3.5.5-r0).
+ARG APK_UPGRADE_WEEK=manual
 RUN apk upgrade --no-cache
 RUN addgroup -g 1000 srvgroup && \
     adduser -D srvuser -u 1000 -G srvgroup

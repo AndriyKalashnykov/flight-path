@@ -60,6 +60,11 @@ jobs:
 
       - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
+      # Weekly cache-bust for the apk upgrade layer (see ci.yml for rationale).
+      - name: Compute apk cache-bust week
+        id: apk-week
+        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
@@ -86,6 +91,7 @@ jobs:
           build-args: |
             GOMODCACHE=/go/pkg/mod
             GOCACHE=/root/.cache/go-build
+            APK_UPGRADE_WEEK=${{ steps.apk-week.outputs.week }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -139,6 +145,7 @@ jobs:
           build-args: |
             GOMODCACHE=/go/pkg/mod
             GOCACHE=/root/.cache/go-build
+            APK_UPGRADE_WEEK=${{ steps.apk-week.outputs.week }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
