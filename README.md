@@ -182,9 +182,7 @@ Auto-generated OpenAPI spec: [`docs/swagger.json`](./docs/swagger.json)
 
 ## CI/CD
 
-GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
-
-### CI workflow jobs (`ci.yml`)
+GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All jobs live in a single workflow file (`.github/workflows/ci.yml`). Tag-gated jobs (`goreleaser`, `docker`) are siblings of the other jobs — they run only on `v*.*.*` pushes and are `skipped` on everything else.
 
 | Job | Triggers | Steps |
 |-----|----------|-------|
@@ -195,17 +193,9 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests.
 | **dast** | after build + test | Run server, OWASP ZAP API security scan |
 | **image-scan** | after static-check | Build Docker image, Trivy vulnerability scan, save image artifact |
 | **container-test** | after image-scan | Load Docker image, health-check, API smoke test |
-| **ci-pass** | `if: always()`, needs all | Single branch-protection gate that fails if any upstream job failed |
-
-### Release workflow jobs (`release.yml`)
-
-| Job | Triggers | Steps |
-|-----|----------|-------|
-| **ci** | tag push | Reuses `ci.yml` via `workflow_call` for full validation |
-| **goreleaser** | after ci | GoReleaser build, GitHub release (binaries, archives, checksums, changelog) |
-| **docker** | after ci | Build local image, Trivy scan, smoke test, multi-arch push (clean image index), cosign keyless signing |
-
-The [release workflow](./.github/workflows/release.yml) runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then executing GoReleaser (binaries) and the hardened docker job (container images) in parallel.
+| **goreleaser** | tag push only, after all upstream | GoReleaser build, GitHub release (binaries, archives, checksums, changelog) |
+| **docker** | tag push only, after all upstream | Build local image, Trivy scan, smoke test, multi-arch push (clean image index), cosign keyless signing |
+| **ci-pass** | `if: always()`, needs all | Single branch-protection gate that fails if any upstream job failed. On non-tag pushes, `goreleaser` and `docker` are `skipped` (not `failure`), so ci-pass still passes correctly. On tag pushes, ci-pass waits for both and only goes green after the full release has verified clean. |
 
 ### Required Secrets and Variables
 

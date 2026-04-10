@@ -48,7 +48,7 @@ flight-path/
 ├── .hadolint.yaml                       # Hadolint Dockerfile linter config
 ├── Makefile                             # All build/dev/test commands
 ├── .env                                 # SERVER_PORT=8080
-├── .goreleaser.yml                      # GoReleaser release configuration (binaries only; images via release.yml docker job)
+├── .goreleaser.yml                      # GoReleaser release configuration (binaries only; images via docker job in ci.yml)
 ├── .claude/                             # Claude Code commands, agents, skills, rules, and settings
 ├── .claudeignore                        # Claude Code ignore patterns
 ├── .dockerignore                        # Docker build context exclusions
@@ -240,24 +240,28 @@ Update specs when changing architecture, API, or testing strategy.
 
 ## CI/CD
 
-GitHub Actions CI workflow runs on push to `main`, tags `v*`, pull requests, and is reusable via `workflow_call` (called by release.yml). Non-critical files are excluded via `paths-ignore` (docs, images, benchmarks, `.claude/**`, metadata) — `CLAUDE.md` is re-included via `!CLAUDE.md` negation. Tags and `workflow_call` are unaffected by `paths-ignore`.
+GitHub Actions CI workflow runs on push to `main`, tags `v*`, and pull requests. Non-critical files are excluded via `paths-ignore` (docs, images, benchmarks, `.claude/**`, metadata) — `CLAUDE.md` is re-included via `!CLAUDE.md` negation. Tags are unaffected by `paths-ignore`.
 
 Claude Code workflow (`claude.yml`) provides interactive mode (responds to `@claude` mentions, restricted to `OWNER`/`MEMBER`/`COLLABORATOR` author associations) and automated PR review on every non-draft PR. Claude CI Fix workflow (`claude-ci-fix.yml`) auto-triggers on CI failures via `workflow_run` (same-repo branches only) and uses a dual anti-recursion guard (bot-author check + `claude-fix-attempted` label) plus a 12K total input cap on CI logs to prevent prompt-injection context stuffing.
 
-| Job | Steps |
-|-----|-------|
-| **static-check** | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
-| **build** | Build binary, upload `server-binary` artifact |
-| **test** | Coverage threshold check (80%+), fuzz tests, upload coverage artifact |
-| **integration** | Download binary (fallback rebuild), run server, Newman/Postman E2E tests |
-| **dast** | Download binary (fallback rebuild), run server, OWASP ZAP API security scan |
-| **image-scan** | Build Docker image, Trivy vulnerability scan (CRITICAL/HIGH blocking), save image artifact for container-test |
-| **container-test** | Load Docker image from artifact, health-check, API smoke test |
-| **ci-pass** | Aggregator gate job (`if: always()`, `needs:` all upstream) — single required check for branch protection |
+All jobs live in `.github/workflows/ci.yml` (single-file layout matching the `/ci-workflow` skill template). Tag-gated jobs (`goreleaser`, `docker`) are siblings of the normal CI jobs and run only on `v*.*.*` pushes — they are `skipped` on branch/PR pushes.
+
+| Job | Triggers | Steps |
+|-----|----------|-------|
+| **static-check** | all | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
+| **build** | all | Build binary, upload `server-binary` artifact |
+| **test** | all | Coverage threshold check (80%+), fuzz tests, upload coverage artifact |
+| **integration** | all (skipped in act) | Download binary (fallback rebuild), run server, Newman/Postman E2E tests |
+| **dast** | all (skipped in act) | Download binary (fallback rebuild), run server, OWASP ZAP API security scan |
+| **image-scan** | all | Build Docker image, Trivy vulnerability scan (CRITICAL/HIGH blocking), save image artifact for container-test |
+| **container-test** | all (skipped in act) | Load Docker image from artifact, health-check, API smoke test |
+| **goreleaser** | tag push only | GoReleaser builds multi-platform binaries, archives, checksums, changelog, and GitHub Release |
+| **docker** | tag push only | Trivy image scan + smoke test + multi-arch push with clean image index (`provenance: false` + `sbom: false` — Pattern A default, so the GHCR "OS / Arch" tab renders) + cosign keyless OIDC signing by digest |
+| **ci-pass** | always | Aggregator gate (`if: always()`, `needs:` all upstream including goreleaser + docker) — single required check for branch protection. On non-tag pushes, goreleaser/docker are `skipped` (not `failure`), so ci-pass still passes. On tag pushes, ci-pass only goes green after the full release verifies clean. |
 
 Jobs `integration`, `dast`, and `container-test` are skipped when running locally with `act` (`vars.ACT == 'true'`) to avoid artifact-download and network issues.
 
-Release workflow runs on tag pushes (`v*.*.*`), calling ci.yml via `workflow_call` for full CI validation, then running `goreleaser` (binaries only — archives, checksums, changelog, GitHub release) and a dedicated hardened `docker` job (Trivy image scan + smoke test + multi-arch push with clean image index (`provenance: false` + `sbom: false` — Pattern A default, so the GHCR "OS / Arch" tab renders) + cosign keyless OIDC signing by digest) **in parallel**.
+There is no separate `release.yml` — the tag-push release pipeline lives inside `ci.yml` as tag-gated sibling jobs, so `ci-pass` aggregates both CI and release phases into a single green check.
 
 Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches.
 
@@ -299,7 +303,7 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 - [ ] **godotenv low activity**: Last commit 2025-10-21, last release v1.5.1 (Feb 2023). Functionally complete — no action unless repo goes archived. Fallback: stdlib `os.Getenv` + helper
 - [ ] **Newman sandbox lag**: Newman 6.2.2 bundles postman-sandbox 4.7.1 (upstream 6.6.1) and postman-runtime 7.39.1 (upstream 7.53.0). Check `pnpm view newman version` for Newman 7.x or new 6.x
 - [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
-- [x] ~~**GoReleaser `dockers` deprecation**: Migrated to `dockers_v2` with separate `Dockerfile.goreleaser` (2026-04-06). Superseded on 2026-04-09: image publishing moved out of goreleaser into a dedicated hardened `docker` job in `release.yml` (Trivy scan + smoke test + provenance/SBOM + cosign keyless signing). `Dockerfile.goreleaser` removed.~~
+- [x] ~~**GoReleaser `dockers` deprecation**: Migrated to `dockers_v2` with separate `Dockerfile.goreleaser` (2026-04-06). Superseded on 2026-04-09: image publishing moved out of goreleaser into a dedicated hardened `docker` job in `release.yml` (Trivy scan + smoke test + provenance/SBOM + cosign keyless signing). `Dockerfile.goreleaser` removed. Further consolidated on 2026-04-10: `release.yml` deleted, `docker` and `goreleaser` jobs moved into `ci.yml` as tag-gated siblings so `ci-pass` aggregates the full release into a single green check.~~
 - [ ] **swaggo/swag v1 indirect dep**: `echo-swagger/v2` pulls in `swag v1` transitively. Fix submitted upstream as [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146). Will auto-resolve when PR is merged and we update echo-swagger
 
 ## Environment
