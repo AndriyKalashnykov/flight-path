@@ -4,7 +4,7 @@
 
 **flight-path** is a Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
-- **Language**: Go 1.26.2 (via gvm, optional — system Go works too)
+- **Language**: Go 1.26.2 (via mise, optional — system Go works too)
 - **Framework**: Echo v5 (v5.1.0)
 - **Docs**: Swagger/Swaggo (auto-generated)
 - **Version**: See `pkg/api/version.txt`
@@ -48,6 +48,8 @@ flight-path/
 ├── .hadolint.yaml                       # Hadolint Dockerfile linter config
 ├── Makefile                             # All build/dev/test commands
 ├── .env                                 # SERVER_PORT=8080
+├── .mise.toml                           # Go toolchain pin for mise (source of truth alongside go.mod)
+├── .nvmrc                               # Node major-version pin (source of truth for NODE_VERSION)
 ├── .goreleaser.yml                      # GoReleaser release configuration (binaries only; images via docker job in ci.yml)
 ├── .claude/                             # Claude Code commands, agents, skills, rules, and settings
 ├── .claudeignore                        # Claude Code ignore patterns
@@ -96,7 +98,7 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 ```bash
 make help           # List available tasks
 make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, newman)
-make deps-check     # Show required Go version, gvm status, and tool status
+make deps-check     # Show required Go version, mise status, and tool status
 make deps-hadolint  # Install hadolint for Dockerfile linting (to $HOME/.local/bin)
 make deps-shellcheck # Install shellcheck for shell script linting (to $HOME/.local/bin)
 make deps-act       # Install act for running GitHub Actions locally (to $HOME/.local/bin)
@@ -119,24 +121,26 @@ make bench-compare  # Compare latest two benchmark runs
 make static-check   # All static analysis (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check)
 make build          # Generate Swagger docs + compile binary
 make run            # Build and run server locally
-make e2e            # Run Newman/Postman E2E tests (server must be running)
+make e2e            # Self-contained: build + start server + run Newman + stop server
+make e2e-quick      # Run Newman/Postman E2E tests (requires server already running)
 make test-case-one  # curl test: [["SFO", "EWR"]]
 make test-case-two  # curl test: [["ATL", "EWR"], ["SFO", "ATL"]]
 make test-case-three # curl test: 4-segment path
 make update         # Update Go dependencies
 make release        # Tag and push a new release (runs full `ci` pipeline first)
-make image-build    # Build Docker image (full checks + test)
 make check          # Full pre-commit checklist (alias for make ci)
 make ci             # Local CI pipeline (deps + format + static-check + test + coverage-check + build + fuzz + deps-prune-check)
 make ci-run         # Run GitHub Actions workflow locally using act
 make coverage       # Run tests with coverage report
 make coverage-check # Verify coverage meets 80% threshold
 make clean          # Remove build artifacts and test cache
-make docker-build   # Build Docker image for local testing
-make docker-run     # Run Docker container locally
-make docker-smoke-test # Smoke-test a pre-built Docker container (no rebuild)
-make docker-test    # Build and smoke-test Docker container
-make docker-scan    # Build Docker image and run Trivy scan (requires trivy)
+make image-build    # Build Docker image for local testing
+make image-run      # Run Docker container locally (detached; use image-stop to tear down)
+make image-stop     # Stop the locally running Docker container
+make image-push     # Push Docker image to GHCR (requires GH_ACCESS_TOKEN)
+make image-smoke-test # Smoke-test a pre-built Docker container (no rebuild)
+make image-test     # Build and smoke-test Docker container
+make image-scan     # Build Docker image and run Trivy scan (requires trivy)
 make trivy-fs       # Run Trivy filesystem vulnerability scan (requires trivy)
 make trivy-image    # Run Trivy image vulnerability scan (requires trivy)
 make open-swagger   # Open browser with Swagger docs pointing to localhost
@@ -164,7 +168,7 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 | `GORELEASER_VERSION` | 2.15.2 | GoReleaser (config validator via `goreleaser check` in every push) |
 | `SHELLCHECK_VERSION` | 0.11.0 | Shell script linter (used by actionlint) |
 | `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image) |
-| `GVM_SHA` | dd652539... | Go version manager (pinned by commit SHA) |
+| `MISE_VERSION` | 2026.4.10 | Go/toolchain version manager (reads `.mise.toml`) |
 | `NVM_VERSION` | 0.40.4 | Node.js version manager |
 | `NODE_VERSION` | 24 | Node.js major version (pinned for nvm) |
 
@@ -256,7 +260,7 @@ All jobs live in `.github/workflows/ci.yml` (single-file layout matching the `/c
 | **test** | all | Coverage threshold check (80%+), fuzz tests, upload coverage artifact |
 | **e2e** | all | Download binary (fallback rebuild), run server, Newman/Postman E2E tests. Canonical name for the mandatory end-to-end test job — wraps `make e2e`. Runs on every push AND under `act` via `make ci-run` (no `vars.ACT` guard). |
 | **dast** | all (skipped in act) | Download binary (fallback rebuild), run server, OWASP ZAP API security scan |
-| **docker** | all (push/sign steps tag-gated) | Gates 1–3 run every push: single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make docker-smoke-test`. Gate 4 multi-arch build runs every push (`push: ${{ startsWith(github.ref, 'refs/tags/') }}`). On `v*.*.*` tags: additionally logs in to GHCR, pushes with clean image index (Pattern A: `provenance: false` + `sbom: false`), installs cosign, and signs by digest. Catches Dockerfile + multi-arch regressions on the commit that introduced them, not on release day. |
+| **docker** | all (push/sign steps tag-gated) | Gates 1–3 run every push: single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make image-smoke-test`. Gate 4 multi-arch build runs every push (`push: ${{ startsWith(github.ref, 'refs/tags/') }}`). On `v*.*.*` tags: additionally logs in to GHCR, pushes with clean image index (Pattern A: `provenance: false` + `sbom: false`), installs cosign, and signs by digest. Catches Dockerfile + multi-arch regressions on the commit that introduced them, not on release day. |
 | **goreleaser** | tag push only | GoReleaser builds multi-platform binaries, archives, checksums, changelog, and GitHub Release |
 | **ci-pass** | always | Aggregator gate (`if: always()`, `needs:` all upstream including docker + goreleaser) — single required check for branch protection. On non-tag pushes, goreleaser is `skipped` (not `failure`) and docker runs normally to validate the full pipeline. On tag pushes, ci-pass waits for everything and only goes green after the full release verifies clean. |
 
@@ -272,7 +276,7 @@ Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs 
 - **Tool not found** (`swag`, `golangci-lint`, etc.): Run `make deps` and ensure `$(go env GOPATH)/bin` is in PATH
 - **Swagger UI shows stale docs**: Run `make api-docs`, restart server, hard-refresh browser
 - **Tests fail after changes**: Run `go test -v ./...` for verbose output; `go clean -testcache` to clear cache
-- **Build fails**: Check `go version` matches go.mod (1.26.2); if mismatch, use gvm (`gvm use go1.26.2`) or reinstall, then run `go mod tidy` and `make build`
+- **Build fails**: Check `go version` matches go.mod (1.26.2); if mismatch, use mise (`mise install`) or reinstall, then run `go mod tidy` and `make build`
 - **E2E tests fail**: Ensure server is running first (`make run &`, wait a few seconds, then `make e2e`)
 
 ## Skills
@@ -306,10 +310,12 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 - [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
 - [x] ~~**GoReleaser `dockers` deprecation**: Migrated to `dockers_v2` with separate `Dockerfile.goreleaser` (2026-04-06). Superseded on 2026-04-09: image publishing moved out of goreleaser into a dedicated hardened `docker` job in `release.yml` (Trivy scan + smoke test + provenance/SBOM + cosign keyless signing). `Dockerfile.goreleaser` removed. Further consolidated on 2026-04-10: `release.yml` deleted, `docker` and `goreleaser` jobs moved into `ci.yml` as tag-gated siblings so `ci-pass` aggregates the full release into a single green check. Further consolidated later the same day: `image-scan` and `container-test` jobs were merged into the `docker` job, which now runs on every push. Push/login/cosign steps are tag-gated at step level; the build/scan/smoke gates run unconditionally so Dockerfile and multi-arch regressions are caught on the commit that introduced them.~~
 - [ ] **swaggo/swag v1 indirect dep**: `echo-swagger/v2` pulls in `swag v1` transitively. Fix submitted upstream as [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146). Will auto-resolve when PR is merged and we update echo-swagger
+- [ ] **actions/github-script v7 → v9**: `claude-ci-fix.yml` uses `actions/github-script@v7` (SHA f28e40c7); latest is v9.0.0. APIs used (`github.rest.actions.listJobsForWorkflowRun`, `github.rest.pulls.listCommits`, `github.rest.pulls.get`, `github.rest.issues.addLabels`, `core.info`, `core.setOutput`) remain compatible in v9. Bump on next workflow maintenance pass; Renovate may group this under "GitHub Actions" PR
+- [x] ~~**anthropics/claude-code-action SHA refresh**: bumped `claude.yml` and `claude-ci-fix.yml` from `26ddc358` (2025-08-26 floating `v1`) to `b47fd721` (v1.0.93, 2026-04-10) on 2026-04-13. Picks up 90+ point releases' worth of prompt-injection handling fixes.~~
 
 ## Environment
 
-- Go 1.26.2 via gvm: `GOROOT=$HOME/.gvm/gos/go1.26.2`
+- Go 1.26.2 via mise (reads `.mise.toml`); install with `curl -fsSL https://mise.jdx.dev/install.sh | bash`
 - Node.js via nvm (for Newman)
 - User-writable tool install dir: `$HOME/.local/bin` (hadolint, shellcheck, act, trivy) — exported to `PATH` by the Makefile
 - Environment variables loaded from `.env` (`SERVER_PORT=8080`)

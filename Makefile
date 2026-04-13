@@ -1,8 +1,8 @@
 .DEFAULT_GOAL := help
+SHELL := /bin/bash
 
 APP_NAME       := flight-path
 CURRENTTAG     := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
-NEWTAG         ?= $(shell bash -c 'read -p "Please provide a new tag (current tag - ${CURRENTTAG}): " newtag; echo $$newtag')
 GOFLAGS        ?= -mod=mod
 GOOS           ?= linux
 GOARCH         ?= amd64
@@ -34,8 +34,10 @@ ACTIONLINT_VERSION  := 1.7.12
 SHELLCHECK_VERSION  := 0.11.0
 # renovate: datasource=github-releases depName=nvm-sh/nvm
 NVM_VERSION         := 0.40.4
-# NODE_VERSION tracks major only — pinned manually (Renovate cannot track major-only values)
-NODE_VERSION        := 24
+# NODE_VERSION tracks major only — source of truth: .nvmrc (Renovate cannot track major-only values)
+NODE_VERSION        := $(shell cat .nvmrc 2>/dev/null || echo 24)
+# renovate: datasource=github-releases depName=jdx/mise
+MISE_VERSION        := 2026.4.10
 # renovate: datasource=github-releases depName=hadolint/hadolint
 HADOLINT_VERSION    := 2.14.0
 # renovate: datasource=github-releases depName=aquasecurity/trivy
@@ -52,12 +54,12 @@ MERMAID_CLI_VERSION := 11.12.0
 # path is not preconfigured. Exported so every sub-shell the recipes spawn inherits it.
 export PATH := $(HOME)/.local/bin:$(PATH)
 
-# === gvm detection ===
-# gvm is a shell function (not a binary), so command -v doesn't work in Make's $(shell) context
-GVM_SHA := dd652539fa4b771840846f8319fad303c7d0a8d2
-HAS_GVM := $(shell [ -s "$$HOME/.gvm/scripts/gvm" ] && echo true || echo false)
+# === Go version management: mise (https://mise.jdx.dev) ===
+# mise auto-activates via shell hook, reads .mise.toml, and publishes semver releases
+# trackable by Renovate. CI uses actions/setup-go (reads go.mod directly).
+HAS_MISE := $(shell command -v mise >/dev/null 2>&1 && echo true || echo false)
 define go-exec
-$(if $(filter true,$(HAS_GVM)),bash -c '. $$GVM_ROOT/scripts/gvm && gvm use go$(GO_VERSION) >/dev/null && $(1)',bash -c '$(1)')
+$(if $(filter true,$(HAS_MISE)),bash -c 'eval "$$(mise activate bash --shims)" && $(1)',bash -c '$(1)')
 endef
 
 #help: @ List available tasks
@@ -68,22 +70,20 @@ help:
 
 #deps: @ Download and install dependencies
 deps:
-	@if [ -z "$$CI" ] && [ ! -s "$$HOME/.gvm/scripts/gvm" ]; then \
-		echo "Installing gvm (Go Version Manager)..."; \
-		curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/$(GVM_SHA)/binscripts/gvm-installer | bash -s $(GVM_SHA); \
+	@# Install mise if not present (local development only; CI uses actions/setup-go)
+	@if [ -z "$$CI" ] && ! command -v mise >/dev/null 2>&1; then \
+		echo "Installing mise v$(MISE_VERSION)..."; \
+		curl -fsSL https://mise.jdx.dev/install.sh | MISE_VERSION=v$(MISE_VERSION) bash; \
 		echo ""; \
-		echo "gvm installed. Please restart your shell or run:"; \
-		echo "  source $$HOME/.gvm/scripts/gvm"; \
-		echo "Then re-run 'make deps' to install Go $(GO_VERSION) via gvm."; \
+		echo "mise installed. Activate by adding to your shell rc:"; \
+		echo "  eval \"\$$(mise activate bash)\"  # or zsh/fish"; \
+		echo "Then re-run 'make deps' to install Go $(GO_VERSION) via mise."; \
 		exit 0; \
 	fi
-	@if [ "$(HAS_GVM)" = "true" ]; then \
-		bash -c '. $$GVM_ROOT/scripts/gvm && gvm list' 2>/dev/null | grep -q "go$(GO_VERSION)" || { \
-			echo "Installing Go $(GO_VERSION) via gvm..."; \
-			bash -c '. $$GVM_ROOT/scripts/gvm && gvm install go$(GO_VERSION) -B'; \
-		}; \
+	@if [ "$(HAS_MISE)" = "true" ]; then \
+		mise install --yes; \
 	else \
-		command -v go >/dev/null 2>&1 || { echo "Error: Go required. Install gvm from https://github.com/moovweb/gvm or Go from https://go.dev/dl/"; exit 1; }; \
+		command -v go >/dev/null 2>&1 || { echo "Error: Go required. Install mise from https://mise.jdx.dev or Go from https://go.dev/dl/"; exit 1; }; \
 	fi
 	@$(call go-exec,command -v swag) >/dev/null 2>&1 || { echo "Installing swag..."; $(call go-exec,go install github.com/swaggo/swag/v2/cmd/swag@v$(SWAG_VERSION)); }
 	@$(call go-exec,command -v gosec) >/dev/null 2>&1 || { echo "Installing gosec..."; $(call go-exec,go install github.com/securego/gosec/v2/cmd/gosec@v$(GOSEC_VERSION)); }
@@ -106,9 +106,7 @@ deps:
 #deps-check: @ Show required Go version and tool status
 deps-check:
 	@echo "Go version required: $(GO_VERSION)"
-	@command -v gvm >/dev/null 2>&1 && { \
-		bash -c '. $$GVM_ROOT/scripts/gvm && gvm list'; \
-	} || echo "gvm not installed - install from https://github.com/moovweb/gvm"
+	@if command -v mise >/dev/null 2>&1; then mise list 2>/dev/null || echo "mise: .mise.toml not trusted — run 'mise trust'"; else echo "mise not installed - install from https://mise.jdx.dev"; fi
 	@echo "--- Tool status ---"
 	@for tool in swag gosec benchstat golangci-lint govulncheck gitleaks actionlint node hadolint act; do \
 		printf "  %-16s " "$$tool:"; \
@@ -236,22 +234,66 @@ build: deps api-docs
 run: deps build
 	@export TZ="UTC"; ./server -env-file .env
 
-#image-build: @ Build Docker image (full checks + test)
-image-build: static-check test build
-	@./scripts/build-image.sh
+#image-build: @ Build Docker image for local testing
+image-build: build
+	@docker buildx build --load \
+		--build-arg GOMODCACHE=$$($(call go-exec,go env GOMODCACHE)) \
+		--build-arg GOCACHE=$$($(call go-exec,go env GOCACHE)) \
+		-t $(APP_NAME):local .
+
+#image-run: @ Run Docker container locally
+image-run: image-stop image-build
+	@docker run --rm -d --name $(APP_NAME) -p 8080:8080 -e SERVER_PORT=8080 \
+		--entrypoint sh $(APP_NAME):local -c "touch /tmp/.env && /main -env-file /tmp/.env"
+
+#image-stop: @ Stop the locally running Docker container
+image-stop:
+	@docker stop $(APP_NAME) 2>/dev/null || true
+	@docker rm -f $(APP_NAME) 2>/dev/null || true
+
+#image-push: @ Push Docker image to GHCR (requires GH_ACCESS_TOKEN)
+image-push: image-build
+	@if [ -z "$$GH_ACCESS_TOKEN" ]; then echo "Error: GH_ACCESS_TOKEN not set"; exit 1; fi
+	@echo "$$GH_ACCESS_TOKEN" | docker login ghcr.io -u andriykalashnykov --password-stdin
+	@docker tag $(APP_NAME):local ghcr.io/andriykalashnykov/$(APP_NAME):$(CURRENTTAG)
+	@docker push ghcr.io/andriykalashnykov/$(APP_NAME):$(CURRENTTAG)
+
+#image-smoke-test: @ Smoke-test a pre-built Docker container (no rebuild)
+image-smoke-test:
+	@docker run -d --name fp-test -p 8080:8080 -e SERVER_PORT=8080 \
+		--entrypoint sh $(APP_NAME):local -c "touch /tmp/.env && /main -env-file /tmp/.env"; \
+	RESULT=0; \
+	for i in $$(seq 1 10); do curl -sf http://localhost:8080/ >/dev/null 2>&1 && break; sleep 1; done; \
+	curl -sf http://localhost:8080/ && echo "Health: OK" || { echo "Health: FAIL"; docker logs fp-test; RESULT=1; }; \
+	curl -sf -X POST http://localhost:8080/calculate \
+		-H 'Content-Type: application/json' \
+		-d '[["SFO","ATL"],["ATL","EWR"]]' && echo "API: OK" || { echo "API: FAIL"; docker logs fp-test; RESULT=1; }; \
+	docker rm -f fp-test 2>/dev/null || true; \
+	exit $$RESULT
+
+#image-test: @ Build and smoke-test Docker container
+image-test: image-build image-smoke-test
+
+#image-scan: @ Build Docker image and run Trivy scan (requires trivy)
+image-scan: deps-trivy build
+	@docker buildx build --load \
+		--build-arg GOMODCACHE=/go/pkg/mod \
+		--build-arg GOCACHE=/root/.cache/go-build \
+		-t $(APP_NAME):scan .
+	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
 
 #release: @ Create and push a new tag
 release: ci
-	@$(eval NT=$(NEWTAG))
-	@echo "$(NT)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "Error: Tag must match vN.N.N"; exit 1; }
-	@echo -n "Are you sure to create and push ${NT} tag? [y/N] " && read ans && [ $${ans:-N} = y ]
-	@echo ${NT} > ./pkg/api/version.txt
-	@git add pkg/api/version.txt
-	@git commit -s -m "Cut ${NT} release"
-	@git tag ${NT}
-	@git push origin ${NT}
-	@git push
-	@echo "Done."
+	@NT=$$(bash -c 'read -p "Please provide a new tag (current tag - $(CURRENTTAG)): " newtag; echo $$newtag'); \
+	echo "$$NT" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "Error: Tag must match vN.N.N"; exit 1; }; \
+	read -p "Are you sure to create and push $$NT tag? [y/N] " ans; [ "$${ans:-N}" = y ] || exit 1; \
+	echo "$$NT" > ./pkg/api/version.txt; \
+	git add pkg/api/version.txt; \
+	git commit -s -m "Cut $$NT release"; \
+	git tag "$$NT"; \
+	git push origin "$$NT"; \
+	git push; \
+	echo "Done."
 
 #update: @ Update dependencies to latest versions
 update: deps
@@ -345,65 +387,19 @@ trivy-fs: deps-trivy
 trivy-image: deps-trivy
 	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
 
-#docker-build: @ Build Docker image for local testing
-docker-build: deps build
-	@docker buildx build --load \
-		--build-arg GOMODCACHE=$$($(call go-exec,go env GOMODCACHE)) \
-		--build-arg GOCACHE=$$($(call go-exec,go env GOCACHE)) \
-		-t $(APP_NAME):local .
-
-#docker-run: @ Run Docker container locally
-docker-run: docker-build
-	@docker run --rm -p 8080:8080 -e SERVER_PORT=8080 \
-		--entrypoint sh $(APP_NAME):local -c "touch /tmp/.env && /main -env-file /tmp/.env"
-
-#docker-smoke-test: @ Smoke-test a pre-built Docker container (no rebuild)
-docker-smoke-test:
-	@docker run -d --name fp-test -p 8080:8080 -e SERVER_PORT=8080 \
-		--entrypoint sh $(APP_NAME):local -c "touch /tmp/.env && /main -env-file /tmp/.env"; \
-	RESULT=0; \
-	for i in $$(seq 1 10); do curl -sf http://localhost:8080/ >/dev/null 2>&1 && break; sleep 1; done; \
-	curl -sf http://localhost:8080/ && echo "Health: OK" || { echo "Health: FAIL"; docker logs fp-test; RESULT=1; }; \
-	curl -sf -X POST http://localhost:8080/calculate \
-		-H 'Content-Type: application/json' \
-		-d '[["SFO","ATL"],["ATL","EWR"]]' && echo "API: OK" || { echo "API: FAIL"; docker logs fp-test; RESULT=1; }; \
-	docker rm -f fp-test 2>/dev/null || true; \
-	exit $$RESULT
-
-#docker-test: @ Build and smoke-test Docker container
-docker-test: docker-build
-	@docker run -d --name fp-test -p 8080:8080 -e SERVER_PORT=8080 \
-		--entrypoint sh $(APP_NAME):local -c "touch /tmp/.env && /main -env-file /tmp/.env"; \
-	RESULT=0; \
-	for i in $$(seq 1 10); do curl -sf http://localhost:8080/ >/dev/null 2>&1 && break; sleep 1; done; \
-	curl -sf http://localhost:8080/ && echo "Health: OK" || { echo "Health: FAIL"; docker logs fp-test; RESULT=1; }; \
-	curl -sf -X POST http://localhost:8080/calculate \
-		-H 'Content-Type: application/json' \
-		-d '[["SFO","ATL"],["ATL","EWR"]]' && echo "API: OK" || { echo "API: FAIL"; docker logs fp-test; RESULT=1; }; \
-	docker rm -f fp-test 2>/dev/null || true; \
-	exit $$RESULT
-
-#docker-scan: @ Build Docker image and run Trivy scan (requires trivy)
-docker-scan: deps-trivy build
-	@docker buildx build --load \
-		--build-arg GOMODCACHE=/go/pkg/mod \
-		--build-arg GOCACHE=/root/.cache/go-build \
-		-t $(APP_NAME):scan .
-	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
-
-#e2e: @ Run Postman/Newman end-to-end tests (requires server already running)
-e2e: deps
-	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
-	@./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
-
-#e2e-full: @ Build + start server + run e2e + stop server (self-contained; called by `make ci`)
-e2e-full: build
-	@pkill -f './server' 2>/dev/null || true
+#e2e: @ Build + start server + run e2e + stop server (self-contained; called by `make ci`)
+e2e: deps build
+	@pkill -x server 2>/dev/null || true
 	@./server -env-file .env >/tmp/flight-path-e2e.log 2>&1 &
 	@./scripts/wait-for-server.sh
 	@EXIT=0; ./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json || EXIT=$$?; \
-		pkill -f './server' 2>/dev/null || true; \
+		pkill -x server 2>/dev/null || true; \
 		exit $$EXIT
+
+#e2e-quick: @ Run Postman/Newman end-to-end tests (requires server already running)
+e2e-quick: deps
+	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
+	@./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
 
 #renovate-validate: @ Validate Renovate configuration
 renovate-validate: deps
@@ -412,7 +408,7 @@ renovate-validate: deps
 #mermaid-lint: @ Validate Mermaid diagrams in markdown files
 mermaid-lint:
 	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker is required for mermaid-lint"; exit 1; }
-	@set -eu; \
+	@set -euo pipefail; \
 	MD_FILES=$$(grep -lF '```mermaid' README.md CLAUDE.md docs/*.md specs/*.md 2>/dev/null || true); \
 	if [ -z "$$MD_FILES" ]; then \
 		echo "No Mermaid blocks found — skipping."; \
@@ -456,7 +452,8 @@ deps-prune-check: deps
 	@echo "No prunable dependencies found."
 
 .PHONY: help deps deps-check deps-hadolint deps-shellcheck deps-act deps-trivy deps-goreleaser api-docs test fuzz bench bench-save bench-compare \
-	lint vulncheck secrets sec lint-ci format static-check mermaid-lint release-check build run image-build release update open-swagger \
-	test-case-one test-case-two test-case-three e2e clean coverage coverage-check \
-	ci ci-run check trivy-fs trivy-image docker-build docker-run docker-smoke-test docker-test docker-scan \
-	renovate-validate deps-prune deps-prune-check e2e-full
+	lint vulncheck secrets sec lint-ci format static-check mermaid-lint release-check build run release update open-swagger \
+	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
+	ci ci-run check trivy-fs trivy-image \
+	image-build image-run image-stop image-push image-smoke-test image-test image-scan \
+	renovate-validate deps-prune deps-prune-check

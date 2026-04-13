@@ -81,7 +81,7 @@ pkill -f server
 ```bash
 docker buildx ls                    # Check builder exists
 docker buildx create --use --name builder --driver docker-container --bootstrap
-make docker-build                   # Build locally (single platform, uses buildx)
+make image-build                    # Build locally (single platform, uses buildx)
 docker build --no-cache -t flight-path:debug .  # Build without cache
 ```
 
@@ -99,7 +99,7 @@ Workaround: pass `SERVER_PORT` as environment variable:
 docker run -d -p 8080:8080 -e SERVER_PORT=8080 flight-path:local
 ```
 
-Or use `make docker-run` / `make docker-test` which handle this automatically.
+Or use `make image-run` / `make image-test` which handle this automatically.
 
 ## Tool Not Found
 

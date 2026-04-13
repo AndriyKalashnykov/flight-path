@@ -8,14 +8,9 @@ description: >
 
 # Development Environment
 
-## Go (via gvm)
+## Go (via mise)
 
-```bash
-GOROOT=/home/andriy/.gvm/gos/go1.26.2
-GOPATH=/home/andriy/.gvm/pkgsets/go1.26.2/global
-```
-
-Activated via `~/.zshrc`: `gvm use go1.26.2 --default`
+Pinned in `.mise.toml` at repo root: `go = "1.26.2"`. Activated automatically via shell hook (`eval "$(mise activate bash)"` or zsh/fish equivalent in `~/.zshrc`). `make deps` installs the pinned Go through mise; CI uses `actions/setup-go` with `go-version-file: 'go.mod'`.
 
 ## Node.js (via nvm)
 
@@ -64,9 +59,13 @@ Most build targets depend on `deps` and auto-install missing tools.
 | `coverage` | — | Test coverage report |
 | `coverage-check` | coverage | Verify 80% threshold |
 | `clean` | — | Remove build artifacts and test cache |
-| `docker-build` | — | Build Docker image locally |
-| `docker-run` | docker-build | Run container locally |
-| `docker-test` | docker-build | Build + smoke test container |
+| `image-build` | build | Build Docker image locally |
+| `image-run` | image-stop, image-build | Run container locally (detached) |
+| `image-stop` | — | Stop the locally running container |
+| `image-push` | image-build | Push Docker image to GHCR |
+| `image-smoke-test` | — | Smoke-test a pre-built container |
+| `image-test` | image-build, image-smoke-test | Build + smoke test container |
+| `image-scan` | deps-trivy, build | Build image + Trivy scan |
 | `build-image` | deps, api-docs, lint, sec, vulncheck, secrets | Multi-platform build + push |
 | `release` | lint, sec, vulncheck, test, api-docs, build | Tag and push release |
 | `e2e` | deps | Newman E2E tests |

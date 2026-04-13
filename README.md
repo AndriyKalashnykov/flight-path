@@ -32,11 +32,12 @@ make run       # build and start the server
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| [Go](https://go.dev/dl/) | 1.26.2+ (from `go.mod`) | Language runtime and compiler |
+| [Go](https://go.dev/dl/) | 1.26.2 (from `go.mod`) | Language runtime and compiler |
+| [mise](https://mise.jdx.dev/) | latest | Go toolchain manager (reads `.mise.toml`, auto-installed by `make deps`) |
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Git](https://git-scm.com/) | 2.0+ | Version control |
 | [Docker](https://www.docker.com/) | latest | Container builds and testing |
-| [Node.js](https://nodejs.org/) | 24 | Newman E2E tests *(installed via nvm by `make deps`)* |
+| [Node.js](https://nodejs.org/) | 24 (from `.nvmrc`) | Newman E2E tests *(installed via nvm by `make deps`)* |
 
 Install all required dev tools:
 
@@ -69,7 +70,8 @@ Run `make help` to see all available targets.
 | `make bench-compare` | Compare two benchmark files (auto-discovers latest two, or: `make bench-compare OLD=file1.txt NEW=file2.txt`) |
 | `make coverage` | Run tests with coverage report |
 | `make coverage-check` | Verify coverage meets 80% threshold |
-| `make e2e` | Run Postman/Newman end-to-end tests |
+| `make e2e` | Self-contained: build + start server + run Newman + stop server |
+| `make e2e-quick` | Run Postman/Newman tests against an already-running server |
 
 ### Code Quality
 
@@ -89,11 +91,13 @@ Run `make help` to see all available targets.
 
 | Target | Description |
 |--------|-------------|
-| `make docker-build` | Build Docker image for local testing |
-| `make docker-run` | Run Docker container locally |
-| `make docker-smoke-test` | Smoke-test a pre-built Docker container (no rebuild) |
-| `make docker-test` | Build and smoke-test Docker container |
-| `make docker-scan` | Build Docker image and run Trivy scan (requires trivy) |
+| `make image-build` | Build Docker image for local testing |
+| `make image-run` | Run Docker container locally (detached; use `image-stop` to tear down) |
+| `make image-stop` | Stop the locally running Docker container |
+| `make image-push` | Push Docker image to GHCR (requires `GH_ACCESS_TOKEN`) |
+| `make image-smoke-test` | Smoke-test a pre-built Docker container (no rebuild) |
+| `make image-test` | Build and smoke-test Docker container |
+| `make image-scan` | Build Docker image and run Trivy scan (requires trivy) |
 | `make image-build` | Build Docker image (full checks + test) |
 | `make trivy-fs` | Run Trivy filesystem vulnerability scan (requires trivy) |
 | `make trivy-image` | Run Trivy image vulnerability scan (requires trivy) |
@@ -161,7 +165,7 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for C4 diagrams (Context, Con
 
 | Tool | Where | What it does |
 |------|-------|-------------|
-| [Trivy](https://github.com/aquasecurity/trivy) | CI + local (`make trivy-fs`, `make docker-scan`) | Scans Docker images and filesystem for CVEs |
+| [Trivy](https://github.com/aquasecurity/trivy) | CI + local (`make trivy-fs`, `make image-scan`) | Scans Docker images and filesystem for CVEs |
 
 ### Testing
 
@@ -193,7 +197,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All j
 | **test** | after static-check | Coverage threshold check (80%+), fuzz tests |
 | **e2e** | after build + test | Download binary (or rebuild fallback), run server, Newman/Postman E2E tests. Runs on every push AND under `act` (no `vars.ACT` guard) — the fallback path rebuilds the binary when cross-job artifact download fails. |
 | **dast** | after build + test | Run server, OWASP ZAP API security scan |
-| **docker** | after static-check + build + test (every push) | Single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make docker-smoke-test` + multi-arch build. On `v*.*.*` tag pushes, additionally logs in to GHCR, pushes multi-arch (clean image index, Pattern A), and cosign-signs by digest. On non-tag pushes the login/push/sign steps are skipped — the job still runs end-to-end to catch Dockerfile and multi-arch build regressions on the commit that introduced them, not on release day. |
+| **docker** | after static-check + build + test (every push) | Single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make image-smoke-test` + multi-arch build. On `v*.*.*` tag pushes, additionally logs in to GHCR, pushes multi-arch (clean image index, Pattern A), and cosign-signs by digest. On non-tag pushes the login/push/sign steps are skipped — the job still runs end-to-end to catch Dockerfile and multi-arch build regressions on the commit that introduced them, not on release day. |
 | **goreleaser** | tag push only, after all upstream | GoReleaser build, GitHub release (binaries, archives, checksums, changelog) |
 | **ci-pass** | `if: always()`, needs all | Single branch-protection gate that fails if any upstream job failed. On non-tag pushes, `goreleaser` is `skipped` (not `failure`) and `docker` runs normally, so ci-pass still passes correctly. On tag pushes, ci-pass waits for all jobs and only goes green after the full release has verified clean. |
 
@@ -203,10 +207,11 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All j
 |------|------|---------|---------------|
 | `CLAUDE_CONFIG_TOKEN` | Secret | `claude.yml`, `claude-ci-fix.yml` | PAT with `contents: read` for [`AndriyKalashnykov/claude-config`](https://github.com/AndriyKalashnykov/claude-config) — allows workflows to check out shared Claude configuration |
 | `ANTHROPIC_API_KEY` | Secret | `claude.yml`, `claude-ci-fix.yml` | [console.anthropic.com](https://console.anthropic.com/) API key — powers the Claude Code action |
-| `ACT` | Variable | `dast` job | Set to `true` **only** when running locally via `act` (via `--var ACT=true` in `make ci-run`). Leave unset on GitHub Actions runners. Guards the `dast` job, which needs Docker-in-Docker for OWASP ZAP and doesn't run cleanly under act. The `e2e` job runs under act unconditionally (it falls back to rebuilding the binary when cross-job artifact download fails). |
 
 Set secrets via **Settings > Secrets and variables > Actions > New repository secret**.
 Set variables via **Settings > Secrets and variables > Actions > Variables tab > New repository variable**.
+
+**Local-only variables (act):** `ACT=true` is injected automatically by `make ci-run` (via `--var ACT=true`) to guard the `dast` job, which needs Docker-in-Docker for OWASP ZAP and doesn't run cleanly under act. Do **not** set `ACT` on GitHub Actions runners.
 
 ### Pre-push image hardening
 
@@ -216,7 +221,7 @@ The `docker` job runs the following gates on **every push**. Gates 1–3 run unc
 |---|---|---|---|---|
 | 1 | Build local single-arch image | Build regressions on the runner architecture | `docker/build-push-action` with `load: true` | every push |
 | 2 | **Trivy image scan** (CRITICAL/HIGH blocking) | CVEs in base image, OS packages, build layers; secrets; misconfigs | `aquasecurity/trivy-action` with `image-ref:` | every push |
-| 3 | **Smoke test** | Image boots, health endpoint responds, `/calculate` returns correct result | `make docker-smoke-test` | every push |
+| 3 | **Smoke test** | Image boots, health endpoint responds, `/calculate` returns correct result | `make image-smoke-test` | every push |
 | 4 | Multi-arch build + conditional push (clean image index) | Multi-arch build regressions (linux/arm64 cross-compile issues); on tags, publishes with `provenance: false` + `sbom: false` so the GHCR "OS / Arch" tab renders correctly | `docker/build-push-action` with `push: ${{ startsWith(github.ref, 'refs/tags/') }}` | every push (build); tag only (push) |
 | 5 | **Cosign keyless OIDC signing** | Sigstore signature on the manifest digest (no long-lived keys) — the supply-chain verification primitive for this image | `sigstore/cosign-installer` + `cosign sign` | tag only |
 
@@ -232,7 +237,7 @@ Verify a published image's cosign signature:
 
 ```bash
 cosign verify ghcr.io/andriykalashnykov/flight-path:<tag> \
-  --certificate-identity-regexp 'https://github\.com/AndriyKalashnykov/flight-path/\.github/workflows/release\.yml@refs/tags/v.*' \
+  --certificate-identity-regexp 'https://github\.com/AndriyKalashnykov/flight-path/\.github/workflows/ci\.yml@refs/tags/v.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 

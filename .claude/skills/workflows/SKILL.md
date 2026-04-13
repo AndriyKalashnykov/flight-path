@@ -65,9 +65,9 @@ make ci-full        # ci + coverage-check (80% threshold)
 ## Docker
 
 ```bash
-make docker-build                        # Build locally (single platform, buildx)
-make docker-run                          # Build + run container (-e SERVER_PORT=8080)
-make docker-test                         # Build + smoke test (health + API check)
+make image-build                         # Build locally (single platform, buildx)
+make image-run                           # Build + run container (-e SERVER_PORT=8080)
+make image-test                          # Build + smoke test (health + API check)
 make build-image                         # Multi-platform build + push to Docker Hub
 ```
 

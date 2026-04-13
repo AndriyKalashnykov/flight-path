@@ -166,7 +166,7 @@ jobs:
 
       - name: Run Claude fix
         if: steps.guard.outputs.skip != 'true'
-        uses: anthropics/claude-code-action@26ddc358fe3befff50c5ec2f80304c90c763f6f8 # v1
+        uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           use_sticky_comment: true
@@ -216,5 +216,8 @@ jobs:
             - Only change files that directly address the CI failure
             - Do not refactor, add features, or make unrelated improvements
             - Use conventional commit messages (fix:, chore:, etc.)
-          allowed_tools: "Bash,Edit,Read,Write,Glob,Grep,WebFetch,mcp__github_comment__update_claude_comment"
-          claude_args: "--max-turns 30"
+          # SECURITY: CI logs are untrusted low-trust input. Bash and WebFetch are
+          # withheld to block RCE / exfiltration via prompt-injected log lines.
+          # Verification commands (make check etc.) are scoped via --allowedTools.
+          allowed_tools: "Edit,Read,Write,Glob,Grep,mcp__github_comment__update_claude_comment"
+          claude_args: '--max-turns 30 --allowedTools "Bash(make check:*),Bash(make test:*),Bash(make build:*),Bash(make lint:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr comment:*)"'

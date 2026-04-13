@@ -53,7 +53,7 @@ jobs:
         run: bash .claude-config/setup.sh .claude-config && rm -rf .claude-config
 
       - name: Run Claude
-        uses: anthropics/claude-code-action@26ddc358fe3befff50c5ec2f80304c90c763f6f8 # v1
+        uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # assignee_trigger: claude  # Uncomment to also trigger when issues are assigned to "claude"
@@ -78,10 +78,15 @@ jobs:
 
   # Automation mode: automatic code review on every non-draft PR open/update.
   # Prompt provided — runs in automation mode with scoped-down permissions (read-only content).
+  # SECURITY: author_association blocklist excludes NONE (strangers on public repos).
+  # Diff/body is untrusted; Claude here has contents: read + pull-requests: write, so
+  # prompt injection can post misleading review comments. Filter keeps blast radius
+  # to trusted roles (plus Renovate, allowed via allowed_bots below).
   claude-pr-review:
     if: |
       github.event_name == 'pull_request' &&
-      github.event.pull_request.draft == false
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.author_association != 'NONE'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -108,7 +113,7 @@ jobs:
         run: bash .claude-config/setup.sh .claude-config && rm -rf .claude-config
 
       - name: Run Claude review
-        uses: anthropics/claude-code-action@26ddc358fe3befff50c5ec2f80304c90c763f6f8 # v1
+        uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           use_sticky_comment: true
