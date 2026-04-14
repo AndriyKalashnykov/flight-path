@@ -38,7 +38,7 @@ jobs:
       # a non-bot author — see the "Reset fix attempt label" step.
       - name: Check for prior fix attempt
         id: guard
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const pr = context.payload.workflow_run.pull_requests[0];
@@ -76,7 +76,7 @@ jobs:
       - name: Get CI failure details
         if: steps.guard.outputs.skip != 'true'
         id: logs
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             // SECURITY: CI logs are untrusted input. Per-job cap (4K) plus an
@@ -147,7 +147,7 @@ jobs:
 
       - name: Mark fix attempted
         if: steps.guard.outputs.skip != 'true'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             // Label-based anti-recursion: set before Claude runs so retry loops

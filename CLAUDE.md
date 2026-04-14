@@ -313,7 +313,6 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 - [ ] **Newman sandbox lag**: Newman 6.2.2 bundles postman-sandbox 4.7.1 (upstream 6.6.1) and postman-runtime 7.39.1 (upstream 7.53.0). Check `pnpm view newman version` for Newman 7.x or new 6.x
 - [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
 - [ ] **swaggo/swag v1 indirect dep**: `echo-swagger/v2` pulls in `swag v1` transitively. Fix submitted upstream as [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146). Will auto-resolve when PR is merged and we update echo-swagger
-- [ ] **actions/github-script v7 → v9**: `claude-ci-fix.yml` uses `actions/github-script@v7` (SHA f28e40c7); latest is v9.0.0. APIs used (`github.rest.actions.listJobsForWorkflowRun`, `github.rest.pulls.listCommits`, `github.rest.pulls.get`, `github.rest.issues.addLabels`, `core.info`, `core.setOutput`) remain compatible in v9. Bump on next workflow maintenance pass; Renovate may group this under "GitHub Actions" PR
 
 ## Environment
 
