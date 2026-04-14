@@ -172,7 +172,7 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 | `GORELEASER_VERSION` | 2.15.2 | GoReleaser (config validator via `goreleaser check` in every push) |
 | `SHELLCHECK_VERSION` | 0.11.0 | Shell script linter (used by actionlint) |
 | `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image) |
-| `MISE_VERSION` | 2026.4.10 | Toolchain version manager (reads `.mise.toml` — pins Go + Node) |
+| `MISE_VERSION` | 2026.4.11 | Toolchain version manager (reads `.mise.toml` — pins Go + Node) |
 | `NODE_VERSION` | 24 | Node.js major version (source of truth: `.nvmrc` / `.mise.toml`; installed via mise) |
 
 ## Before Committing

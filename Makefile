@@ -37,7 +37,7 @@ SHELLCHECK_VERSION  := 0.11.0
 NODE_VERSION        := $(shell cat .nvmrc 2>/dev/null || echo 24)
 # pnpm is pinned in test/package.json via the `packageManager` field (corepack auto-switches).
 # renovate: datasource=github-releases depName=jdx/mise
-MISE_VERSION        := 2026.4.10
+MISE_VERSION        := 2026.4.11
 # renovate: datasource=github-releases depName=hadolint/hadolint
 HADOLINT_VERSION    := 2.14.0
 # renovate: datasource=github-releases depName=aquasecurity/trivy
