@@ -340,6 +340,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+            type=sha,enable=${{ !startsWith(github.ref, 'refs/tags/') }}
         # Only apply `latest=true` on tag pushes so non-tag builds don't
         # generate spurious `:latest` tags in the local metadata.
           flavor: |
