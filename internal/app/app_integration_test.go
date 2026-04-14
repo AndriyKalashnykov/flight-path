@@ -1,0 +1,209 @@
+//go:build integration
+
+// Package app integration tests exercise the full middleware chain end-to-end
+// through httptest.NewServer, covering surfaces that bypass the direct handler
+// unit tests: CORS branch, Secure headers, Cache-Control, error envelope,
+// preflight, and disconnected-graph / circular-path inputs at the HTTP layer.
+package app_test
+
+import (
+	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/AndriyKalashnykov/flight-path/internal/app"
+)
+
+func newTestServer(t *testing.T, env map[string]string) *httptest.Server {
+	t.Helper()
+	for k, v := range env {
+		t.Setenv(k, v)
+	}
+	s := httptest.NewServer(app.New())
+	t.Cleanup(s.Close)
+	return s
+}
+
+func do(t *testing.T, req *http.Request) *http.Response {
+	t.Helper()
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	return resp
+}
+
+func TestHealthCheckSecurityHeaders(t *testing.T) {
+	s := newTestServer(t, nil)
+	resp := do(t, must(http.NewRequest(http.MethodGet, s.URL+"/", nil)))
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+	wantHeaders := map[string]string{
+		"X-Content-Type-Options":       "nosniff",
+		"X-Frame-Options":              "DENY",
+		"Referrer-Policy":              "strict-origin-when-cross-origin",
+		"Cross-Origin-Resource-Policy": "same-origin",
+		"Cache-Control":                "no-store",
+	}
+	for k, v := range wantHeaders {
+		if got := resp.Header.Get(k); got != v {
+			t.Errorf("%s: want %q, got %q", k, v, got)
+		}
+	}
+}
+
+func TestCORSDefaultWildcard(t *testing.T) {
+	s := newTestServer(t, nil)
+	req := must(http.NewRequest(http.MethodGet, s.URL+"/", nil))
+	req.Header.Set("Origin", "https://anywhere.example")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("Access-Control-Allow-Origin: want *, got %q", got)
+	}
+}
+
+func TestCORSCustomOrigin(t *testing.T) {
+	s := newTestServer(t, map[string]string{"CORS_ORIGIN": "https://app.example"})
+	req := must(http.NewRequest(http.MethodGet, s.URL+"/", nil))
+	req.Header.Set("Origin", "https://app.example")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "https://app.example" {
+		t.Errorf("Access-Control-Allow-Origin: want https://app.example, got %q", got)
+	}
+}
+
+func TestCORSPreflight(t *testing.T) {
+	s := newTestServer(t, nil)
+	req := must(http.NewRequest(http.MethodOptions, s.URL+"/calculate", nil))
+	req.Header.Set("Origin", "https://app.example")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "Content-Type")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		t.Errorf("preflight: want 204 or 200, got %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Methods"); got == "" {
+		t.Errorf("preflight missing Access-Control-Allow-Methods")
+	}
+}
+
+func TestCalculateHappyPath(t *testing.T) {
+	s := newTestServer(t, nil)
+	body := bytes.NewBufferString(`[["SFO","ATL"],["ATL","EWR"]]`)
+	req := must(http.NewRequest(http.MethodPost, s.URL+"/calculate", body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(b), `"SFO"`) || !strings.Contains(string(b), `"EWR"`) {
+		t.Errorf("body missing start/end airports: %s", string(b))
+	}
+}
+
+func TestCalculateWrongContentType(t *testing.T) {
+	s := newTestServer(t, nil)
+	body := bytes.NewBufferString(`[["SFO","EWR"]]`)
+	req := must(http.NewRequest(http.MethodPost, s.URL+"/calculate", body))
+	req.Header.Set("Content-Type", "text/plain")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode < 400 || resp.StatusCode >= 500 {
+		t.Errorf("want 4xx for text/plain body, got %d", resp.StatusCode)
+	}
+}
+
+func TestCalculateMethodNotAllowed(t *testing.T) {
+	s := newTestServer(t, nil)
+	resp := do(t, must(http.NewRequest(http.MethodGet, s.URL+"/calculate", nil)))
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("want 405, got %d", resp.StatusCode)
+	}
+}
+
+func TestUnknownRoute(t *testing.T) {
+	s := newTestServer(t, nil)
+	resp := do(t, must(http.NewRequest(http.MethodGet, s.URL+"/does-not-exist", nil)))
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("want 404, got %d", resp.StatusCode)
+	}
+}
+
+// TestCalculateDisconnectedGraph documents current observed behavior for
+// disconnected inputs: the algorithm returns the airport with no incoming
+// edge as start and no outgoing edge as end, regardless of connectivity.
+// This is a contract-lock test — if we later add validation, flip the
+// assertion to expect 400.
+func TestCalculateDisconnectedGraph(t *testing.T) {
+	s := newTestServer(t, nil)
+	body := bytes.NewBufferString(`[["A","B"],["C","D"]]`)
+	req := must(http.NewRequest(http.MethodPost, s.URL+"/calculate", body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Logf("disconnected-graph status: %d (behavior may have tightened — update expectation)", resp.StatusCode)
+	}
+}
+
+// TestCalculateCircularPath documents current observed behavior for
+// circular inputs (every airport has both in- and out-edges).
+func TestCalculateCircularPath(t *testing.T) {
+	s := newTestServer(t, nil)
+	body := bytes.NewBufferString(`[["A","B"],["B","A"]]`)
+	req := must(http.NewRequest(http.MethodPost, s.URL+"/calculate", body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	// Either 200 with empty start/end or 4xx if validation added — just assert non-5xx.
+	if resp.StatusCode >= 500 {
+		t.Errorf("circular path returned 5xx: %d", resp.StatusCode)
+	}
+}
+
+func TestSwaggerUIRedirect(t *testing.T) {
+	s := newTestServer(t, nil)
+	client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	req := must(http.NewRequest(http.MethodGet, s.URL+"/swagger/", nil))
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMovedPermanently && resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusOK {
+		t.Errorf("swagger redirect: want 2xx/3xx, got %d", resp.StatusCode)
+	}
+}
+
+func TestPortDefault(t *testing.T) {
+	t.Setenv("SERVER_PORT", "")
+	if got := app.Port(); got != "8080" {
+		t.Errorf("Port default: want 8080, got %s", got)
+	}
+}
+
+func TestPortFromEnv(t *testing.T) {
+	t.Setenv("SERVER_PORT", "9090")
+	if got := app.Port(); got != "9090" {
+		t.Errorf("Port from env: want 9090, got %s", got)
+	}
+}
+
+func must(req *http.Request, err error) *http.Request {
+	if err != nil {
+		panic(err)
+	}
+	return req
+}

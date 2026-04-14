@@ -14,7 +14,10 @@
 
 ```
 flight-path/
-├── main.go                              # Entry point, server setup, Swagger config, middleware
+├── main.go                              # Entry point — parses flags, loads .env, calls app.New() + app.Port()
+├── internal/app/
+│   ├── app.go                           # App bootstrap (Echo instance + middleware + routes)
+│   └── app_integration_test.go          # //go:build integration — full HTTP stack tests
 ├── internal/handlers/
 │   ├── handlers.go                      # Handler struct constructor (New())
 │   ├── flight.go                        # FlightCalculate handler (POST /calculate)
@@ -97,7 +100,7 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 
 ```bash
 make help           # List available tasks
-make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, newman)
+make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, pnpm, newman) via mise
 make deps-check     # Show required Go version, mise status, and tool status
 make deps-hadolint  # Install hadolint for Dockerfile linting (to $HOME/.local/bin)
 make deps-shellcheck # Install shellcheck for shell script linting (to $HOME/.local/bin)
@@ -113,7 +116,8 @@ make secrets        # Scan for hardcoded secrets (gitleaks)
 make lint-ci        # Lint GitHub Actions workflow files (actionlint + shellcheck)
 make mermaid-lint   # Validate Mermaid diagrams in markdown files (minlag/mermaid-cli Docker)
 make release-check  # Validate .goreleaser.yml syntax and config (goreleaser check)
-make test           # Run all tests (unit + handler tests via go test -v ./...)
+make test           # Run unit + handler tests (go test -race -v ./...)
+make integration-test # Run integration tests (full HTTP stack + middleware; //go:build integration)
 make fuzz           # Run fuzz tests for 30 seconds
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
@@ -168,9 +172,8 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 | `GORELEASER_VERSION` | 2.15.2 | GoReleaser (config validator via `goreleaser check` in every push) |
 | `SHELLCHECK_VERSION` | 0.11.0 | Shell script linter (used by actionlint) |
 | `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image) |
-| `MISE_VERSION` | 2026.4.10 | Go/toolchain version manager (reads `.mise.toml`) |
-| `NVM_VERSION` | 0.40.4 | Node.js version manager |
-| `NODE_VERSION` | 24 | Node.js major version (pinned for nvm) |
+| `MISE_VERSION` | 2026.4.10 | Toolchain version manager (reads `.mise.toml` — pins Go + Node) |
+| `NODE_VERSION` | 24 | Node.js major version (source of truth: `.nvmrc` / `.mise.toml`; installed via mise) |
 
 ## Before Committing
 
@@ -258,6 +261,7 @@ All jobs live in `.github/workflows/ci.yml` (single-file layout matching the `/c
 | **static-check** | all | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
 | **build** | all | Build binary, upload `server-binary` artifact |
 | **test** | all | Coverage threshold check (80%+), fuzz tests, upload coverage artifact |
+| **integration-test** | all | `make integration-test` — full HTTP stack (middleware, CORS branches, error envelope, preflight) via httptest |
 | **e2e** | all | Download binary (fallback rebuild), run server, Newman/Postman E2E tests. Canonical name for the mandatory end-to-end test job — wraps `make e2e`. Runs on every push AND under `act` via `make ci-run` (no `vars.ACT` guard). |
 | **dast** | all (skipped in act) | Download binary (fallback rebuild), run server, OWASP ZAP API security scan |
 | **docker** | all (push/sign steps tag-gated) | Gates 1–3 run every push: single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make image-smoke-test`. Gate 4 multi-arch build runs every push (`push: ${{ startsWith(github.ref, 'refs/tags/') }}`). On `v*.*.*` tags: additionally logs in to GHCR, pushes with clean image index (Pattern A: `provenance: false` + `sbom: false`), installs cosign, and signs by digest. Catches Dockerfile + multi-arch regressions on the commit that introduced them, not on release day. |

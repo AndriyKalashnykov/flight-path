@@ -7,21 +7,39 @@
 
 A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
-| Component | Technology |
-|-----------|------------|
-| Language | Go 1.26.2 |
-| Framework | Echo v5.1.0 |
-| API Docs | Swagger (swaggo/swag v2) |
-| Testing | go test (unit, bench, fuzz), Newman/Postman (E2E) |
-| Linting | golangci-lint v2.11.4, hadolint, actionlint, shellcheck, mermaid-cli |
-| Container | Docker (multi-stage Alpine) |
-| CI/CD | GitHub Actions + GoReleaser |
-| Dependencies | Renovate |
+## Architecture
+
+```mermaid
+C4Context
+    title System Context — flight-path
+    Person(client, "API Client", "cURL, Postman, Newman, browser")
+    System(flightpath, "flight-path", "Go REST API that reconstructs full itinerary from unordered flight segments")
+    System_Ext(ghcr, "GitHub Container Registry", "Hosts multi-arch signed images")
+    System_Ext(sigstore, "Sigstore", "Cosign keyless OIDC signing")
+    Rel(client, flightpath, "POST /calculate", "HTTPS/JSON")
+    Rel(flightpath, ghcr, "Published images", "docker push")
+    Rel(flightpath, sigstore, "Signed by digest", "cosign OIDC")
+```
+
+See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, Component, request-flow sequence, and CI/CD pipeline diagrams.
+
+## Tech Stack
+
+| Component | Technology | Rationale |
+|-----------|------------|-----------|
+| Language | Go 1.26.2 (from `go.mod`) | Statically compiled binary, strong stdlib HTTP, goroutine concurrency |
+| Framework | Echo v5.1.0 | Lightweight router with built-in JSON binding, middleware stack, Swagger integration |
+| API Docs | Swagger (swaggo/swag v2) | Auto-generated OpenAPI spec from Go annotations |
+| Testing | go test (unit, bench, fuzz), Newman/Postman (E2E) | Table-driven unit tests + black-box API tests against the built binary |
+| Linting | golangci-lint v2.11.4, hadolint, actionlint, shellcheck, mermaid-cli | Meta-linter + Dockerfile + workflows + shell + diagrams |
+| Container | Docker (multi-stage Alpine) | Small image, reproducible build, scratch-like runtime |
+| CI/CD | GitHub Actions + GoReleaser | Tag-gated release pipeline with cosign keyless signing |
+| Dependencies | Renovate | Auto-updates with platform automerge and security fast-track |
 
 ## Quick Start
 
 ```bash
-make deps      # install dev tools (golangci-lint, gosec, swag, etc.)
+make deps      # install dev tools (golangci-lint, gosec, swag, pnpm, newman, etc.)
 make build     # generate Swagger docs + compile binary
 make test      # run unit + handler tests
 make run       # build and start the server
@@ -32,149 +50,20 @@ make run       # build and start the server
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| [Go](https://go.dev/dl/) | 1.26.2 (from `go.mod`) | Language runtime and compiler |
-| [mise](https://mise.jdx.dev/) | latest | Go toolchain manager (reads `.mise.toml`, auto-installed by `make deps`) |
+| [Go](https://go.dev/dl/) | 1.26.2 (see `go.mod`) | Language runtime and compiler |
+| [mise](https://mise.jdx.dev/) | latest | Toolchain manager — reads `.mise.toml` to install pinned Go + Node |
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Git](https://git-scm.com/) | 2.0+ | Version control |
 | [Docker](https://www.docker.com/) | latest | Container builds and testing |
-| [Node.js](https://nodejs.org/) | 24 (from `.nvmrc`) | Newman E2E tests *(installed via nvm by `make deps`)* |
+| [Node.js](https://nodejs.org/) | 24 (from `.nvmrc` / `.mise.toml`) | Newman E2E tests *(installed via mise)* |
+| [pnpm](https://pnpm.io/) | pinned in `test/package.json` | Newman package manager *(enabled via corepack)* |
+| [curl](https://curl.se/) | any | Ad-hoc API calls (`make test-case-*`) |
 
 Install all required dev tools:
 
 ```bash
 make deps
 ```
-
-## Available Make Targets
-
-Run `make help` to see all available targets.
-
-### Build & Run
-
-| Target | Description |
-|--------|-------------|
-| `make build` | Build REST API server's binary |
-| `make run` | Run REST API locally |
-| `make api-docs` | Build source code for swagger api reference |
-| `make clean` | Remove build artifacts and test cache |
-| `make update` | Update dependencies to latest versions |
-
-### Testing
-
-| Target | Description |
-|--------|-------------|
-| `make test` | Run tests |
-| `make fuzz` | Run fuzz tests for 30 seconds |
-| `make bench` | Run bench tests |
-| `make bench-save` | Save benchmark results to file |
-| `make bench-compare` | Compare two benchmark files (auto-discovers latest two, or: `make bench-compare OLD=file1.txt NEW=file2.txt`) |
-| `make coverage` | Run tests with coverage report |
-| `make coverage-check` | Verify coverage meets 80% threshold |
-| `make e2e` | Self-contained: build + start server + run Newman + stop server |
-| `make e2e-quick` | Run Postman/Newman tests against an already-running server |
-
-### Code Quality
-
-| Target | Description |
-|--------|-------------|
-| `make format` | Format Go code |
-| `make lint` | Run golangci-lint and hadolint (comprehensive linting via .golangci.yml) |
-| `make sec` | Run gosec security scanner |
-| `make vulncheck` | Run Go vulnerability check on dependencies |
-| `make secrets` | Scan for hardcoded secrets in source code and git history |
-| `make lint-ci` | Lint GitHub Actions workflow files |
-| `make mermaid-lint` | Validate Mermaid diagrams in markdown files |
-| `make release-check` | Validate `.goreleaser.yml` syntax and config via `goreleaser check` |
-| `make static-check` | Run code static check (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
-
-### Docker
-
-| Target | Description |
-|--------|-------------|
-| `make image-build` | Build Docker image for local testing |
-| `make image-run` | Run Docker container locally (detached; use `image-stop` to tear down) |
-| `make image-stop` | Stop the locally running Docker container |
-| `make image-push` | Push Docker image to GHCR (requires `GH_ACCESS_TOKEN`) |
-| `make image-smoke-test` | Smoke-test a pre-built Docker container (no rebuild) |
-| `make image-test` | Build and smoke-test Docker container |
-| `make image-scan` | Build Docker image and run Trivy scan (requires trivy) |
-| `make image-build` | Build Docker image (full checks + test) |
-| `make trivy-fs` | Run Trivy filesystem vulnerability scan (requires trivy) |
-| `make trivy-image` | Run Trivy image vulnerability scan (requires trivy) |
-
-### CI
-
-| Target | Description |
-|--------|-------------|
-| `make ci` | Run full CI pipeline locally (deps + format + static-check + test + coverage-check + build + fuzz + deps-prune-check) |
-| `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
-| `make check` | Run pre-commit checklist (alias for `make ci`) |
-
-### Utilities
-
-| Target | Description |
-|--------|-------------|
-| `make help` | List available tasks |
-| `make deps` | Download and install dependencies |
-| `make deps-check` | Show required Go version and tool status |
-| `make deps-hadolint` | Install hadolint for Dockerfile linting |
-| `make deps-shellcheck` | Install shellcheck for shell script linting |
-| `make deps-act` | Install act for running GitHub Actions locally |
-| `make deps-trivy` | Install trivy for local vulnerability scanning |
-| `make deps-goreleaser` | Install goreleaser for `.goreleaser.yml` validation |
-| `make release` | Create and push a new tag |
-| `make open-swagger` | Open browser with Swagger docs pointing to localhost |
-| `make renovate-validate` | Validate Renovate configuration |
-| `make deps-prune` | Remove unused Go module dependencies |
-| `make deps-prune-check` | Verify no prunable dependencies (CI gate) |
-| `make test-case-one` | Test case #1 `[["SFO", "EWR"]]` |
-| `make test-case-two` | Test case #2 `[["ATL", "EWR"], ["SFO", "ATL"]]` |
-| `make test-case-three` | Test case #3 `[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]` |
-
-## Architecture
-
-See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for C4 diagrams (Context, Container, Component), request flow sequence diagram, and CI/CD pipeline flowchart.
-
-## Security & Code Quality
-
-### SAST (Static Application Security Testing)
-
-| Tool | Command | What it does |
-|------|---------|-------------|
-| [gosec](https://github.com/securego/gosec) | `make sec` | Go-specific security scanner (injection, crypto, permissions) |
-| [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | `make vulncheck` | Checks dependencies against the Go vulnerability database |
-| [gitleaks](https://github.com/gitleaks/gitleaks) | `make secrets` | Scans source code and git history for hardcoded secrets |
-
-### DAST (Dynamic Application Security Testing)
-
-| Tool | Where | What it does |
-|------|-------|-------------|
-| [OWASP ZAP](https://github.com/zaproxy/zaproxy) | CI only | API security scan using Swagger/OpenAPI spec |
-
-### Linting
-
-| Tool | Command | What it does |
-|------|---------|-------------|
-| [golangci-lint](https://github.com/golangci/golangci-lint) | `make lint` | Meta-linter with comprehensive rule set (configured via `.golangci.yml`) |
-| [hadolint](https://github.com/hadolint/hadolint) | `make lint` | Dockerfile linter |
-| [actionlint](https://github.com/rhysd/actionlint) | `make lint-ci` | Lints GitHub Actions workflow files (uses shellcheck internally) |
-| [shellcheck](https://github.com/koalaman/shellcheck) | `make lint-ci` | Validates shell scripts inside workflow `run:` steps |
-| [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) | `make mermaid-lint` | Validates Mermaid diagrams in markdown files against GitHub's renderer |
-
-### Container Security
-
-| Tool | Where | What it does |
-|------|-------|-------------|
-| [Trivy](https://github.com/aquasecurity/trivy) | CI + local (`make trivy-fs`, `make image-scan`) | Scans Docker images and filesystem for CVEs |
-
-### Testing
-
-| Tool | Command | What it does |
-|------|---------|-------------|
-| go test | `make test` | Unit and handler tests (table-driven) |
-| go test -bench | `make bench` | Benchmark tests for critical paths |
-| go test -fuzz | `make fuzz` | Fuzz testing for FindItinerary algorithm |
-| [Newman](https://github.com/postmanlabs/newman) | `make e2e` | Postman/Newman end-to-end API tests |
 
 ## API
 
@@ -249,10 +138,50 @@ A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly (Sundays 
 
 [Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
 
+## Security & Code Quality
+
+### SAST (Static Application Security Testing)
+
+| Tool | Command | What it does |
+|------|---------|-------------|
+| [gosec](https://github.com/securego/gosec) | `make sec` | Go-specific security scanner (injection, crypto, permissions) |
+| [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | `make vulncheck` | Checks dependencies against the Go vulnerability database |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | `make secrets` | Scans source code and git history for hardcoded secrets |
+
+### DAST (Dynamic Application Security Testing)
+
+| Tool | Where | What it does |
+|------|-------|-------------|
+| [OWASP ZAP](https://github.com/zaproxy/zaproxy) | CI only | API security scan using Swagger/OpenAPI spec |
+
+### Linting
+
+| Tool | Command | What it does |
+|------|---------|-------------|
+| [golangci-lint](https://github.com/golangci/golangci-lint) | `make lint` | Meta-linter with comprehensive rule set (configured via `.golangci.yml`) |
+| [hadolint](https://github.com/hadolint/hadolint) | `make lint` | Dockerfile linter |
+| [actionlint](https://github.com/rhysd/actionlint) | `make lint-ci` | Lints GitHub Actions workflow files (uses shellcheck internally) |
+| [shellcheck](https://github.com/koalaman/shellcheck) | `make lint-ci` | Validates shell scripts inside workflow `run:` steps |
+| [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) | `make mermaid-lint` | Validates Mermaid diagrams in markdown files against GitHub's renderer |
+
+### Container Security
+
+| Tool | Where | What it does |
+|------|-------|-------------|
+| [Trivy](https://github.com/aquasecurity/trivy) | CI + local (`make trivy-fs`, `make image-scan`) | Scans Docker images and filesystem for CVEs |
+
+### Testing
+
+| Tool | Command | What it does |
+|------|---------|-------------|
+| go test | `make test` | Unit and handler tests (table-driven) |
+| go test -bench | `make bench` | Benchmark tests for critical paths |
+| go test -fuzz | `make fuzz` | Fuzz testing for FindItinerary algorithm |
+| [Newman](https://github.com/postmanlabs/newman) | `make e2e` | Postman/Newman end-to-end API tests |
+
 ## Postman/Newman end-to-end tests
 
-Utilized Postman collection exported to [JSON file](./test/FlightPath.postman_collection.json)
-and executes 11 test cases:
+Utilized Postman collection exported to [JSON file](./test/FlightPath.postman_collection.json) and executes 16 test cases:
 
 - **HealthCheck** — `GET /` returns `{"data": "..."}`
 - **UseCase01–03** — happy paths matching `test-case-one`, `test-case-two`, `test-case-three` (1, 2, 4 segments)
@@ -263,7 +192,108 @@ and executes 11 test cases:
 - **UseCase08_TenSegmentChain** — 10 scrambled segments resolving LAX→SFO, exercises the algorithm on longer inputs
 - **UseCase09_ObjectRoot** — `{"foo":"bar"}` → 400 "parse" (wrong root JSON type)
 - **UseCase10_SecondSegmentIncomplete** — `[["SFO","EWR"],["JFK"]]` → 400 with `Index: 1` pointing at the offending segment
+- **HealthCheck_SecurityHeaders** — asserts HSTS / X-Content-Type-Options / X-Frame-Options / CSP on `/`
+- **HealthCheck_CORS** — asserts default `Access-Control-Allow-Origin: *`
+- **Swagger_UI** — asserts `GET /swagger/index.html` returns 200 HTML
+- **UseCase11_WrongMethod** — `GET /calculate` → 405
+- **UseCase12_UnknownRoute** — `GET /does-not-exist` → 404
+- **UseCase13_LargeChain** — 100-segment chain exercising the algorithm on wide inputs
+- **UseCase14_WrongContentType** — `text/plain` body → 400 "content-type"
 
 Uses hybrid validation: Ajv JSON Schema validation for `/calculate` response structure (global schemas defined at collection level) and Chai assertions for exact business values. The collection-level schema check skips non-`/calculate` requests so the HealthCheck assertions run in isolation.
 
 ![Postman/Newman end-to-end tests](./img/postman-newman.jpg)
+
+## Available Make Targets
+
+Run `make help` to see all available targets.
+
+### Build & Run
+
+| Target | Description |
+|--------|-------------|
+| `make build` | Build REST API server's binary |
+| `make run` | Run REST API locally |
+| `make api-docs` | Build source code for swagger api reference |
+| `make clean` | Remove build artifacts and test cache |
+| `make update` | Update dependencies to latest versions |
+
+### Testing
+
+| Target | Description |
+|--------|-------------|
+| `make test` | Run unit + handler tests with `-race` |
+| `make integration-test` | Run integration tests (full HTTP stack + middleware; `//go:build integration`) |
+| `make fuzz` | Run fuzz tests for 30 seconds |
+| `make bench` | Run bench tests |
+| `make bench-save` | Save benchmark results to file |
+| `make bench-compare` | Compare two benchmark files (auto-discovers latest two, or: `make bench-compare OLD=file1.txt NEW=file2.txt`) |
+| `make coverage` | Run tests with coverage report |
+| `make coverage-check` | Verify coverage meets 80% threshold |
+| `make e2e` | Self-contained: build + start server + run Newman + stop server |
+| `make e2e-quick` | Run Postman/Newman tests against an already-running server |
+
+### Code Quality
+
+| Target | Description |
+|--------|-------------|
+| `make format` | Format Go code |
+| `make lint` | Run golangci-lint and hadolint (comprehensive linting via .golangci.yml) |
+| `make sec` | Run gosec security scanner |
+| `make vulncheck` | Run Go vulnerability check on dependencies |
+| `make secrets` | Scan for hardcoded secrets in source code and git history |
+| `make lint-ci` | Lint GitHub Actions workflow files |
+| `make mermaid-lint` | Validate Mermaid diagrams in markdown files |
+| `make release-check` | Validate `.goreleaser.yml` syntax and config via `goreleaser check` |
+| `make static-check` | Run code static check (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+
+### Docker
+
+| Target | Description |
+|--------|-------------|
+| `make image-build` | Build Docker image for local testing |
+| `make image-run` | Run Docker container locally (detached; use `image-stop` to tear down) |
+| `make image-stop` | Stop the locally running Docker container |
+| `make image-push` | Push Docker image to GHCR (requires `GH_ACCESS_TOKEN`; `GHCR_USER` defaults to `git config user.name`) |
+| `make image-smoke-test` | Smoke-test a pre-built Docker container (no rebuild) |
+| `make image-test` | Build and smoke-test Docker container |
+| `make image-scan` | Build Docker image and run Trivy scan (requires trivy) |
+| `make trivy-fs` | Run Trivy filesystem vulnerability scan (requires trivy) |
+| `make trivy-image` | Run Trivy image vulnerability scan (requires trivy) |
+
+### CI
+
+| Target | Description |
+|--------|-------------|
+| `make ci` | Run full CI pipeline locally (deps + format + static-check + test + coverage-check + build + fuzz + deps-prune-check) |
+| `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
+| `make check` | Run pre-commit checklist (alias for `make ci`) |
+
+### Utilities
+
+| Target | Description |
+|--------|-------------|
+| `make help` | List available tasks |
+| `make deps` | Install dev tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, pnpm, newman) via mise |
+| `make deps-check` | Show required Go version, mise status, and tool status |
+| `make deps-hadolint` | Install hadolint for Dockerfile linting |
+| `make deps-shellcheck` | Install shellcheck for shell script linting |
+| `make deps-act` | Install act for running GitHub Actions locally |
+| `make deps-trivy` | Install trivy for local vulnerability scanning |
+| `make deps-goreleaser` | Install goreleaser for `.goreleaser.yml` validation |
+| `make release` | Run full CI pipeline then tag and push a new release |
+| `make open-swagger` | Open browser with Swagger docs pointing to localhost |
+| `make renovate-validate` | Validate Renovate configuration |
+| `make deps-prune` | Remove unused Go module dependencies |
+| `make deps-prune-check` | Verify no prunable dependencies (CI gate) |
+| `make test-case-one` | Test case #1 `[["SFO", "EWR"]]` |
+| `make test-case-two` | Test case #2 `[["ATL", "EWR"], ["SFO", "ATL"]]` |
+| `make test-case-three` | Test case #3 `[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]` |
+
+## Contributing
+
+Contributions welcome — open an issue or pull request. Run `make check` locally before pushing.
+
+## License
+
+[MIT](./LICENSE) © Andriy Kalashnykov

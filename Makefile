@@ -32,10 +32,10 @@ GITLEAKS_VERSION    := 8.30.1
 ACTIONLINT_VERSION  := 1.7.12
 # renovate: datasource=github-releases depName=koalaman/shellcheck
 SHELLCHECK_VERSION  := 0.11.0
-# renovate: datasource=github-releases depName=nvm-sh/nvm
-NVM_VERSION         := 0.40.4
-# NODE_VERSION tracks major only — source of truth: .nvmrc (Renovate cannot track major-only values)
+# NODE_VERSION tracks major only — source of truth: .nvmrc (Renovate cannot track major-only values).
+# Node is installed via mise (.mise.toml pins `node = "24"`); .nvmrc is kept for mise's native read.
 NODE_VERSION        := $(shell cat .nvmrc 2>/dev/null || echo 24)
+# pnpm is pinned in test/package.json via the `packageManager` field (corepack auto-switches).
 # renovate: datasource=github-releases depName=jdx/mise
 MISE_VERSION        := 2026.4.10
 # renovate: datasource=github-releases depName=hadolint/hadolint
@@ -92,15 +92,11 @@ deps:
 	@$(call go-exec,command -v govulncheck) >/dev/null 2>&1 || { echo "Installing govulncheck..."; $(call go-exec,go install golang.org/x/vuln/cmd/govulncheck@v$(GOVULNCHECK_VERSION)); }
 	@$(call go-exec,command -v gitleaks) >/dev/null 2>&1 || { echo "Installing gitleaks..."; $(call go-exec,go install github.com/zricethezav/gitleaks/v8@v$(GITLEAKS_VERSION)); }
 	@$(call go-exec,command -v actionlint) >/dev/null 2>&1 || { echo "Installing actionlint..."; $(call go-exec,go install github.com/rhysd/actionlint/cmd/actionlint@v$(ACTIONLINT_VERSION)); }
-	@command -v node >/dev/null 2>&1 || { echo "Installing Node.js LTS via nvm..."; \
-		export NVM_DIR="$${NVM_DIR:-$$HOME/.nvm}"; \
-		if [ ! -s "$$NVM_DIR/nvm.sh" ]; then \
-			echo "Installing nvm $(NVM_VERSION)..."; \
-			curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v$(NVM_VERSION)/install.sh | bash; \
-		fi; \
-		. "$$NVM_DIR/nvm.sh" && nvm install $(NODE_VERSION) && nvm use $(NODE_VERSION); \
+	@command -v node >/dev/null 2>&1 || { \
+		echo "Error: Node.js not found. Install mise (https://mise.jdx.dev), then run 'mise install' — .mise.toml pins node=$(NODE_VERSION)."; \
+		exit 1; \
 	}
-	@command -v pnpm >/dev/null 2>&1 || { echo "Installing pnpm via corepack..."; corepack enable pnpm; }
+	@command -v pnpm >/dev/null 2>&1 || { echo "Enabling pnpm via corepack (version from test/package.json packageManager)..."; corepack enable; }
 	@[ -f test/node_modules/.bin/newman ] || { echo "Installing newman..."; cd test && pnpm install; }
 
 #deps-check: @ Show required Go version and tool status
@@ -108,7 +104,7 @@ deps-check:
 	@echo "Go version required: $(GO_VERSION)"
 	@if command -v mise >/dev/null 2>&1; then mise list 2>/dev/null || echo "mise: .mise.toml not trusted — run 'mise trust'"; else echo "mise not installed - install from https://mise.jdx.dev"; fi
 	@echo "--- Tool status ---"
-	@for tool in swag gosec benchstat golangci-lint govulncheck gitleaks actionlint node hadolint act; do \
+	@for tool in swag gosec benchstat golangci-lint govulncheck gitleaks actionlint node pnpm hadolint act trivy goreleaser shellcheck; do \
 		printf "  %-16s " "$$tool:"; \
 		command -v $$tool >/dev/null 2>&1 && echo "installed" || echo "NOT installed"; \
 	done
@@ -160,9 +156,13 @@ deps-goreleaser:
 api-docs: deps
 	@$(call go-exec,swag init --parseDependency -g main.go)
 
-#test: @ Run tests
+#test: @ Run unit + handler tests
 test: deps
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -race -v ./...)
+
+#integration-test: @ Run integration tests (full HTTP stack via httptest, CORS/middleware/error paths)
+integration-test: deps
+	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -race -tags=integration -v ./internal/app/...)
 
 #fuzz: @ Run fuzz tests for 30 seconds
 fuzz: deps
@@ -241,8 +241,8 @@ image-build: build
 		--build-arg GOCACHE=$$($(call go-exec,go env GOCACHE)) \
 		-t $(APP_NAME):local .
 
-#image-run: @ Run Docker container locally
-image-run: image-stop image-build
+#image-run: @ Run Docker container locally (assumes image built; run `make image-build` first if needed)
+image-run: image-stop
 	@docker run --rm -d --name $(APP_NAME) -p 8080:8080 -e SERVER_PORT=8080 \
 		--entrypoint sh $(APP_NAME):local -c "touch /tmp/.env && /main -env-file /tmp/.env"
 
@@ -251,12 +251,15 @@ image-stop:
 	@docker stop $(APP_NAME) 2>/dev/null || true
 	@docker rm -f $(APP_NAME) 2>/dev/null || true
 
-#image-push: @ Push Docker image to GHCR (requires GH_ACCESS_TOKEN)
+#image-push: @ Push Docker image to GHCR (requires GH_ACCESS_TOKEN and GHCR_USER)
+GHCR_USER ?= $(shell git config --get user.name 2>/dev/null | tr '[:upper:]' '[:lower:]')
+GHCR_REPO ?= $(GHCR_USER)/$(APP_NAME)
 image-push: image-build
 	@if [ -z "$$GH_ACCESS_TOKEN" ]; then echo "Error: GH_ACCESS_TOKEN not set"; exit 1; fi
-	@echo "$$GH_ACCESS_TOKEN" | docker login ghcr.io -u andriykalashnykov --password-stdin
-	@docker tag $(APP_NAME):local ghcr.io/andriykalashnykov/$(APP_NAME):$(CURRENTTAG)
-	@docker push ghcr.io/andriykalashnykov/$(APP_NAME):$(CURRENTTAG)
+	@if [ -z "$(GHCR_USER)" ]; then echo "Error: GHCR_USER not set and git user.name unavailable"; exit 1; fi
+	@echo "$$GH_ACCESS_TOKEN" | docker login ghcr.io -u "$(GHCR_USER)" --password-stdin
+	@docker tag $(APP_NAME):local ghcr.io/$(GHCR_REPO):$(CURRENTTAG)
+	@docker push ghcr.io/$(GHCR_REPO):$(CURRENTTAG)
 
 #image-smoke-test: @ Smoke-test a pre-built Docker container (no rebuild)
 image-smoke-test:
@@ -337,10 +340,10 @@ clean:
 	@rm -f $(COVPROF)
 	@$(call go-exec,go clean -testcache) 2>/dev/null || true
 
-#coverage: @ Run tests with coverage report
+#coverage: @ Run unit + integration tests with coverage report
 coverage: deps
 	@mkdir -p $(OUTDIR)
-	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -race -coverprofile=$(COVPROF) -covermode=atomic ./internal/...)
+	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -race -tags=integration -coverpkg=./internal/... -coverprofile=$(COVPROF) -covermode=atomic ./internal/...)
 	@$(call go-exec,go tool cover -func=$(COVPROF))
 	@$(call go-exec,go tool cover -html=$(COVPROF) -o $(OUTDIR)/coverage.html)
 	@echo "Coverage report: $(OUTDIR)/coverage.html"
@@ -358,7 +361,7 @@ coverage-check: coverage
 #ci: @ Run full CI pipeline locally (unit + static + build + fuzz + prune-check).
 # For full e2e validation via Newman, use `make ci-run` which drives act
 # through the `e2e` job (Newman runs against the built binary).
-ci: deps format static-check test coverage-check build fuzz deps-prune-check
+ci: deps format static-check test integration-test coverage-check build fuzz deps-prune-check
 	@echo "Local CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
@@ -451,7 +454,7 @@ deps-prune-check: deps
 	fi
 	@echo "No prunable dependencies found."
 
-.PHONY: help deps deps-check deps-hadolint deps-shellcheck deps-act deps-trivy deps-goreleaser api-docs test fuzz bench bench-save bench-compare \
+.PHONY: help deps deps-check deps-hadolint deps-shellcheck deps-act deps-trivy deps-goreleaser api-docs test integration-test fuzz bench bench-save bench-compare \
 	lint vulncheck secrets sec lint-ci format static-check mermaid-lint release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \

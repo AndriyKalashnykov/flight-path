@@ -34,12 +34,12 @@ C4Container
     Person(client, "API Client", "Sends flight segments, receives path")
 
     System_Boundary(api, "Flight Path API") {
-        Container(echo, "Echo HTTP Server", "Go / Echo v5", "Handles HTTP requests, applies middleware, routes to handlers")
-        Container(middleware, "Middleware Stack", "Echo Middleware", "Logger, Recover, CORS, Security Headers, Cache-Control")
-        Container(handlers, "Handlers", "Go", "FlightCalculate, ServerHealthCheck — bind, validate, respond")
-        Container(algorithm, "FindItinerary", "Go", "O(n) algorithm to find start and end airports from flight segments")
-        Container(models, "API Models", "Go", "Flight struct (Start, End), request/response types")
-        Container(swaggerui, "Swagger UI", "swaggo/echo-swagger", "Auto-generated API documentation")
+        Container(echo, "Echo HTTP Server", "Go 1.26.2, Echo v5.1.0", "Handles HTTP requests, applies middleware, routes to handlers")
+        Container(middleware, "Middleware Stack", "Echo v5.1.0 middleware", "Logger, Recover, CORS, Security Headers, Cache-Control")
+        Container(handlers, "Handlers", "Go 1.26.2", "FlightCalculate, ServerHealthCheck — bind, validate, respond")
+        Container(algorithm, "FindItinerary", "Go 1.26.2", "O(n) algorithm to find start and end airports from flight segments")
+        Container(models, "API Models", "Go 1.26.2", "Flight struct (Start, End), request/response types")
+        Container(swaggerui, "Swagger UI", "swaggo/echo-swagger v2.0.1", "Auto-generated API documentation")
     }
 
     Rel(client, echo, "HTTP request", "JSON")
@@ -95,6 +95,7 @@ Sequence diagram showing how a flight path calculation request flows through the
 
 ```mermaid
 sequenceDiagram
+    autonumber
     participant C as API Client
     participant E as Echo Server
     participant MW as Middleware
