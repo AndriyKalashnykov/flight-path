@@ -7,7 +7,7 @@
 
 A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
-## Architecture
+## Overview
 
 ```mermaid
 C4Context
@@ -75,68 +75,32 @@ Auto-generated OpenAPI spec: [`docs/swagger.json`](./docs/swagger.json)
 
 ![Swagger API documentation](./img/swagger-api-doc.jpg)
 
-## CI/CD
+## Architecture
 
-GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All jobs live in a single workflow file (`.github/workflows/ci.yml`). Tag-gated jobs (`goreleaser`, `docker`) are siblings of the other jobs — they run only on `v*.*.*` pushes and are `skipped` on everything else.
+Layered Go microservice with a single HTTP endpoint over an in-memory algorithm — no database, no external services.
 
-| Job | Triggers | Steps |
-|-----|----------|-------|
-| **static-check** | push, PR, tags | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
-| **build** | after static-check | Build binary, upload artifact |
-| **test** | after static-check | Coverage threshold check (80%+), fuzz tests |
-| **e2e** | after build + test | Download binary (or rebuild fallback), run server, Newman/Postman E2E tests. Runs on every push AND under `act` (no `vars.ACT` guard) — the fallback path rebuilds the binary when cross-job artifact download fails. |
-| **dast** | after build + test | Run server, OWASP ZAP API security scan |
-| **docker** | after static-check + build + test (every push) | Single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make image-smoke-test` + multi-arch build. On `v*.*.*` tag pushes, additionally logs in to GHCR, pushes multi-arch (clean image index, Pattern A), and cosign-signs by digest. On non-tag pushes the login/push/sign steps are skipped — the job still runs end-to-end to catch Dockerfile and multi-arch build regressions on the commit that introduced them, not on release day. |
-| **goreleaser** | tag push only, after all upstream | GoReleaser build, GitHub release (binaries, archives, checksums, changelog) |
-| **ci-pass** | `if: always()`, needs all | Single branch-protection gate that fails if any upstream job failed. On non-tag pushes, `goreleaser` is `skipped` (not `failure`) and `docker` runs normally, so ci-pass still passes correctly. On tag pushes, ci-pass waits for all jobs and only goes green after the full release has verified clean. |
+| Layer | Location | Responsibility |
+|-------|----------|----------------|
+| Entry point | `main.go` | Load `.env`, construct `App`, start Echo server on `SERVER_PORT` |
+| Bootstrap | `internal/app/` | Wire Echo instance, middleware stack (CORS, Secure, Recover, Cache-Control, Gzip, RequestID, BodyLimit 1 MiB), routes |
+| Routes | `internal/routes/` | Register method-verb mappings against a `*handlers.Handler` |
+| Handlers | `internal/handlers/` | Bind request, validate, delegate to `FindItinerary`, return JSON |
+| Algorithm | `internal/handlers/api.go` | `FindItinerary` — O(n) reconstruction: build source/destination sets, find unique start (in-degree 0) and end (out-degree 0) airports |
+| Public types | `pkg/api/` | `Flight{Start,End}` struct exported for consumers |
 
-### Required Secrets and Variables
-
-| Name | Type | Used by | How to obtain |
-|------|------|---------|---------------|
-| `CLAUDE_CONFIG_TOKEN` | Secret | `claude.yml`, `claude-ci-fix.yml` | PAT with `contents: read` for [`AndriyKalashnykov/claude-config`](https://github.com/AndriyKalashnykov/claude-config) — allows workflows to check out shared Claude configuration |
-| `ANTHROPIC_API_KEY` | Secret | `claude.yml`, `claude-ci-fix.yml` | [console.anthropic.com](https://console.anthropic.com/) API key — powers the Claude Code action |
-
-Set secrets via **Settings > Secrets and variables > Actions > New repository secret**.
-Set variables via **Settings > Secrets and variables > Actions > Variables tab > New repository variable**.
-
-**Local-only variables (act):** `ACT=true` is injected automatically by `make ci-run` (via `--var ACT=true`) to guard the `dast` job, which needs Docker-in-Docker for OWASP ZAP and doesn't run cleanly under act. Do **not** set `ACT` on GitHub Actions runners.
-
-### Pre-push image hardening
-
-The `docker` job runs the following gates on **every push**. Gates 1–3 run unconditionally (catching Dockerfile and Trivy regressions on every commit). Gate 4 (multi-arch build) runs on every push but only pushes to GHCR on `v*.*.*` tag pushes. Gate 5 (cosign signing) is tag-only. Any failure blocks the release.
-
-| # | Gate | Catches | Tool | When |
-|---|---|---|---|---|
-| 1 | Build local single-arch image | Build regressions on the runner architecture | `docker/build-push-action` with `load: true` | every push |
-| 2 | **Trivy image scan** (CRITICAL/HIGH blocking) | CVEs in base image, OS packages, build layers; secrets; misconfigs | `aquasecurity/trivy-action` with `image-ref:` | every push |
-| 3 | **Smoke test** | Image boots, health endpoint responds, `/calculate` returns correct result | `make image-smoke-test` | every push |
-| 4 | Multi-arch build + conditional push (clean image index) | Multi-arch build regressions (linux/arm64 cross-compile issues); on tags, publishes with `provenance: false` + `sbom: false` so the GHCR "OS / Arch" tab renders correctly | `docker/build-push-action` with `push: ${{ startsWith(github.ref, 'refs/tags/') }}` | every push (build); tag only (push) |
-| 5 | **Cosign keyless OIDC signing** | Sigstore signature on the manifest digest (no long-lived keys) — the supply-chain verification primitive for this image | `sigstore/cosign-installer` + `cosign sign` | tag only |
-
-Inspect the published multi-arch manifest:
-
-```bash
-docker buildx imagetools inspect ghcr.io/andriykalashnykov/flight-path:<tag>
+```mermaid
+flowchart LR
+    client["API Client<br/>(curl / Postman / browser)"]
+    subgraph server["flight-path (Echo v5)"]
+        mw["Middleware stack<br/>CORS · Secure · Recover<br/>Cache-Control · Gzip · BodyLimit 1 MiB"]
+        routes["Routes<br/>POST /calculate<br/>GET /<br/>GET /swagger/*"]
+        handlers["Handlers<br/>FlightCalculate<br/>ServerHealthCheck"]
+        algo["FindItinerary()<br/>O(n) in-memory graph walk"]
+    end
+    client --> mw --> routes --> handlers --> algo
 ```
 
-Expect `linux/amd64` and `linux/arm64` platform entries with no `unknown/unknown` rows.
-
-Verify a published image's cosign signature:
-
-```bash
-cosign verify ghcr.io/andriykalashnykov/flight-path:<tag> \
-  --certificate-identity-regexp 'https://github\.com/AndriyKalashnykov/flight-path/\.github/workflows/ci\.yml@refs/tags/v.*' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-```
-
-A [Claude Code workflow](./.github/workflows/claude.yml) provides interactive mode (responds to `@claude` mentions from trusted authors) and automated PR review on every non-draft PR.
-
-A [Claude CI Fix workflow](./.github/workflows/claude-ci-fix.yml) auto-triggers on CI failures for same-repo PR branches to attempt automated fixes with anti-recursion guards.
-
-A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches.
-
-[Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
+See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for Container, Component, request-flow sequence, and CI/CD pipeline diagrams.
 
 ## Security & Code Quality
 
@@ -265,7 +229,7 @@ Run `make help` to see all available targets.
 
 | Target | Description |
 |--------|-------------|
-| `make ci` | Run full CI pipeline locally (deps + format + static-check + test + coverage-check + build + fuzz + deps-prune-check) |
+| `make ci` | Run full CI pipeline locally (deps + format + static-check + test + integration-test + coverage-check + build + fuzz + deps-prune-check) |
 | `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
 | `make check` | Run pre-commit checklist (alias for `make ci`) |
 
@@ -274,7 +238,7 @@ Run `make help` to see all available targets.
 | Target | Description |
 |--------|-------------|
 | `make help` | List available tasks |
-| `make deps` | Install dev tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, pnpm, newman) via mise |
+| `make deps` | Install dev tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, newman) via mise + corepack |
 | `make deps-check` | Show required Go version, mise status, and tool status |
 | `make deps-hadolint` | Install hadolint for Dockerfile linting |
 | `make deps-shellcheck` | Install shellcheck for shell script linting |
@@ -289,6 +253,70 @@ Run `make help` to see all available targets.
 | `make test-case-one` | Test case #1 `[["SFO", "EWR"]]` |
 | `make test-case-two` | Test case #2 `[["ATL", "EWR"], ["SFO", "ATL"]]` |
 | `make test-case-three` | Test case #3 `[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]` |
+
+## CI/CD
+
+GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All jobs live in a single workflow file (`.github/workflows/ci.yml`). Tag-gated jobs (`goreleaser`, `docker`) are siblings of the other jobs — they run only on `v*.*.*` pushes and are `skipped` on everything else.
+
+| Job | Triggers | Steps |
+|-----|----------|-------|
+| **static-check** | push, PR, tags | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| **build** | after static-check | Build binary, upload artifact |
+| **test** | after static-check | Coverage threshold check (80%+), fuzz tests |
+| **integration-test** | after static-check | Full HTTP stack + middleware tests (`//go:build integration`) |
+| **e2e** | after build + test | Download binary (or rebuild fallback), run server, Newman/Postman E2E tests. Runs on every push AND under `act` (no `vars.ACT` guard) — the fallback path rebuilds the binary when cross-job artifact download fails. |
+| **dast** | after build + test | Run server, OWASP ZAP API security scan |
+| **docker** | after static-check + build + test (every push) | Single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make image-smoke-test` + multi-arch build. On `v*.*.*` tag pushes, additionally logs in to GHCR, pushes multi-arch (clean image index, Pattern A), and cosign-signs by digest. On non-tag pushes the login/push/sign steps are skipped — the job still runs end-to-end to catch Dockerfile and multi-arch build regressions on the commit that introduced them, not on release day. |
+| **goreleaser** | tag push only, after all upstream | GoReleaser build, GitHub release (binaries, archives, checksums, changelog) |
+| **ci-pass** | `if: always()`, needs all | Single branch-protection gate that fails if any upstream job failed. On non-tag pushes, `goreleaser` is `skipped` (not `failure`) and `docker` runs normally, so ci-pass still passes correctly. On tag pushes, ci-pass waits for all jobs and only goes green after the full release has verified clean. |
+
+### Required Secrets and Variables
+
+| Name | Type | Used by | How to obtain |
+|------|------|---------|---------------|
+| `CLAUDE_CONFIG_TOKEN` | Secret | `claude.yml`, `claude-ci-fix.yml` | PAT with `contents: read` for [`AndriyKalashnykov/claude-config`](https://github.com/AndriyKalashnykov/claude-config) — allows workflows to check out shared Claude configuration |
+| `ANTHROPIC_API_KEY` | Secret | `claude.yml`, `claude-ci-fix.yml` | [console.anthropic.com](https://console.anthropic.com/) API key — powers the Claude Code action |
+
+Set secrets via **Settings > Secrets and variables > Actions > New repository secret**.
+Set variables via **Settings > Secrets and variables > Actions > Variables tab > New repository variable**.
+
+**Local-only variables (act):** `ACT=true` is injected automatically by `make ci-run` (via `--var ACT=true`) to guard the `dast` job, which needs Docker-in-Docker for OWASP ZAP and doesn't run cleanly under act. Do **not** set `ACT` on GitHub Actions runners.
+
+### Pre-push image hardening
+
+The `docker` job runs the following gates on **every push**. Gates 1–3 run unconditionally (catching Dockerfile and Trivy regressions on every commit). Gate 4 (multi-arch build) runs on every push but only pushes to GHCR on `v*.*.*` tag pushes. Gate 5 (cosign signing) is tag-only. Any failure blocks the release.
+
+| # | Gate | Catches | Tool | When |
+|---|---|---|---|---|
+| 1 | Build local single-arch image | Build regressions on the runner architecture | `docker/build-push-action` with `load: true` | every push |
+| 2 | **Trivy image scan** (CRITICAL/HIGH blocking) | CVEs in base image, OS packages, build layers; secrets; misconfigs | `aquasecurity/trivy-action` with `image-ref:` | every push |
+| 3 | **Smoke test** | Image boots, health endpoint responds, `/calculate` returns correct result | `make image-smoke-test` | every push |
+| 4 | Multi-arch build + conditional push (clean image index) | Multi-arch build regressions (linux/arm64 cross-compile issues); on tags, publishes with `provenance: false` + `sbom: false` so the GHCR "OS / Arch" tab renders correctly | `docker/build-push-action` with `push: ${{ startsWith(github.ref, 'refs/tags/') }}` | every push (build); tag only (push) |
+| 5 | **Cosign keyless OIDC signing** | Sigstore signature on the manifest digest (no long-lived keys) — the supply-chain verification primitive for this image | `sigstore/cosign-installer` + `cosign sign` | tag only |
+
+Inspect the published multi-arch manifest:
+
+```bash
+docker buildx imagetools inspect ghcr.io/andriykalashnykov/flight-path:<tag>
+```
+
+Expect `linux/amd64` and `linux/arm64` platform entries with no `unknown/unknown` rows.
+
+Verify a published image's cosign signature:
+
+```bash
+cosign verify ghcr.io/andriykalashnykov/flight-path:<tag> \
+  --certificate-identity-regexp 'https://github\.com/AndriyKalashnykov/flight-path/\.github/workflows/ci\.yml@refs/tags/v.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+A [Claude Code workflow](./.github/workflows/claude.yml) provides interactive mode (responds to `@claude` mentions from trusted authors) and automated PR review on every non-draft PR.
+
+A [Claude CI Fix workflow](./.github/workflows/claude-ci-fix.yml) auto-triggers on CI failures for same-repo PR branches to attempt automated fixes with anti-recursion guards.
+
+A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches.
+
+[Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
 
 ## Contributing
 

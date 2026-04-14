@@ -36,7 +36,7 @@
       "customType": "regex",
       "description": "Update GoReleaser version pinned inline in ci.yml",
       "managerFilePatterns": [
-        ".github/workflows/ci.yml"
+        "/^\\.github/workflows/ci\\.yml$/"
       ],
       "matchStrings": [
         "version:\\s*'v(?<currentValue>[^']+)'\\s*# renovate: depName=goreleaser/goreleaser datasource=github-releases"
@@ -101,13 +101,13 @@
       "groupName": "Docker dependencies"
     },
     {
-      "description": "Group Go module dependencies",
+      "description": "Group Go module dependencies (excluding the Go toolchain itself, which has its own bump rule)",
       "matchManagers": [
         "gomod"
       ],
       "groupName": "Go dependencies",
-      "matchDepNames": [
-        "!go"
+      "excludeDepNames": [
+        "go"
       ]
     },
     {
@@ -124,5 +124,13 @@
       ],
       "groupName": "Node.js dependencies"
     }
-  ]
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "schedule": ["before 5am on monday"]
+  },
+  "npm": {
+    "minimumReleaseAge": "3 days"
+  }
 }

@@ -439,7 +439,7 @@ mermaid-lint:
 		exit 1; \
 	fi
 
-#deps-prune: @ Remove unused Go module dependencies
+#deps-prune: @ Remove unused Go module dependencies (Go-only project; no other ecosystems to prune)
 deps-prune: deps
 	@echo "=== Dependency Pruning ==="
 	@echo "--- Go: running go mod tidy ---"
