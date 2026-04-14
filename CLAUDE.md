@@ -100,7 +100,7 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 
 ```bash
 make help           # List available tasks
-make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, node, pnpm, newman) via mise
+make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, newman) via mise + corepack; node is read from .mise.toml (pre-install via `mise install`)
 make deps-check     # Show required Go version, mise status, and tool status
 make deps-hadolint  # Install hadolint for Dockerfile linting (to $HOME/.local/bin)
 make deps-shellcheck # Install shellcheck for shell script linting (to $HOME/.local/bin)
@@ -133,7 +133,7 @@ make test-case-three # curl test: 4-segment path
 make update         # Update Go dependencies
 make release        # Tag and push a new release (runs full `ci` pipeline first)
 make check          # Full pre-commit checklist (alias for make ci)
-make ci             # Local CI pipeline (deps + format + static-check + test + coverage-check + build + fuzz + deps-prune-check)
+make ci             # Local CI pipeline (deps + format + static-check + test + integration-test + coverage-check + build + fuzz + deps-prune-check)
 make ci-run         # Run GitHub Actions workflow locally using act
 make coverage       # Run tests with coverage report
 make coverage-check # Verify coverage meets 80% threshold
@@ -165,7 +165,7 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 | `GOVULNCHECK_VERSION` | 1.1.4 | Go vulnerability checker |
 | `GITLEAKS_VERSION` | 8.30.1 | Secrets scanner |
 | `ACTIONLINT_VERSION` | 1.7.12 | GitHub Actions linter |
-| `BENCHSTAT_VERSION` | 0.0.0-20260312031701-16a31bc5fbd0 | Benchmark comparison |
+| `BENCHSTAT_VERSION` | 0.0.0-20260409210113-8e83ce0f7b1c | Benchmark comparison |
 | `HADOLINT_VERSION` | 2.14.0 | Dockerfile linter |
 | `TRIVY_VERSION` | 0.69.3 | Vulnerability scanner |
 | `ACT_VERSION` | 0.2.87 | Local GitHub Actions runner |
@@ -178,7 +178,7 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 ## Before Committing
 
 ```bash
-make check          # Alias for `make ci` — full local pipeline (format + static-check + test + coverage-check + build + fuzz + deps-prune-check)
+make check          # Alias for `make ci` — full local pipeline (format + static-check + test + integration-test + coverage-check + build + fuzz + deps-prune-check)
 ```
 
 ## Specifications
@@ -258,7 +258,7 @@ All jobs live in `.github/workflows/ci.yml` (single-file layout matching the `/c
 
 | Job | Triggers | Steps |
 |-----|----------|-------|
-| **static-check** | all | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint) |
+| **static-check** | all | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
 | **build** | all | Build binary, upload `server-binary` artifact |
 | **test** | all | Coverage threshold check (80%+), fuzz tests, upload coverage artifact |
 | **integration-test** | all | `make integration-test` — full HTTP stack (middleware, CORS branches, error envelope, preflight) via httptest |
@@ -312,14 +312,12 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 - [ ] **godotenv low activity**: Last commit 2025-10-21, last release v1.5.1 (Feb 2023). Functionally complete — no action unless repo goes archived. Fallback: stdlib `os.Getenv` + helper
 - [ ] **Newman sandbox lag**: Newman 6.2.2 bundles postman-sandbox 4.7.1 (upstream 6.6.1) and postman-runtime 7.39.1 (upstream 7.53.0). Check `pnpm view newman version` for Newman 7.x or new 6.x
 - [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
-- [x] ~~**GoReleaser `dockers` deprecation**: Migrated to `dockers_v2` with separate `Dockerfile.goreleaser` (2026-04-06). Superseded on 2026-04-09: image publishing moved out of goreleaser into a dedicated hardened `docker` job in `release.yml` (Trivy scan + smoke test + provenance/SBOM + cosign keyless signing). `Dockerfile.goreleaser` removed. Further consolidated on 2026-04-10: `release.yml` deleted, `docker` and `goreleaser` jobs moved into `ci.yml` as tag-gated siblings so `ci-pass` aggregates the full release into a single green check. Further consolidated later the same day: `image-scan` and `container-test` jobs were merged into the `docker` job, which now runs on every push. Push/login/cosign steps are tag-gated at step level; the build/scan/smoke gates run unconditionally so Dockerfile and multi-arch regressions are caught on the commit that introduced them.~~
 - [ ] **swaggo/swag v1 indirect dep**: `echo-swagger/v2` pulls in `swag v1` transitively. Fix submitted upstream as [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146). Will auto-resolve when PR is merged and we update echo-swagger
 - [ ] **actions/github-script v7 → v9**: `claude-ci-fix.yml` uses `actions/github-script@v7` (SHA f28e40c7); latest is v9.0.0. APIs used (`github.rest.actions.listJobsForWorkflowRun`, `github.rest.pulls.listCommits`, `github.rest.pulls.get`, `github.rest.issues.addLabels`, `core.info`, `core.setOutput`) remain compatible in v9. Bump on next workflow maintenance pass; Renovate may group this under "GitHub Actions" PR
-- [x] ~~**anthropics/claude-code-action SHA refresh**: bumped `claude.yml` and `claude-ci-fix.yml` from `26ddc358` (2025-08-26 floating `v1`) to `b47fd721` (v1.0.93, 2026-04-10) on 2026-04-13. Picks up 90+ point releases' worth of prompt-injection handling fixes.~~
 
 ## Environment
 
 - Go 1.26.2 via mise (reads `.mise.toml`); install with `curl -fsSL https://mise.jdx.dev/install.sh | bash`
-- Node.js via nvm (for Newman)
+- Node.js via mise (reads `.mise.toml` / `.nvmrc`); pnpm enabled via corepack
 - User-writable tool install dir: `$HOME/.local/bin` (hadolint, shellcheck, act, trivy) — exported to `PATH` by the Makefile
 - Environment variables loaded from `.env` (`SERVER_PORT=8080`)

@@ -33,6 +33,7 @@ on:
       - '**.jpg'
       - '**.gif'
       - '**.svg'
+  workflow_call:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -327,7 +328,7 @@ jobs:
 
       # Weekly cache-bust for the apk upgrade layer so the image picks up new
       # Alpine security patches even when the Dockerfile is unchanged.
-      - name: Compute apk cache-bust week
+      - name: Compute APK cache-bust week
         id: apk-week
         run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
 

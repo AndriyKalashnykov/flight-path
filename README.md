@@ -181,7 +181,7 @@ A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly (Sundays 
 
 ## Postman/Newman end-to-end tests
 
-Utilized Postman collection exported to [JSON file](./test/FlightPath.postman_collection.json) and executes 16 test cases:
+Utilized Postman collection exported to [JSON file](./test/FlightPath.postman_collection.json) and executes 18 test cases:
 
 - **HealthCheck** — `GET /` returns `{"data": "..."}`
 - **UseCase01–03** — happy paths matching `test-case-one`, `test-case-two`, `test-case-three` (1, 2, 4 segments)

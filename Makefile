@@ -8,6 +8,10 @@ GOOS           ?= linux
 GOARCH         ?= amd64
 NEWMANTESTSLOCATION := ./test/
 
+# GHCR publishing identity (override via env when pushing from CI or alt account)
+GHCR_USER ?= $(shell git config --get user.name 2>/dev/null | tr '[:upper:]' '[:lower:]')
+GHCR_REPO ?= $(GHCR_USER)/$(APP_NAME)
+
 HOMEDIR := $(CURDIR)
 OUTDIR  := $(HOMEDIR)/output
 COVPROF := $(HOMEDIR)/covprof.out
@@ -21,7 +25,7 @@ SWAG_VERSION        := 2.0.0-rc5
 # renovate: datasource=github-releases depName=securego/gosec
 GOSEC_VERSION       := 2.25.0
 # renovate: datasource=go depName=golang.org/x/perf/cmd/benchstat versioning=loose
-BENCHSTAT_VERSION   := 0.0.0-20260312031701-16a31bc5fbd0
+BENCHSTAT_VERSION   := 0.0.0-20260409210113-8e83ce0f7b1c
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_VERSION    := 2.11.4
 # renovate: datasource=go depName=golang.org/x/vuln/cmd/govulncheck
@@ -252,8 +256,6 @@ image-stop:
 	@docker rm -f $(APP_NAME) 2>/dev/null || true
 
 #image-push: @ Push Docker image to GHCR (requires GH_ACCESS_TOKEN and GHCR_USER)
-GHCR_USER ?= $(shell git config --get user.name 2>/dev/null | tr '[:upper:]' '[:lower:]')
-GHCR_REPO ?= $(GHCR_USER)/$(APP_NAME)
 image-push: image-build
 	@if [ -z "$$GH_ACCESS_TOKEN" ]; then echo "Error: GH_ACCESS_TOKEN not set"; exit 1; fi
 	@if [ -z "$(GHCR_USER)" ]; then echo "Error: GHCR_USER not set and git user.name unavailable"; exit 1; fi
