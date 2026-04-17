@@ -3,7 +3,6 @@ module github.com/AndriyKalashnykov/flight-path
 go 1.26.2
 
 require (
-	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v5 v5.1.0
 	github.com/swaggo/echo-swagger/v2 v2.0.1
 	github.com/swaggo/swag/v2 v2.0.0-rc5
