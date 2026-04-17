@@ -19,48 +19,38 @@ COVPROF := $(HOMEDIR)/covprof.out
 # === Go Version (from go.mod — tracked by Renovate's gomod manager, not here) ===
 GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 
-# === Tool Versions (pinned) ===
+# === Tool Versions ===
+# The project's quality/security toolchain (golangci-lint, gosec, govulncheck,
+# gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser) is pinned
+# in .mise.toml — one source of truth, consumed by both local dev and CI
+# (jdx/mise-action). Do NOT re-pin those tools here.
+#
+# The remaining Makefile-level pins are for tools that mise does not manage:
+# Go-installed tools without a stable aqua backend, and Docker-image tools.
+
 # renovate: datasource=github-releases depName=swaggo/swag
 SWAG_VERSION        := 2.0.0-rc5
-# renovate: datasource=github-releases depName=securego/gosec
-GOSEC_VERSION       := 2.25.0
 # renovate: datasource=go depName=golang.org/x/perf/cmd/benchstat versioning=loose
 BENCHSTAT_VERSION   := 0.0.0-20260409210113-8e83ce0f7b1c
-# renovate: datasource=github-releases depName=golangci/golangci-lint
-GOLANGCI_VERSION    := 2.11.4
-# renovate: datasource=go depName=golang.org/x/vuln/cmd/govulncheck
-GOVULNCHECK_VERSION := 1.1.4
-# renovate: datasource=github-releases depName=zricethezav/gitleaks
-GITLEAKS_VERSION    := 8.30.1
-# renovate: datasource=github-releases depName=rhysd/actionlint
-ACTIONLINT_VERSION  := 1.7.12
-# renovate: datasource=github-releases depName=koalaman/shellcheck
-SHELLCHECK_VERSION  := 0.11.0
 # NODE_VERSION tracks major only — source of truth: .nvmrc (Renovate cannot track major-only values).
 # Node is installed via mise (.mise.toml pins `node = "24"`); .nvmrc is kept for mise's native read.
 NODE_VERSION        := $(shell cat .nvmrc 2>/dev/null || echo 24)
 # pnpm is pinned in test/package.json via the `packageManager` field (corepack auto-switches).
 # renovate: datasource=github-releases depName=jdx/mise
 MISE_VERSION        := 2026.4.11
-# renovate: datasource=github-releases depName=hadolint/hadolint
-HADOLINT_VERSION    := 2.14.0
-# renovate: datasource=github-releases depName=aquasecurity/trivy
-TRIVY_VERSION       := 0.69.3
-# renovate: datasource=github-releases depName=nektos/act
-ACT_VERSION         := 0.2.87
-# renovate: datasource=github-releases depName=goreleaser/goreleaser
-GORELEASER_VERSION  := 2.15.2
 # renovate: datasource=docker depName=minlag/mermaid-cli
 MERMAID_CLI_VERSION := 11.12.0
 
-# Ensure tools installed to ~/.local/bin (hadolint, act, shellcheck, etc.) are
-# on PATH for every recipe — needed inside the act runner container where this
-# path is not preconfigured. Exported so every sub-shell the recipes spawn inherits it.
-export PATH := $(HOME)/.local/bin:$(PATH)
+# Ensure tools installed to ~/.local/bin (mise bootstrap lives here) AND mise's
+# shim dir (hadolint, trivy, act, goreleaser, golangci-lint, gosec, gitleaks,
+# actionlint, shellcheck, govulncheck) are on PATH for every recipe — needed
+# inside the act runner container where neither path is preconfigured.
+# Exported so every sub-shell the recipes spawn inherits it.
+export PATH := $(HOME)/.local/bin:$(HOME)/.local/share/mise/shims:$(PATH)
 
 # === Go version management: mise (https://mise.jdx.dev) ===
 # mise auto-activates via shell hook, reads .mise.toml, and publishes semver releases
-# trackable by Renovate. CI uses actions/setup-go (reads go.mod directly).
+# trackable by Renovate. CI uses jdx/mise-action (reads .mise.toml directly).
 HAS_MISE := $(shell command -v mise >/dev/null 2>&1 && echo true || echo false)
 define go-exec
 $(if $(filter true,$(HAS_MISE)),bash -c 'eval "$$(mise activate bash --shims)" && $(1)',bash -c '$(1)')
@@ -74,28 +64,27 @@ help:
 
 #deps: @ Download and install dependencies
 deps:
-	@# Install mise if not present (local development only; CI uses actions/setup-go)
+	@# Install mise if not present (local development only; CI uses jdx/mise-action)
 	@if [ -z "$$CI" ] && ! command -v mise >/dev/null 2>&1; then \
 		echo "Installing mise v$(MISE_VERSION)..."; \
 		curl -fsSL https://mise.jdx.dev/install.sh | MISE_VERSION=v$(MISE_VERSION) bash; \
 		echo ""; \
 		echo "mise installed. Activate by adding to your shell rc:"; \
 		echo "  eval \"\$$(mise activate bash)\"  # or zsh/fish"; \
-		echo "Then re-run 'make deps' to install Go $(GO_VERSION) via mise."; \
+		echo "Then re-run 'make deps' to install the toolchain pinned in .mise.toml."; \
 		exit 0; \
 	fi
+	@# mise install reads .mise.toml and provisions go, node, and every quality/
+	@# security tool (golangci-lint, gosec, govulncheck, gitleaks, actionlint,
+	@# shellcheck, hadolint, trivy, act, goreleaser) in one pass. Idempotent.
 	@if [ "$(HAS_MISE)" = "true" ]; then \
 		mise install --yes; \
 	else \
 		command -v go >/dev/null 2>&1 || { echo "Error: Go required. Install mise from https://mise.jdx.dev or Go from https://go.dev/dl/"; exit 1; }; \
 	fi
+	@# Tools that don't have a stable mise backend stay Go-installed.
 	@$(call go-exec,command -v swag) >/dev/null 2>&1 || { echo "Installing swag..."; $(call go-exec,go install github.com/swaggo/swag/v2/cmd/swag@v$(SWAG_VERSION)); }
-	@$(call go-exec,command -v gosec) >/dev/null 2>&1 || { echo "Installing gosec..."; $(call go-exec,go install github.com/securego/gosec/v2/cmd/gosec@v$(GOSEC_VERSION)); }
 	@$(call go-exec,command -v benchstat) >/dev/null 2>&1 || { echo "Installing benchstat..."; $(call go-exec,go install golang.org/x/perf/cmd/benchstat@v$(BENCHSTAT_VERSION)); }
-	@$(call go-exec,command -v golangci-lint) >/dev/null 2>&1 || { echo "Installing golangci-lint..."; curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $$($(call go-exec,go env GOPATH))/bin v$(GOLANGCI_VERSION); }
-	@$(call go-exec,command -v govulncheck) >/dev/null 2>&1 || { echo "Installing govulncheck..."; $(call go-exec,go install golang.org/x/vuln/cmd/govulncheck@v$(GOVULNCHECK_VERSION)); }
-	@$(call go-exec,command -v gitleaks) >/dev/null 2>&1 || { echo "Installing gitleaks..."; $(call go-exec,go install github.com/zricethezav/gitleaks/v8@v$(GITLEAKS_VERSION)); }
-	@$(call go-exec,command -v actionlint) >/dev/null 2>&1 || { echo "Installing actionlint..."; $(call go-exec,go install github.com/rhysd/actionlint/cmd/actionlint@v$(ACTIONLINT_VERSION)); }
 	@command -v node >/dev/null 2>&1 || { \
 		echo "Error: Node.js not found. Install mise (https://mise.jdx.dev), then run 'mise install' — .mise.toml pins node=$(NODE_VERSION)."; \
 		exit 1; \
@@ -108,53 +97,10 @@ deps-check:
 	@echo "Go version required: $(GO_VERSION)"
 	@if command -v mise >/dev/null 2>&1; then mise list 2>/dev/null || echo "mise: .mise.toml not trusted — run 'mise trust'"; else echo "mise not installed - install from https://mise.jdx.dev"; fi
 	@echo "--- Tool status ---"
-	@for tool in swag gosec benchstat golangci-lint govulncheck gitleaks actionlint node pnpm hadolint act trivy goreleaser shellcheck; do \
+	@for tool in swag benchstat golangci-lint gosec govulncheck gitleaks actionlint shellcheck hadolint trivy act goreleaser node pnpm; do \
 		printf "  %-16s " "$$tool:"; \
 		command -v $$tool >/dev/null 2>&1 && echo "installed" || echo "NOT installed"; \
 	done
-
-#deps-hadolint: @ Install hadolint for Dockerfile linting
-deps-hadolint:
-	@command -v hadolint >/dev/null 2>&1 || { echo "Installing hadolint $(HADOLINT_VERSION)..."; \
-		mkdir -p $$HOME/.local/bin; \
-		curl -sSfL -o /tmp/hadolint https://github.com/hadolint/hadolint/releases/download/v$(HADOLINT_VERSION)/hadolint-Linux-x86_64 && \
-		install -m 755 /tmp/hadolint $$HOME/.local/bin/hadolint && \
-		rm -f /tmp/hadolint; \
-	}
-
-#deps-shellcheck: @ Install shellcheck for shell script linting
-deps-shellcheck:
-	@command -v shellcheck >/dev/null 2>&1 || { echo "Installing shellcheck $(SHELLCHECK_VERSION)..."; \
-		mkdir -p $$HOME/.local/bin; \
-		curl -sSfL -o /tmp/shellcheck.tar.xz https://github.com/koalaman/shellcheck/releases/download/v$(SHELLCHECK_VERSION)/shellcheck-v$(SHELLCHECK_VERSION).linux.x86_64.tar.xz && \
-		tar -xJf /tmp/shellcheck.tar.xz -C /tmp && \
-		install -m 755 /tmp/shellcheck-v$(SHELLCHECK_VERSION)/shellcheck $$HOME/.local/bin/shellcheck && \
-		rm -rf /tmp/shellcheck-v$(SHELLCHECK_VERSION) /tmp/shellcheck.tar.xz; \
-	}
-
-#deps-act: @ Install act for running GitHub Actions locally
-deps-act: deps
-	@command -v act >/dev/null 2>&1 || { echo "Installing act $(ACT_VERSION)..."; \
-		mkdir -p $$HOME/.local/bin; \
-		curl -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh | bash -s -- -b $$HOME/.local/bin v$(ACT_VERSION); \
-	}
-
-#deps-trivy: @ Install trivy for local vulnerability scanning
-deps-trivy:
-	@command -v trivy >/dev/null 2>&1 || { echo "Installing trivy $(TRIVY_VERSION)..."; \
-		mkdir -p $$HOME/.local/bin; \
-		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $$HOME/.local/bin v$(TRIVY_VERSION); \
-	}
-
-#deps-goreleaser: @ Install goreleaser for local release config validation
-deps-goreleaser:
-	@command -v goreleaser >/dev/null 2>&1 || { echo "Installing goreleaser $(GORELEASER_VERSION)..."; \
-		mkdir -p $$HOME/.local/bin; \
-		curl -sSfL "https://github.com/goreleaser/goreleaser/releases/download/v$(GORELEASER_VERSION)/goreleaser_Linux_x86_64.tar.gz" -o /tmp/goreleaser.tar.gz && \
-		tar -xzf /tmp/goreleaser.tar.gz -C /tmp goreleaser && \
-		install -m 755 /tmp/goreleaser $$HOME/.local/bin/goreleaser && \
-		rm -f /tmp/goreleaser.tar.gz /tmp/goreleaser; \
-	}
 
 #api-docs: @ Build source code for swagger api reference
 api-docs: deps
@@ -198,7 +144,7 @@ bench-compare: deps
 	fi
 
 #lint: @ Run golangci-lint and hadolint (comprehensive linting via .golangci.yml)
-lint: deps deps-hadolint
+lint: deps
 	@$(call go-exec,golangci-lint run ./...)
 	@hadolint Dockerfile
 
@@ -215,7 +161,7 @@ sec: deps
 	@$(call go-exec,gosec ./...)
 
 #lint-ci: @ Lint GitHub Actions workflow files
-lint-ci: deps deps-shellcheck
+lint-ci: deps
 	@$(call go-exec,actionlint)
 
 #format: @ Format Go code
@@ -223,7 +169,7 @@ format: deps
 	@$(call go-exec,gofmt -l -w .)
 
 #release-check: @ Validate .goreleaser.yml syntax and config
-release-check: deps-goreleaser
+release-check: deps
 	@goreleaser check
 
 #static-check: @ Run code static check
@@ -280,7 +226,7 @@ image-smoke-test:
 image-test: image-build image-smoke-test
 
 #image-scan: @ Build Docker image and run Trivy scan (requires trivy)
-image-scan: deps-trivy build
+image-scan: deps build
 	@docker buildx build --load \
 		--build-arg GOMODCACHE=/go/pkg/mod \
 		--build-arg GOCACHE=/root/.cache/go-build \
@@ -367,7 +313,7 @@ ci: deps format static-check test integration-test coverage-check build fuzz dep
 	@echo "Local CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
-ci-run: deps-act
+ci-run: deps
 	@docker container prune -f 2>/dev/null || true
 	@if [ -f ~/.secrets ]; then . ~/.secrets; fi; \
 	act push -W .github/workflows/ci.yml \
@@ -380,16 +326,16 @@ ci-run: deps-act
 check: ci
 	@echo "All pre-commit checks passed."
 
-#trivy-fs: @ Run Trivy filesystem vulnerability scan (requires trivy)
-trivy-fs: deps-trivy
+#trivy-fs: @ Run Trivy filesystem vulnerability scan
+trivy-fs: deps
 	@trivy fs \
 		--scanners vuln,secret,misconfig \
 		--severity CRITICAL,HIGH \
 		--skip-dirs test/node_modules,.pnpm-store \
 		--exit-code 1 .
 
-#trivy-image: @ Run Trivy image vulnerability scan (requires trivy)
-trivy-image: deps-trivy
+#trivy-image: @ Run Trivy image vulnerability scan
+trivy-image: deps
 	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
 
 #e2e: @ Build + start server + run e2e + stop server (self-contained; called by `make ci`)
@@ -456,7 +402,7 @@ deps-prune-check: deps
 	fi
 	@echo "No prunable dependencies found."
 
-.PHONY: help deps deps-check deps-hadolint deps-shellcheck deps-act deps-trivy deps-goreleaser api-docs test integration-test fuzz bench bench-save bench-compare \
+.PHONY: help deps deps-check api-docs test integration-test fuzz bench bench-save bench-compare \
 	lint vulncheck secrets sec lint-ci format static-check mermaid-lint release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \

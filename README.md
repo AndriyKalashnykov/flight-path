@@ -19,6 +19,8 @@ C4Context
     Rel(client, flightpath, "POST /calculate", "HTTPS/JSON")
     Rel(flightpath, ghcr, "Published images", "docker push")
     Rel(flightpath, sigstore, "Signed by digest", "cosign OIDC")
+
+    UpdateLayoutConfig($c4ShapeInRow="3")
 ```
 
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, Component, request-flow sequence, and CI/CD pipeline diagrams.
@@ -65,16 +67,6 @@ Install all required dev tools:
 make deps
 ```
 
-## API
-
-- **POST /calculate** — accepts `[][]string` flight segments, returns `[]string` (start and end airports)
-- **GET /** — health check
-- **GET /swagger/*** — Swagger UI ([http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html))
-
-Auto-generated OpenAPI spec: [`docs/swagger.json`](./docs/swagger.json)
-
-![Swagger API documentation](./img/swagger-api-doc.jpg)
-
 ## Architecture
 
 Layered Go microservice with a single HTTP endpoint over an in-memory algorithm — no database, no external services.
@@ -101,6 +93,16 @@ flowchart LR
 ```
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for Container, Component, request-flow sequence, and CI/CD pipeline diagrams.
+
+## API
+
+- **POST /calculate** — accepts `[][]string` flight segments, returns `[]string` (start and end airports)
+- **GET /** — health check
+- **GET /swagger/*** — Swagger UI ([http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html))
+
+Auto-generated OpenAPI spec: [`docs/swagger.json`](./docs/swagger.json)
+
+![Swagger API documentation](./img/swagger-api-doc.jpg)
 
 ## Security & Code Quality
 
@@ -238,13 +240,8 @@ Run `make help` to see all available targets.
 | Target | Description |
 |--------|-------------|
 | `make help` | List available tasks |
-| `make deps` | Install dev tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, newman) via mise + corepack |
+| `make deps` | Install dev tools — `mise install` reads `.mise.toml` and provisions Go, Node, and every quality/security tool (golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser). swag + benchstat stay Go-installed; newman via pnpm + corepack |
 | `make deps-check` | Show required Go version, mise status, and tool status |
-| `make deps-hadolint` | Install hadolint for Dockerfile linting |
-| `make deps-shellcheck` | Install shellcheck for shell script linting |
-| `make deps-act` | Install act for running GitHub Actions locally |
-| `make deps-trivy` | Install trivy for local vulnerability scanning |
-| `make deps-goreleaser` | Install goreleaser for `.goreleaser.yml` validation |
 | `make release` | Run full CI pipeline then tag and push a new release |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
 | `make renovate-validate` | Validate Renovate configuration |

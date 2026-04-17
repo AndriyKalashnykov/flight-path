@@ -65,7 +65,7 @@ Most build targets depend on `deps` and auto-install missing tools.
 | `image-push` | image-build | Push Docker image to GHCR |
 | `image-smoke-test` | — | Smoke-test a pre-built container |
 | `image-test` | image-build, image-smoke-test | Build + smoke test container |
-| `image-scan` | deps-trivy, build | Build image + Trivy scan |
+| `image-scan` | deps, build | Build image + Trivy scan (trivy installed via mise) |
 | `build-image` | deps, api-docs, lint, sec, vulncheck, secrets | Multi-platform build + push |
 | `release` | lint, sec, vulncheck, test, api-docs, build | Tag and push release |
 | `e2e` | deps | Newman E2E tests |

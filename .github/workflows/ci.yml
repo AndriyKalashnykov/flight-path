@@ -52,29 +52,25 @@ jobs:
         with:
           fetch-depth: 0  # needed for gitleaks / git history scans
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      # Single source of truth for Go + every quality/security tool is
+      # .mise.toml — mise-action reads it, installs everything, and caches the
+      # mise-managed installs. Replaces actions/setup-go and the parallel
+      # `~/.local/bin` + `~/go/bin` caches that were needed when tools were
+      # installed piecemeal by the Makefile.
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          go-version-file: 'go.mod'
+          install: true
           cache: true
 
-      - name: Cache Go tool binaries
+      - name: Cache Go module + build cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
-          path: ~/go/bin
-          key: go-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
-
-      # Off-canonical: Makefile installs hadolint/shellcheck/trivy/act/goreleaser
-      # to ~/.local/bin; caching avoids re-downloading on every run.
-      - name: Cache local bin tools
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
-        with:
-          path: ~/.local/bin
-          key: local-bin-${{ runner.os }}-${{ hashFiles('Makefile') }}
-
-      - name: Add Go bin to PATH
-        run: |
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-
 
       - name: Static check
         run: make static-check
@@ -86,19 +82,20 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          go-version-file: 'go.mod'
+          install: true
           cache: true
 
-      - name: Cache Go tool binaries
+      - name: Cache Go module + build cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
-          path: ~/go/bin
-          key: go-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
-
-      - name: Add Go bin to PATH
-        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-
 
       - name: Build
         run: make build
@@ -118,16 +115,20 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          go-version-file: 'go.mod'
+          install: true
           cache: true
 
-      - name: Cache Go tool binaries
+      - name: Cache Go module + build cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
-          path: ~/go/bin
-          key: go-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-
 
       - name: Test with coverage
         run: make coverage-check
@@ -150,10 +151,20 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          go-version-file: 'go.mod'
+          install: true
           cache: true
+
+      - name: Cache Go module + build cache
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-
 
       - name: Integration test
         run: make integration-test
@@ -172,14 +183,23 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      # mise-action installs BOTH go (from .mise.toml) and node (from
+      # .mise.toml, which mirrors .nvmrc). Replaces the parallel setup-go +
+      # setup-node pair.
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          go-version-file: 'go.mod'
+          install: true
           cache: true
 
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      - name: Cache Go module + build cache
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
-          node-version: lts/*
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-
 
       - name: Cache Newman
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
@@ -225,11 +245,13 @@ jobs:
         with:
           name: server-binary
 
-      # Fallback path: install Go and rebuild if artifact download failed
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      # Fallback path: install toolchain via mise and rebuild if artifact
+      # download failed (pulls Go from .mise.toml — same source of truth as
+      # the build job).
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         if: steps.download-binary.outcome == 'failure'
         with:
-          go-version-file: 'go.mod'
+          install: true
           cache: true
 
       - name: Build
@@ -289,16 +311,16 @@ jobs:
         with:
           fetch-depth: 0   # goreleaser needs full history for changelog
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
-          go-version-file: 'go.mod'
+          install: true
           cache: true
 
+      # goreleaser is already installed by mise-action (pinned in .mise.toml),
+      # so invoke the binary directly — avoids goreleaser-action's parallel
+      # installer and the second version pin that used to live in this step.
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
-        with:
-          version: 'v2.15.2' # renovate: depName=goreleaser/goreleaser datasource=github-releases
-          args: release --clean -f ./.goreleaser.yml
+        run: goreleaser release --clean -f ./.goreleaser.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
