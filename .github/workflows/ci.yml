@@ -63,7 +63,7 @@ jobs:
           cache: true
 
       - name: Cache Go module + build cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/go/pkg/mod
@@ -88,7 +88,7 @@ jobs:
           cache: true
 
       - name: Cache Go module + build cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/go/pkg/mod
@@ -101,7 +101,7 @@ jobs:
         run: make build
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         continue-on-error: true
         with:
           name: server-binary
@@ -121,7 +121,7 @@ jobs:
           cache: true
 
       - name: Cache Go module + build cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/go/pkg/mod
@@ -137,7 +137,7 @@ jobs:
         run: make fuzz
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         continue-on-error: true
         with:
           name: coverage-report
@@ -157,7 +157,7 @@ jobs:
           cache: true
 
       - name: Cache Go module + build cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/go/pkg/mod
@@ -192,7 +192,7 @@ jobs:
           cache: true
 
       - name: Cache Go module + build cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/go/pkg/mod
@@ -202,7 +202,7 @@ jobs:
             go-mod-${{ runner.os }}-
 
       - name: Cache Newman
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: test/node_modules
           key: newman-${{ runner.os }}-${{ hashFiles('test/pnpm-lock.yaml') }}
@@ -266,7 +266,7 @@ jobs:
 
       - name: Cache ZAP Docker image
         id: zap-cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: /tmp/zap-image.tar
           key: zap-stable-${{ steps.zap-week.outputs.week }}
@@ -373,7 +373,7 @@ jobs:
       # GATE 1: Local single-arch build for scanning + smoke testing
       # =================================================================
       - name: Build image for scan
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
         with:
           context: .
           file: ./Dockerfile
@@ -426,7 +426,7 @@ jobs:
 
       - name: Build and push
         id: push
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
         with:
           context: .
           file: ./Dockerfile
