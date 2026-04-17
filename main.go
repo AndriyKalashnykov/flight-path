@@ -5,10 +5,9 @@ import (
 	"flag"
 	"log"
 
-	"github.com/joho/godotenv"
-
 	_ "github.com/AndriyKalashnykov/flight-path/docs"
 	"github.com/AndriyKalashnykov/flight-path/internal/app"
+	"github.com/AndriyKalashnykov/flight-path/internal/envfile"
 )
 
 // @title Flight Path API
@@ -31,7 +30,7 @@ func main() {
 	flag.StringVar(&envFile, "env-file", ".env", "File from which to load environment")
 	flag.Parse()
 
-	if err := godotenv.Load(envFile); err != nil {
+	if err := envfile.Load(envFile); err != nil {
 		log.Fatalf("failed to load environment variables: %v", err)
 	}
 

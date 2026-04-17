@@ -111,6 +111,14 @@
         "npm"
       ],
       "groupName": "Node.js dependencies"
+    },
+    {
+      "description": "govulncheck is an official Go sub-repo under golang/ with active main-branch commits and 0 open issues. Its CLI is intentionally stable; the CVE database at vuln.go.dev updates server-side independently of releases. Renovate's release-age abandonment heuristic produces a false positive here — set a 5-year threshold to silence it locally while still tracking version bumps. See CLAUDE.md Upgrade Backlog.",
+      "matchDepNames": [
+        "golang.org/x/vuln/cmd/govulncheck",
+        "golang/vuln"
+      ],
+      "abandonmentThreshold": "5 years"
     }
   ],
   "lockFileMaintenance": {
