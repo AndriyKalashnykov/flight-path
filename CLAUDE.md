@@ -100,13 +100,8 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 
 ```bash
 make help           # List available tasks
-make deps           # Install tools (swag, golangci-lint, gosec, govulncheck, gitleaks, actionlint, benchstat, newman) via mise + corepack; node is read from .mise.toml (pre-install via `mise install`)
+make deps           # Install toolchain — `mise install` reads .mise.toml and provisions Go, Node, and every quality/security tool (golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser). swag + benchstat stay Go-installed; newman via pnpm + corepack
 make deps-check     # Show required Go version, mise status, and tool status
-make deps-hadolint  # Install hadolint for Dockerfile linting (to $HOME/.local/bin)
-make deps-shellcheck # Install shellcheck for shell script linting (to $HOME/.local/bin)
-make deps-act       # Install act for running GitHub Actions locally (to $HOME/.local/bin)
-make deps-trivy     # Install trivy for local vulnerability scanning (to $HOME/.local/bin)
-make deps-goreleaser # Install goreleaser for .goreleaser.yml validation (to $HOME/.local/bin)
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
 make format         # Format Go code
 make lint           # Run golangci-lint + hadolint (comprehensive linting via .golangci.yml)
@@ -158,22 +153,18 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `APP_NAME` | flight-path | Application name (used in Docker tags) |
-| `GO_VERSION` | (auto-extracted from go.mod) | Go version auto-parsed from `go.mod` via regex |
-| `SWAG_VERSION` | 2.0.0-rc5 | Swagger code generator |
-| `GOSEC_VERSION` | 2.25.0 | Go security scanner |
-| `GOLANGCI_VERSION` | 2.11.4 | Go meta-linter |
-| `GOVULNCHECK_VERSION` | 1.1.4 | Go vulnerability checker |
-| `GITLEAKS_VERSION` | 8.30.1 | Secrets scanner |
-| `ACTIONLINT_VERSION` | 1.7.12 | GitHub Actions linter |
-| `BENCHSTAT_VERSION` | 0.0.0-20260409210113-8e83ce0f7b1c | Benchmark comparison |
-| `HADOLINT_VERSION` | 2.14.0 | Dockerfile linter |
-| `TRIVY_VERSION` | 0.69.3 | Vulnerability scanner |
-| `ACT_VERSION` | 0.2.87 | Local GitHub Actions runner |
-| `GORELEASER_VERSION` | 2.15.2 | GoReleaser (config validator via `goreleaser check` in every push) |
-| `SHELLCHECK_VERSION` | 0.11.0 | Shell script linter (used by actionlint) |
+| `GO_VERSION` | (auto-extracted from go.mod) | Go version auto-parsed from `go.mod` via regex (mise also reads `go.mod` natively) |
+| `SWAG_VERSION` | 2.0.0-rc5 | Swagger code generator (Go install — no stable mise backend) |
+| `BENCHSTAT_VERSION` | 0.0.0-20260409210113-8e83ce0f7b1c | Benchmark comparison (Go install) |
 | `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image) |
-| `MISE_VERSION` | 2026.4.11 | Toolchain version manager (reads `.mise.toml` — pins Go + Node) |
+| `MISE_VERSION` | 2026.4.11 | Toolchain version manager bootstrap (reads `.mise.toml`) |
 | `NODE_VERSION` | 24 | Node.js major version (source of truth: `.nvmrc` / `.mise.toml`; installed via mise) |
+
+The quality/security toolchain (golangci-lint, gosec, govulncheck, gitleaks,
+actionlint, shellcheck, hadolint, trivy, act, goreleaser) is pinned in
+`.mise.toml` — one source of truth, consumed by both local dev (`make deps` →
+`mise install --yes`) and CI (`jdx/mise-action`). Do not re-pin these tools in
+the Makefile or workflow YAML.
 
 ## Before Committing
 
@@ -232,21 +223,25 @@ Update specs when changing architecture, API, or testing strategy.
 
 ## Dev Tools
 
-| Tool | Purpose | Install |
+All quality/security tools below are installed in one pass by
+`mise install --yes` (run by `make deps`). Versions are pinned in `.mise.toml`.
+
+| Tool | Purpose | Source |
 |---|---|---|
-| `golangci-lint` | Meta-linter (configured via `.golangci.yml`) | `make deps` |
-| `gosec` | Security scanner | `make deps` |
-| `govulncheck` | Dependency vulnerability check | `make deps` |
-| `gitleaks` | Secrets detection | `make deps` |
-| `actionlint` | GitHub Actions linter | `make deps` |
-| `benchstat` | Benchmark comparison | `make deps` |
-| `swag` | Swagger generation | `make deps` |
-| `newman` | E2E API testing | `make deps` |
-| `hadolint` | Dockerfile linter | `make lint` (auto-installed via `deps-hadolint`) |
-| `shellcheck` | Shell script linter (used by actionlint inside `run:` steps) | `make lint-ci` (auto-installed via `deps-shellcheck`) |
+| `golangci-lint` | Meta-linter (configured via `.golangci.yml`) | mise / `.mise.toml` |
+| `gosec` | Security scanner | mise / `.mise.toml` (aqua:securego/gosec) |
+| `govulncheck` | Dependency vulnerability check | mise / `.mise.toml` (go: backend) |
+| `gitleaks` | Secrets detection | mise / `.mise.toml` |
+| `actionlint` | GitHub Actions linter | mise / `.mise.toml` |
+| `shellcheck` | Shell script linter (used by actionlint inside `run:` steps) | mise / `.mise.toml` |
+| `hadolint` | Dockerfile linter | mise / `.mise.toml` |
+| `trivy` | Vulnerability scanner (images + filesystem) | mise / `.mise.toml` |
+| `act` | Local GitHub Actions runner | mise / `.mise.toml` |
+| `goreleaser` | Release binary builder + `.goreleaser.yml` validator | mise / `.mise.toml` |
+| `swag` | Swagger generation | `go install` (pinned via `SWAG_VERSION` in Makefile) |
+| `benchstat` | Benchmark comparison | `go install` (pinned via `BENCHSTAT_VERSION` in Makefile) |
+| `newman` | E2E API testing | `pnpm install` in `test/` (pinned in `test/package.json`) |
 | `mermaid-cli` | Mermaid diagram validator (runs as Docker image) | `make mermaid-lint` (pulls image on demand) |
-| `trivy` | Vulnerability scanner (images + filesystem) | `make static-check` or `make deps-trivy` |
-| `act` | Local GitHub Actions runner | `make deps-act` |
 
 ## CI/CD
 
@@ -318,5 +313,5 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 
 - Go 1.26.2 via mise (reads `.mise.toml`); install with `curl -fsSL https://mise.jdx.dev/install.sh | bash`
 - Node.js via mise (reads `.mise.toml` / `.nvmrc`); pnpm enabled via corepack
-- User-writable tool install dir: `$HOME/.local/bin` (hadolint, shellcheck, act, trivy) — exported to `PATH` by the Makefile
+- Quality/security tools (golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser) are mise-managed and surface on `PATH` via `$HOME/.local/share/mise/shims` (exported by the Makefile alongside `$HOME/.local/bin` for the mise installer itself)
 - Environment variables loaded from `.env` (`SERVER_PORT=8080`)

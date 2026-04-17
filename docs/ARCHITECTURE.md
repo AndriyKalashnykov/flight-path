@@ -21,33 +21,38 @@ C4Context
     Rel(user, swagger, "Browses API docs", "HTTP")
     Rel(swagger, flightpath, "Serves from /swagger/*", "HTTP")
     Rel(ci, flightpath, "Builds, tests, scans", "CI pipeline")
+
+    UpdateLayoutConfig($c4ShapeInRow="3")
 ```
 
 ## C4 Container Diagram
 
-Shows the internal containers of the Flight Path API system.
+flight-path ships as **one runnable container** — a statically-linked Go binary
+that embeds the HTTP server, routing, handlers, the `FindItinerary` algorithm,
+and the Swagger UI (via `swaggo/echo-swagger`). The diagram below matches that
+reality. For the internal module structure inside that one container (routes,
+handlers, algorithm, data models) see the Component diagram below.
 
 ```mermaid
 C4Container
     title Container Diagram - Flight Path API
 
-    Person(client, "API Client", "Sends flight segments, receives path")
+    Person(client, "API Client", "cURL, Postman, Newman, browser")
 
     System_Boundary(api, "Flight Path API") {
-        Container(echo, "Echo HTTP Server", "Go 1.26.2, Echo v5.1.0", "Handles HTTP requests, applies middleware, routes to handlers")
-        Container(middleware, "Middleware Stack", "Echo v5.1.0 middleware", "Logger, Recover, CORS, Security Headers, Cache-Control")
-        Container(handlers, "Handlers", "Go 1.26.2", "FlightCalculate, ServerHealthCheck — bind, validate, respond")
-        Container(algorithm, "FindItinerary", "Go 1.26.2", "O(n) algorithm to find start and end airports from flight segments")
-        Container(models, "API Models", "Go 1.26.2", "Flight struct (Start, End), request/response types")
-        Container(swaggerui, "Swagger UI", "swaggo/echo-swagger v2.0.1", "Auto-generated API documentation")
+        Container(server, "flight-path server", "Go 1.26.2, Echo v5.1.0", "Single static binary. Serves POST /calculate, GET /, and GET /swagger/* (embedded Swagger UI via swaggo/echo-swagger v2.0.1). Middleware stack: Logger, Recover, CORS, Secure, Cache-Control, Gzip, RequestID, BodyLimit 1 MiB.")
     }
 
-    Rel(client, echo, "HTTP request", "JSON")
-    Rel(echo, middleware, "Passes through")
-    Rel(middleware, handlers, "Routes to")
-    Rel(handlers, algorithm, "Calls FindItinerary()")
-    Rel(handlers, models, "Uses Flight struct")
-    Rel(echo, swaggerui, "GET /swagger/*")
+    System_Ext(ci, "GitHub Actions CI", "Builds, tests, scans, signs")
+    System_Ext(ghcr, "GHCR", "Hosts multi-arch signed container images")
+    System_Ext(sigstore, "Sigstore", "Cosign keyless OIDC signing + Rekor transparency log")
+
+    Rel(client, server, "POST /calculate, GET /, GET /swagger/*", "HTTPS / JSON")
+    Rel(ci, server, "Builds, tests, image-scans", "make ci / make image-scan")
+    Rel(ci, ghcr, "Publishes images (on tag push)", "docker push")
+    Rel(ci, sigstore, "Signs manifests by digest", "cosign OIDC")
+
+    UpdateLayoutConfig($c4ShapeInRow="3")
 ```
 
 ## C4 Component Diagram
