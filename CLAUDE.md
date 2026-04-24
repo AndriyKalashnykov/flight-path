@@ -166,6 +166,18 @@ actionlint, shellcheck, hadolint, trivy, act, goreleaser) is pinned in
 `mise install --yes`) and CI (`jdx/mise-action`). Do not re-pin these tools in
 the Makefile or workflow YAML.
 
+## Testing Pyramid
+
+Three layers, run in order of increasing cost:
+
+| Layer | Target | Scope | Typical duration |
+|-------|--------|-------|------------------|
+| Unit + handler | `make test` | `go test -race ./...` over unit and handler tests (no HTTP stack) | seconds |
+| Integration | `make integration-test` | `//go:build integration` — full HTTP stack (Echo + middleware + CORS + error envelope) via `httptest` | tens of seconds |
+| End-to-end | `make e2e` | Builds the binary, starts the server, runs the Newman/Postman collection against localhost, tears down | minutes |
+
+`make ci` / `make check` exercises all three plus fuzz and coverage — never skip a layer locally.
+
 ## Before Committing
 
 ```bash

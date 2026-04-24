@@ -74,7 +74,7 @@ Layered Go microservice with a single HTTP endpoint over an in-memory algorithm 
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
 | Entry point | `main.go` | Load `.env`, construct `App`, start Echo server on `SERVER_PORT` |
-| Bootstrap | `internal/app/` | Wire Echo instance, middleware stack (CORS, Secure, Recover, Cache-Control, Gzip, RequestID, BodyLimit 1 MiB), routes |
+| Bootstrap | `internal/app/` | Wire Echo instance, middleware stack (RequestLogger, Recover, CORS, Secure, Cache-Control/CORP custom headers), routes |
 | Routes | `internal/routes/` | Register method-verb mappings against a `*handlers.Handler` |
 | Handlers | `internal/handlers/` | Bind request, validate, delegate to `FindItinerary`, return JSON |
 | Algorithm | `internal/handlers/api.go` | `FindItinerary` — O(n) reconstruction: build source/destination sets, find unique start (in-degree 0) and end (out-degree 0) airports |
@@ -84,7 +84,7 @@ Layered Go microservice with a single HTTP endpoint over an in-memory algorithm 
 flowchart LR
     client["API Client<br/>(curl / Postman / browser)"]
     subgraph server["flight-path (Echo v5)"]
-        mw["Middleware stack<br/>CORS · Secure · Recover<br/>Cache-Control · Gzip · BodyLimit 1 MiB"]
+        mw["Middleware stack<br/>RequestLogger · Recover · CORS · Secure<br/>Cache-Control · CORP"]
         routes["Routes<br/>POST /calculate<br/>GET /<br/>GET /swagger/*"]
         handlers["Handlers<br/>FlightCalculate<br/>ServerHealthCheck"]
         algo["FindItinerary()<br/>O(n) in-memory graph walk"]
