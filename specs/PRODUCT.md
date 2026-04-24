@@ -37,12 +37,13 @@ The API must provide auto-generated Swagger/OpenAPI documentation accessible via
 ### NFR-2: Portability
 
 - The service must run as a standalone binary (Linux amd64)
-- The service must be containerized for multi-platform deployment (amd64, arm64, arm/v7)
+- The service must be containerized for multi-platform deployment (`linux/amd64`, `linux/arm64`)
 
 ### NFR-3: Code Quality
 
-- Static analysis (golangci-lint, go-critic, gosec) must pass before builds
-- E2E tests must pass in CI before merging
+- Static analysis (`golangci-lint`, `gosec`, `govulncheck`, `gitleaks`, `hadolint`, `trivy`) must pass before builds
+- Unit + integration + E2E tests must pass in CI before merging
+- Coverage must stay at or above 80% (`make coverage-check`)
 
 ### NFR-4: Observability
 

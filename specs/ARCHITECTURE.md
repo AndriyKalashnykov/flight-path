@@ -23,7 +23,7 @@ Single-service Go REST API using Echo v5, following a layered architecture patte
 │       internal/handlers/          │
 │  handlers.go   Handler struct     │
 │  flight.go     FlightCalculate    │
-│  healthcheck.go HealthCheck       │
+│  healthcheck.go ServerHealthCheck │
 │  api.go        FindItinerary      │
 └───────────────┬──────────────────┘
                 │
@@ -47,8 +47,12 @@ flight-path/
 │   │   ├── api.go                   # FindItinerary algorithm (O(n), plain maps)
 │   │   ├── api_test.go              # Unit tests for FindItinerary
 │   │   ├── api_bench_test.go        # Benchmarks for FindItinerary
+│   │   ├── api_fuzz_test.go         # Fuzz tests for FindItinerary
 │   │   ├── flight_test.go           # Handler tests for FlightCalculate
 │   │   └── healthcheck_test.go      # Handler tests for ServerHealthCheck
+│   └── app/                        # Echo bootstrap (middleware + routes)
+│       ├── app.go                   # New() builds Echo, Port() returns SERVER_PORT
+│       └── app_integration_test.go  # //go:build integration — full HTTP stack
 │   └── routes/                      # Route registration
 │       ├── flight.go                # Flight routes
 │       ├── healthcheck.go           # Health routes
@@ -58,9 +62,9 @@ flight-path/
 │   └── version.txt                  # Semantic version
 ├── docs/                            # Auto-generated Swagger (do not edit)
 ├── specs/                           # Reverse-engineered specifications
-├── test/                            # E2E test collections (6 cases)
+├── test/                            # Newman/Postman E2E collection (18 cases)
 ├── benchmarks/                      # Saved benchmark results
-├── scripts/                         # Build/deploy scripts
+├── scripts/                         # Build + wait-for-server helpers
 ├── .github/workflows/               # CI/CD pipelines
 ├── Dockerfile                       # Multi-stage container build
 ├── Makefile                         # Build automation
@@ -87,16 +91,28 @@ Routes in `internal/routes/` receive `*handlers.Handler` and wire methods.
 
 | Layer | Location | Responsibility |
 |---|---|---|
-| Entry point | `main.go` | Server bootstrap, middleware, config |
+| Entry point | `main.go` | Parse flags, load `.env`, call `app.New()`, start server on `app.Port()` |
+| Bootstrap | `internal/app/` | Build Echo instance, register middleware + routes (shared by `main.go` and integration tests) |
 | Routes | `internal/routes/` | URL-to-handler mapping |
 | Handlers | `internal/handlers/*.go` | HTTP binding, validation, response |
-| Business logic | `internal/handlers/api.go` | Core algorithm |
+| Business logic | `internal/handlers/api.go` | Core algorithm (`FindItinerary`) |
 | Data models | `pkg/api/` | Shared types and fixtures |
+
+### Middleware Stack
+
+Registered in `internal/app/app.go` in this order:
+
+1. `RequestLogger` — request access log
+2. `Recover` — panic → 500
+3. `CORS` — `CORS_ORIGIN` env var (defaults to `*`)
+4. `Secure` — XSS, nosniff, X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-origin
+5. Custom headers — `Cache-Control: no-store`, `Cross-Origin-Resource-Policy: same-origin`
 
 ### Configuration
 
 - `.env` loaded via `godotenv`, overridable with `--env-file` flag
-- Single config: `SERVER_PORT` (default `8080`)
+- `SERVER_PORT` — server port (default `8080`)
+- `CORS_ORIGIN` — single allowed origin for CORS (default `*`)
 
 ## Dependencies
 

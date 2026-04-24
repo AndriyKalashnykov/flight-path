@@ -27,14 +27,16 @@ Go type: `[][]string`
 ```
 Go type: `[]string` -- index 0 = start, index 1 = end
 
-### Error Responses (400/500)
+### Error Responses (400)
 
 ```json
 {"Error": "descriptive message"}
 ```
 Segment errors include index: `{"Error": "...", "Index": 2}`
 
-Go type: `map[string]any`
+Go type: `map[string]any`. Note the capital-E `"Error"` key — this is the current contract enforced by Postman Ajv `errorSchema` validation.
+
+A `500` status code is reserved for unexpected server errors (e.g., panics caught by `middleware.Recover`); it is not emitted by normal validation failures.
 
 ### GET / Health Response (200)
 
@@ -52,9 +54,9 @@ Go type: `map[string]any`
 
 | Rule | Status | Error |
 |---|---|---|
-| Parseable JSON | 500 | "Can't parse the payload" |
+| Parseable JSON | 400 | "Can't parse the payload" |
 | Non-empty array | 400 | "Flight segments cannot be empty" |
-| Segment >= 2 elements | 400 | "Each flight segment must contain both source and destination" |
+| Segment >= 2 elements | 400 | "Each flight segment must contain both source and destination" (includes `Index`) |
 
 ## Validation (not implemented)
 
@@ -68,6 +70,6 @@ Go type: `map[string]any`
 
 ### TestFlights (`pkg/api/data.go`)
 
-19-segment chain: `BGY → RAR → AUH → FCO → BCN → PSC → BLQ → MAD → SFO → ATL → GSO → IND → EWR → CHI → JFK → AAL → HEL → CAK → BJZ → AKL`
+19-segment chain: `BGY → RAR → AUH → FCO → BCN → PSC → BLQ → MAD → SFO → ATL → GSO → IND → EWR → CHI → JFK → AAL → HEL → CAK → BJZ → AKL`.
 
-Start: BGY, End: AKL (currently unused by any test)
+Start: BGY, End: AKL. Stored in the source in shuffled order to exercise the algorithm's unordered-input behavior.
