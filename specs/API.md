@@ -31,8 +31,8 @@ Calculate the flight path from unordered flight segments.
 | Status | Body | Description |
 |---|---|---|
 | 200 | `["SFO", "EWR"]` | `[start_airport, end_airport]` |
-| 400 | `{"Error": "..."}` | Invalid input |
-| 500 | `{"Error": "..."}` | Server/parsing error |
+| 400 | `{"Error": "..."}` | Invalid input (parse error, empty body, incomplete segment) |
+| 500 | `{"Error": "..."}` | Reserved for unexpected server errors (not emitted by current handler) |
 
 **Validation Rules**
 
@@ -40,7 +40,7 @@ Calculate the flight path from unordered flight segments.
 |---|---|---|
 | Empty payload `[]` | 400 | `"Flight segments cannot be empty"` |
 | Segment with < 2 elements | 400 | `"Each flight segment must contain both source and destination"` (includes `Index`) |
-| Unparseable JSON body | 500 | `"Can't parse the payload"` |
+| Unparseable JSON body | 400 | `"Can't parse the payload"` |
 
 **Examples**
 
@@ -90,6 +90,10 @@ Swagger UI for interactive API documentation (auto-generated OpenAPI 2.0 spec).
 
 ## Middleware Stack
 
-1. **RequestLogger** - Logs incoming requests
-2. **Recover** - Recovers from panics, returns 500
-3. **CORS** - Allows all origins (`*`)
+Applied in `internal/app/app.go` in this order:
+
+1. **RequestLogger** — logs incoming requests
+2. **Recover** — recovers from panics, returns 500
+3. **CORS** — `Access-Control-Allow-Origin` from `CORS_ORIGIN` env (defaults to `*`)
+4. **Secure** — sets `X-XSS-Protection: 1; mode=block`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
+5. **Cache-Control / CORP** (custom) — adds `Cache-Control: no-store` and `Cross-Origin-Resource-Policy: same-origin` to every response
