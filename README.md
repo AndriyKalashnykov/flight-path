@@ -253,19 +253,20 @@ Run `make help` to see all available targets.
 
 ## CI/CD
 
-GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All jobs live in a single workflow file (`.github/workflows/ci.yml`). Tag-gated jobs (`goreleaser`, `docker`) are siblings of the other jobs — they run only on `v*.*.*` pushes and are `skipped` on everything else.
+GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All jobs live in a single workflow file (`.github/workflows/ci.yml`). The workflow always triggers; a `changes` detector job (`dorny/paths-filter`) gates every heavy job on whether the push touches code — doc-only PRs only run `changes` (~10s) and `ci-pass`. The release-side `goreleaser` (tag-only) and `docker` (every push, push/sign tag-gated) are serialized via `needs:` so a tag either produces both the GitHub Release AND the GHCR image, or neither.
 
 | Job | Triggers | Steps |
 |-----|----------|-------|
-| **static-check** | push, PR, tags | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
-| **build** | after static-check | Build binary, upload artifact |
-| **test** | after static-check | Coverage threshold check (80%+), fuzz tests |
-| **integration-test** | after static-check | Full HTTP stack + middleware tests (`//go:build integration`) |
-| **e2e** | after build + test | Download binary (or rebuild fallback), run server, Newman/Postman E2E tests. Runs on every push AND under `act` (no `vars.ACT` guard) — the fallback path rebuilds the binary when cross-job artifact download fails. |
-| **dast** | after build + test | Run server, OWASP ZAP API security scan |
-| **docker** | after static-check + build + test (every push) | Single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make image-smoke-test` + multi-arch build. On `v*.*.*` tag pushes, additionally logs in to GHCR, pushes multi-arch (clean image index, Pattern A), and cosign-signs by digest. On non-tag pushes the login/push/sign steps are skipped — the job still runs end-to-end to catch Dockerfile and multi-arch build regressions on the commit that introduced them, not on release day. |
-| **goreleaser** | tag push only, after all upstream | GoReleaser build, GitHub release (binaries, archives, checksums, changelog) |
-| **ci-pass** | `if: always()`, needs all | Single branch-protection gate that fails if any upstream job failed. On non-tag pushes, `goreleaser` is `skipped` (not `failure`) and `docker` runs normally, so ci-pass still passes correctly. On tag pushes, ci-pass waits for all jobs and only goes green after the full release has verified clean. |
+| **changes** | push, PR, tags | `dorny/paths-filter` — emits `code` output. Filter: `!(**.md|docs/**|specs/**|LICENSE|.gitignore|.claudeignore|.claude/**|benchmarks/**|**.png|**.jpg|**.gif|**.svg)` plus `CLAUDE.md` re-include. |
+| **static-check** | code changes | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| **build** | code changes, after static-check | Build binary, upload artifact |
+| **test** | code changes, after static-check | Coverage threshold check (80%+), fuzz tests |
+| **integration-test** | code changes, after static-check | Full HTTP stack + middleware tests (`//go:build integration`) |
+| **e2e** | code changes, after build + test | Download binary (or rebuild fallback), run server, Newman/Postman E2E tests. Runs on every push AND under `act` (no `vars.ACT` guard) — the fallback path rebuilds the binary when cross-job artifact download fails. |
+| **dast** | code changes, after build + test | Run server, OWASP ZAP API security scan (skipped under `act`) |
+| **goreleaser** | tag push only, after all upstream | GoReleaser build, GitHub release (binaries, archives, checksums, changelog). Anchor of the multi-artifact release — `docker` is serialized after this so a tag either produces both artifacts or none. |
+| **docker** | code changes, after static-check + build + test; serialized after goreleaser on tag push | Single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make image-smoke-test` + multi-arch build. On `v*.*.*` tag pushes, additionally logs in to GHCR, pushes multi-arch (clean image index, Pattern A), and cosign-signs by digest. On non-tag pushes the login/push/sign steps are skipped — the job still runs end-to-end to catch Dockerfile and multi-arch build regressions on the commit that introduced them, not on release day. |
+| **ci-pass** | `if: always()`, needs all | Single branch-protection gate that fails if any upstream job failed. Skipped jobs (changes.code=false on doc-only PRs, goreleaser on non-tag pushes, dast under act) are `result: 'skipped'`, treated as non-failure — ci-pass passes correctly. |
 
 ### Required Secrets and Variables
 

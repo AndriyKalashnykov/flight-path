@@ -257,25 +257,26 @@ All quality/security tools below are installed in one pass by
 
 ## CI/CD
 
-GitHub Actions CI workflow runs on push to `main`, tags `v*`, and pull requests. Non-critical files are excluded via `paths-ignore` (docs, images, benchmarks, `.claude/**`, metadata) — `CLAUDE.md` is re-included via `!CLAUDE.md` negation. Tags are unaffected by `paths-ignore`.
+GitHub Actions CI workflow runs on push to `main`, tags `v*`, and pull requests. The workflow always triggers; a `changes` detector job (`dorny/paths-filter`) gates every heavy job on whether the push touches code (negated glob over `**.md`, `docs/**`, `specs/**`, `LICENSE`, `.gitignore`, `.claudeignore`, `.claude/**`, `benchmarks/**`, image assets — with `CLAUDE.md` re-included as project config). Doc-only PRs only run `changes` (~10s) and `ci-pass` (which treats skipped jobs as success). Avoids the trigger-level `paths-ignore` deadlock with Repository Rulesets — the workflow always reports `ci-pass`, satisfying required-check gates.
 
 Claude Code workflow (`claude.yml`) provides interactive mode (responds to `@claude` mentions, restricted to `OWNER`/`MEMBER`/`COLLABORATOR` author associations) and automated PR review on every non-draft PR. Claude CI Fix workflow (`claude-ci-fix.yml`) auto-triggers on CI failures via `workflow_run` (same-repo branches only) and uses a dual anti-recursion guard (bot-author check + `claude-fix-attempted` label) plus a 12K total input cap on CI logs to prevent prompt-injection context stuffing.
 
-All jobs live in `.github/workflows/ci.yml` (single-file layout matching the `/ci-workflow` skill template). Tag-gated jobs (`goreleaser`, `docker`) are siblings of the normal CI jobs and run only on `v*.*.*` pushes — they are `skipped` on branch/PR pushes.
+All jobs live in `.github/workflows/ci.yml` (single-file layout matching the `/ci-workflow` skill template). The release-side `goreleaser` (tag-only) and `docker` (every push, push/sign tag-gated) are serialized via `needs:` so a tag either produces both the GitHub Release object AND the GHCR image, or neither — no half-released tags.
 
 | Job | Triggers | Steps |
 |-----|----------|-------|
-| **static-check** | all | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
-| **build** | all | Build binary, upload `server-binary` artifact |
-| **test** | all | Coverage threshold check (80%+), fuzz tests, upload coverage artifact |
-| **integration-test** | all | `make integration-test` — full HTTP stack (middleware, CORS branches, error envelope, preflight) via httptest |
-| **e2e** | all | Download binary (fallback rebuild), run server, Newman/Postman E2E tests. Canonical name for the mandatory end-to-end test job — wraps `make e2e`. Runs on every push AND under `act` via `make ci-run` (no `vars.ACT` guard). |
-| **dast** | all (skipped in act) | Download binary (fallback rebuild), run server, OWASP ZAP API security scan |
-| **docker** | all (push/sign steps tag-gated) | Gates 1–3 run every push: single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make image-smoke-test`. Gate 4 multi-arch build runs every push (`push: ${{ startsWith(github.ref, 'refs/tags/') }}`). On `v*.*.*` tags: additionally logs in to GHCR, pushes with clean image index (Pattern A: `provenance: false` + `sbom: false`), installs cosign, and signs by digest. Catches Dockerfile + multi-arch regressions on the commit that introduced them, not on release day. |
-| **goreleaser** | tag push only | GoReleaser builds multi-platform binaries, archives, checksums, changelog, and GitHub Release |
-| **ci-pass** | always | Aggregator gate (`if: always()`, `needs:` all upstream including docker + goreleaser) — single required check for branch protection. On non-tag pushes, goreleaser is `skipped` (not `failure`) and docker runs normally to validate the full pipeline. On tag pushes, ci-pass waits for everything and only goes green after the full release verifies clean. |
+| **changes** | all | `dorny/paths-filter` — emits `code` output; downstream jobs gate on `needs.changes.outputs.code == 'true'` |
+| **static-check** | code changes | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| **build** | code changes | Build binary, upload `server-binary` artifact |
+| **test** | code changes | Coverage threshold check (80%+), fuzz tests, upload coverage artifact |
+| **integration-test** | code changes | `make integration-test` — full HTTP stack (middleware, CORS branches, error envelope, preflight) via httptest |
+| **e2e** | code changes | Download binary (fallback rebuild), run server, Newman/Postman E2E tests. Canonical name for the mandatory end-to-end test job — wraps `make e2e`. Runs on every push AND under `act` via `make ci-run` (no `vars.ACT` guard). |
+| **dast** | code changes (skipped in act) | Download binary (fallback rebuild), run server, OWASP ZAP API security scan |
+| **goreleaser** | tag push only | GoReleaser builds multi-platform binaries, archives, checksums, changelog, and GitHub Release. Anchor of the multi-artifact release — `docker` is serialized after this so a tag either produces both artifacts or none. |
+| **docker** | code changes; serialized after goreleaser on tag push | Gates 1–3 run every push: single-arch build + Trivy image scan (CRITICAL/HIGH blocking) + `make image-smoke-test`. Gate 4 multi-arch build runs every push (`push: ${{ startsWith(github.ref, 'refs/tags/') }}`). On `v*.*.*` tags: additionally logs in to GHCR, pushes with clean image index (Pattern A: `provenance: false` + `sbom: false`), installs cosign, and signs by digest. Catches Dockerfile + multi-arch regressions on the commit that introduced them, not on release day. |
+| **ci-pass** | always | Aggregator gate (`if: always()`, `needs:` all upstream including changes + docker + goreleaser) — single required check for branch protection. Skipped jobs (changes.code=false on doc-only PRs, goreleaser on non-tag pushes, dast under act) are `result: 'skipped'`, which `contains(needs.*.result, 'failure')` treats as non-failure — ci-pass passes correctly. |
 
-The `dast` job is skipped when running locally with `act` (`vars.ACT == 'true'`) because OWASP ZAP needs Docker-in-Docker. The `e2e` and `docker` jobs run cleanly under act: `e2e` rebuilds the binary locally when cross-job artifact download fails, and `docker` exercises all gates (the tag-gated push/sign steps are skipped on non-tag pushes).
+The `dast` job is skipped when running locally with `act` (`vars.ACT == 'true'`) because OWASP ZAP needs Docker-in-Docker. The `e2e` and `docker` jobs run cleanly under act: `e2e` rebuilds the binary locally when cross-job artifact download fails, and `docker` exercises all gates (the tag-gated push/sign steps are skipped on non-tag pushes). The `make ci-run` target generates a synthetic event payload via `--eventpath` so `dorny/paths-filter` can resolve `repository.default_branch` (which act omits by default).
 
 There is no separate `release.yml` — the tag-push release pipeline lives inside `ci.yml` as tag-gated sibling jobs, so `ci-pass` aggregates both CI and release phases into a single green check.
 

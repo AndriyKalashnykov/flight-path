@@ -313,14 +313,27 @@ ci: deps format static-check test integration-test coverage-check build fuzz dep
 	@echo "Local CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
+# Synthetic push-event payload (--eventpath) gives dorny/paths-filter the
+# repository.default_branch field act omits by default — without it, the
+# `changes` detector job errors and every downstream gated job is blocked.
+# The all-zero before/after SHAs make dorny treat the push as the initial
+# commit and report every file as changed, so `code=true` and every job
+# runs — desired behavior for local CI (opposite of the doc-only-skip
+# behavior on GitHub).
 ci-run: deps
 	@docker container prune -f 2>/dev/null || true
-	@if [ -f ~/.secrets ]; then . ~/.secrets; fi; \
+	@EVENT=$$(mktemp /tmp/act-push-event.XXXXXX.json); \
+	printf '{"repository":{"default_branch":"main"},"ref":"refs/heads/main","before":"0000000000000000000000000000000000000000","after":"0000000000000000000000000000000000000000"}' > $$EVENT; \
+	if [ -f ~/.secrets ]; then . ~/.secrets; fi; \
 	act push -W .github/workflows/ci.yml \
+		--eventpath $$EVENT \
 		--container-architecture linux/amd64 \
 		--artifact-server-path /tmp/act-artifacts \
 		--var ACT=true \
-		$${GITHUB_TOKEN:+-s GITHUB_TOKEN=$$GITHUB_TOKEN}
+		$${GITHUB_TOKEN:+-s GITHUB_TOKEN=$$GITHUB_TOKEN}; \
+	RC=$$?; \
+	rm -f $$EVENT; \
+	exit $$RC
 
 #check: @ Run pre-commit checklist (alias for ci)
 check: ci
