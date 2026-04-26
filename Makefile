@@ -316,6 +316,10 @@ ci: deps format static-check test integration-test coverage-check build fuzz dep
 # Synthetic push-event payload (--eventpath) gives dorny/paths-filter the
 # repository.default_branch field act omits by default — without it, the
 # `changes` detector job errors and every downstream gated job is blocked.
+# The all-zero before/after SHAs make dorny treat the push as the initial
+# commit and report every file as changed, so `code=true` and every job
+# runs — desired behavior for local CI (opposite of the doc-only-skip
+# behavior on GitHub).
 ci-run: deps
 	@docker container prune -f 2>/dev/null || true
 	@EVENT=$$(mktemp /tmp/act-push-event.XXXXXX.json); \

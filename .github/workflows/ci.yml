@@ -20,11 +20,17 @@ jobs:
   # Path-detection gate. Workflow always triggers; heavy jobs gate on the
   # `code` output below. Replaces trigger-level `paths-ignore`, which deadlocks
   # with Repository Rulesets (no synthetic success for required checks).
+  #
+  # Tag pushes always force `code=true` so the full CI pipeline (incl. e2e,
+  # docker, goreleaser) runs on every release tag — preserves the original
+  # "tags are unaffected by paths-ignore" guarantee. Without this, a tag
+  # pointing at a doc-only commit would skip every gated job and goreleaser
+  # would publish a release with zero tests run.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     outputs:
-      code: ${{ steps.filter.outputs.code }}
+      code: ${{ steps.decide.outputs.code }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -36,6 +42,16 @@ jobs:
             code:
               - '!(**.md|docs/**|specs/**|LICENSE|.gitignore|.claudeignore|.claude/**|benchmarks/**|**.png|**.jpg|**.gif|**.svg)'
               - 'CLAUDE.md'
+      - name: Decide code output (force true on tag pushes)
+        id: decide
+        env:
+          FILTER_CODE: ${{ steps.filter.outputs.code }}
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=${FILTER_CODE}" >> "$GITHUB_OUTPUT"
+          fi
 
   static-check:
     needs: [changes]
@@ -240,7 +256,7 @@ jobs:
         run: make e2e-quick
 
   dast:
-    if: ${{ vars.ACT != 'true' && needs.changes.outputs.code == 'true' }}
+    if: vars.ACT != 'true' && needs.changes.outputs.code == 'true'
     needs: [changes, build, test]
     timeout-minutes: 15
     runs-on: ubuntu-latest
