@@ -16,7 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge (squash)
+        # `--repo` is required because the job has no `actions/checkout` step,
+        # so cwd is not a git repo and `gh pr merge` cannot auto-detect the
+        # remote — without this flag every run fails with
+        # `fatal: not a git repository`.
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-        run: gh pr merge "$PR" --auto --squash
+          REPO: ${{ github.repository }}
+        run: gh pr merge "$PR" --auto --squash --repo "$REPO"
