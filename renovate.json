@@ -8,6 +8,7 @@
     "gomod",
     "github-actions",
     "dockerfile",
+    "mise",
     "npm",
     "custom.regex"
   ],
@@ -99,11 +100,11 @@
       ]
     },
     {
-      "description": "Group Makefile tool version updates",
+      "description": "Group toolchain pins (Makefile and .mise.toml inline-renovate-comment updates)",
       "matchManagers": [
         "custom.regex"
       ],
-      "groupName": "Makefile tools"
+      "groupName": "Toolchain pins"
     },
     {
       "description": "Group Node.js dependencies",

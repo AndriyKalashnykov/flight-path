@@ -1,37 +1,14 @@
 # Architecture
 
-C4 model diagrams and request/CI workflow diagrams for the Flight Path API.
-
-## C4 Context Diagram
-
-Shows the system boundary and external actors interacting with the Flight Path API.
-
-```mermaid
-C4Context
-    title System Context Diagram - Flight Path API
-
-    Person(user, "API Client", "Developer or application consuming the Flight Path API")
-
-    System(flightpath, "Flight Path API", "Go microservice that calculates flight paths from unordered flight segments")
-
-    System_Ext(swagger, "Swagger UI", "Auto-generated API documentation and interactive testing")
-    System_Ext(ci, "GitHub Actions CI", "Automated build, test, security scan, and image scan pipeline")
-
-    Rel(user, flightpath, "POST /calculate, GET /", "HTTP/JSON")
-    Rel(user, swagger, "Browses API docs", "HTTP")
-    Rel(swagger, flightpath, "Serves from /swagger/*", "HTTP")
-    Rel(ci, flightpath, "Builds, tests, scans", "CI pipeline")
-
-    UpdateLayoutConfig($c4ShapeInRow="3")
-```
+C4 Container, request-flow sequence, and CI/CD pipeline diagrams for the Flight Path API. The System Context diagram lives in the project [README](../README.md#overview).
 
 ## C4 Container Diagram
 
 flight-path ships as **one runnable container** — a statically-linked Go binary
 that embeds the HTTP server, routing, handlers, the `FindItinerary` algorithm,
-and the Swagger UI (via `swaggo/echo-swagger`). The diagram below matches that
-reality. For the internal module structure inside that one container (routes,
-handlers, algorithm, data models) see the Component diagram below.
+and the Swagger UI (via `swaggo/echo-swagger`). It has no datastore, message
+broker, cache, or third-party API dependency at runtime — the diagram below
+shows the complete runtime topology.
 
 ```mermaid
 C4Container
@@ -43,56 +20,13 @@ C4Container
         Container(server, "flight-path server", "Go 1.26.2, Echo v5.1.0", "Single static binary. Serves POST /calculate, GET /, and GET /swagger/* (embedded Swagger UI via swaggo/echo-swagger v2.0.1). Middleware stack: Logger, Recover, CORS, Secure, Cache-Control, Gzip, RequestID, BodyLimit 1 MiB.")
     }
 
-    System_Ext(ci, "GitHub Actions CI", "Builds, tests, scans, signs")
-    System_Ext(ghcr, "GHCR", "Hosts multi-arch signed container images")
-    System_Ext(sigstore, "Sigstore", "Cosign keyless OIDC signing + Rekor transparency log")
-
     Rel(client, server, "POST /calculate, GET /, GET /swagger/*", "HTTPS / JSON")
-    Rel(ci, server, "Builds, tests, image-scans", "make ci / make image-scan")
-    Rel(ci, ghcr, "Publishes images (on tag push)", "docker push")
-    Rel(ci, sigstore, "Signs manifests by digest", "cosign OIDC")
-
-    UpdateLayoutConfig($c4ShapeInRow="3")
 ```
 
-## C4 Component Diagram
-
-Shows the internal components and their relationships.
-
-```mermaid
-C4Component
-    title Component Diagram - Flight Path API
-
-    Container_Boundary(main_boundary, "main.go") {
-        Component(entrypoint, "main()", "Entry Point", "Loads .env, creates Echo instance, registers middleware and routes, starts server")
-    }
-
-    Container_Boundary(routes_boundary, "internal/routes/") {
-        Component(flight_routes, "FlightRoutes", "Route Registration", "POST /calculate -> FlightCalculate")
-        Component(health_routes, "HealthcheckRoutes", "Route Registration", "GET / -> ServerHealthCheck")
-        Component(swagger_routes, "SwaggerRoutes", "Route Registration", "GET /swagger/* -> Swagger UI")
-    }
-
-    Container_Boundary(handlers_boundary, "internal/handlers/") {
-        Component(handler_struct, "Handler struct", "Constructor", "New() creates Handler instance")
-        Component(flight_handler, "FlightCalculate", "Handler Method", "Binds [][]string, validates segments, calls FindItinerary, returns [start, end]")
-        Component(health_handler, "ServerHealthCheck", "Handler Method", "Returns server status JSON")
-        Component(find_itinerary, "FindItinerary", "Algorithm", "O(n) two-pass map algorithm: finds airport with no incoming (start) and no outgoing (end)")
-    }
-
-    Container_Boundary(pkg_boundary, "pkg/api/") {
-        Component(flight_model, "Flight", "Data Model", "struct { Start string, End string }")
-    }
-
-    Rel(entrypoint, flight_routes, "Registers")
-    Rel(entrypoint, health_routes, "Registers")
-    Rel(entrypoint, swagger_routes, "Registers")
-    Rel(flight_routes, flight_handler, "Routes to")
-    Rel(health_routes, health_handler, "Routes to")
-    Rel(flight_handler, find_itinerary, "Calls")
-    Rel(find_itinerary, flight_model, "Uses")
-    Rel(flight_handler, flight_model, "Converts payload to")
-```
+The internal package layout (`internal/{routes,handlers}`, `pkg/api/`) mirrors
+the layered-architecture table in the [README Architecture section](../README.md#architecture)
+— there is no Component-level surprise that warrants a separate C4 Component
+diagram.
 
 ## Request Flow — POST /calculate
 
@@ -134,56 +68,55 @@ sequenceDiagram
 
 ## CI/CD Pipeline
 
-GitHub Actions workflow showing the build, test, and security scanning pipeline.
+The single workflow at [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push, pull request, and `v*` tag. A `changes` paths-filter gates every heavy job on whether the push touches code; `ci-pass` is the single required status check for branch protection.
 
 ```mermaid
 flowchart TD
-    trigger["Push / Pull Request"] --> static
+    trigger["push / pull_request / tag v*"] --> changes["changes<br/>(dorny/paths-filter)"]
 
-    subgraph static["Static Check"]
-        lint["golangci-lint<br/>(60+ linters)"]
-        sec["gosec<br/>(security scanner)"]
-        vuln["govulncheck<br/>(dependency CVEs)"]
-        secrets["gitleaks<br/>(secrets detection)"]
-        actionlint["actionlint<br/>(CI lint)"]
-        trivyfs["Trivy filesystem<br/>(vuln + secret + misconfig)"]
-    end
+    changes -->|code = true| static["static-check<br/>(make static-check)"]
+    changes -->|code = true| build["build<br/>(upload binary)"]
 
-    static --> builds["Build Binary"]
-    builds --> tests
+    static --> test["test<br/>(coverage 80% + fuzz)"]
+    static --> integ["integration-test<br/>(httptest, //go:build integration)"]
 
-    subgraph tests["Tests"]
-        unit["Unit + Handler Tests<br/>(go test ./...)"]
-        fuzz["Fuzz Tests<br/>(30 seconds)"]
-    end
+    build --> e2e["e2e<br/>(Newman / Postman, 18 cases)"]
+    test --> e2e
+    build --> dast["dast<br/>(OWASP ZAP, skipped under act)"]
+    test --> dast
 
-    builds --> imgscan
+    static --> docker
+    build --> docker
+    test --> docker
 
-    subgraph imgscan["Image Scan"]
-        docker["Build Docker Image"]
-        trivyimg["Trivy Image Scan<br/>(CRITICAL + HIGH)"]
-        docker --> trivyimg
-    end
+    docker["docker<br/>build → Trivy → smoke → multi-arch<br/>(push + cosign sign on tag)"]
 
-    tests --> integration
+    e2e --> goreleaser
+    dast --> goreleaser
+    integ --> goreleaser
+    static --> goreleaser
+    build --> goreleaser
+    test --> goreleaser
+    goreleaser["goreleaser<br/>(tag only)"] --> docker
 
-    subgraph integration["Integration Tests"]
-        start["Build + Start Server"]
-        newman["Newman/Postman E2E<br/>(6 test cases)"]
-        start --> newman
-    end
+    changes --> pass
+    static --> pass
+    build --> pass
+    test --> pass
+    integ --> pass
+    e2e --> pass
+    dast --> pass
+    goreleaser --> pass
+    docker --> pass
+    pass["ci-pass<br/>(required status check)"]
 
-    integration --> dast
-
-    subgraph dast["DAST"]
-        zapstart["Build + Start Server"]
-        zap["OWASP ZAP API Scan<br/>(via Swagger spec)"]
-        zapstart --> zap
-    end
-
+    style changes fill:#fff3e0
     style static fill:#e1f5fe
-    style tests fill:#e8f5e9
-    style integration fill:#fff3e0
+    style test fill:#e8f5e9
+    style integ fill:#e8f5e9
+    style e2e fill:#e8f5e9
     style dast fill:#fce4ec
-    style imgscan fill:#f3e5f5
+    style docker fill:#f3e5f5
+    style goreleaser fill:#f3e5f5
+    style pass fill:#c8e6c9
 ```

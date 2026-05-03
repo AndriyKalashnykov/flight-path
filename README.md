@@ -14,16 +14,10 @@ C4Context
     title System Context — flight-path
     Person(client, "API Client", "cURL, Postman, Newman, browser")
     System(flightpath, "flight-path", "Go REST API that reconstructs full itinerary from unordered flight segments")
-    System_Ext(ghcr, "GitHub Container Registry", "Hosts multi-arch signed images")
-    System_Ext(sigstore, "Sigstore", "Cosign keyless OIDC signing")
     Rel(client, flightpath, "POST /calculate", "HTTPS/JSON")
-    Rel(flightpath, ghcr, "Published images", "docker push")
-    Rel(flightpath, sigstore, "Signed by digest", "cosign OIDC")
-
-    UpdateLayoutConfig($c4ShapeInRow="3")
 ```
 
-See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, Component, request-flow sequence, and CI/CD pipeline diagrams.
+See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, request-flow sequence, and CI/CD pipeline diagrams.
 
 ## Tech Stack
 
@@ -92,7 +86,7 @@ flowchart LR
     client --> mw --> routes --> handlers --> algo
 ```
 
-See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for Container, Component, request-flow sequence, and CI/CD pipeline diagrams.
+See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for Container, request-flow sequence, and CI/CD pipeline diagrams.
 
 ## API
 
@@ -145,9 +139,9 @@ Auto-generated OpenAPI spec: [`docs/swagger.json`](./docs/swagger.json)
 | go test -fuzz | `make fuzz` | Fuzz testing for FindItinerary algorithm |
 | [Newman](https://github.com/postmanlabs/newman) | `make e2e` | Postman/Newman end-to-end API tests |
 
-## Postman/Newman end-to-end tests
+### End-to-end tests (Postman/Newman)
 
-Utilized Postman collection exported to [JSON file](./test/FlightPath.postman_collection.json) and executes 18 test cases:
+The Postman collection ([JSON](./test/FlightPath.postman_collection.json)) executes 18 test cases:
 
 - **HealthCheck** — `GET /` returns `{"data": "..."}`
 - **UseCase01–03** — happy paths matching `test-case-one`, `test-case-two`, `test-case-three` (1, 2, 4 segments)
@@ -203,7 +197,8 @@ Run `make help` to see all available targets.
 
 | Target | Description |
 |--------|-------------|
-| `make format` | Format Go code |
+| `make format` | Format Go code (rewrites in place; for dev use) |
+| `make format-check` | Verify Go code is gofmt-clean (CI gate; non-mutating, exits non-zero on diff) |
 | `make lint` | Run golangci-lint and hadolint (comprehensive linting via .golangci.yml) |
 | `make sec` | Run gosec security scanner |
 | `make vulncheck` | Run Go vulnerability check on dependencies |
@@ -211,7 +206,7 @@ Run `make help` to see all available targets.
 | `make lint-ci` | Lint GitHub Actions workflow files |
 | `make mermaid-lint` | Validate Mermaid diagrams in markdown files |
 | `make release-check` | Validate `.goreleaser.yml` syntax and config via `goreleaser check` |
-| `make static-check` | Run code static check (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| `make static-check` | Run code static check (format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
 
 ### Docker
 
@@ -222,7 +217,8 @@ Run `make help` to see all available targets.
 | `make image-stop` | Stop the locally running Docker container |
 | `make image-push` | Push Docker image to GHCR (requires `GH_ACCESS_TOKEN`; `GHCR_USER` defaults to `git config user.name`) |
 | `make image-smoke-test` | Smoke-test a pre-built Docker container (no rebuild) |
-| `make image-test` | Build and smoke-test Docker container |
+| `make image-structure-test` | Validate Dockerfile metadata + binary properties via container-structure-test |
+| `make image-test` | Build, smoke-test, and structure-test Docker container |
 | `make image-scan` | Build Docker image and run Trivy scan (requires trivy) |
 | `make trivy-fs` | Run Trivy filesystem vulnerability scan (requires trivy) |
 | `make trivy-image` | Run Trivy image vulnerability scan (requires trivy) |
@@ -231,7 +227,7 @@ Run `make help` to see all available targets.
 
 | Target | Description |
 |--------|-------------|
-| `make ci` | Run full CI pipeline locally (deps + format + static-check + test + integration-test + coverage-check + build + fuzz + deps-prune-check) |
+| `make ci` | Run full CI pipeline locally (deps + static-check + test + integration-test + coverage-check + build + fuzz + deps-prune-check) |
 | `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
 | `make check` | Run pre-commit checklist (alias for `make ci`) |
 
@@ -258,7 +254,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All j
 | Job | Triggers | Steps |
 |-----|----------|-------|
 | **changes** | push, PR, tags | `dorny/paths-filter` — emits `code` output. Filter: `!(**.md|docs/**|specs/**|LICENSE|.gitignore|.claudeignore|.claude/**|benchmarks/**|**.png|**.jpg|**.gif|**.svg)` plus `CLAUDE.md` re-include. |
-| **static-check** | code changes | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| **static-check** | code changes | `make static-check` (format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
 | **build** | code changes, after static-check | Build binary, upload artifact |
 | **test** | code changes, after static-check | Coverage threshold check (80%+), fuzz tests |
 | **integration-test** | code changes, after static-check | Full HTTP stack + middleware tests (`//go:build integration`) |
@@ -289,6 +285,7 @@ The `docker` job runs the following gates on **every push**. Gates 1–3 run unc
 | 1 | Build local single-arch image | Build regressions on the runner architecture | `docker/build-push-action` with `load: true` | every push |
 | 2 | **Trivy image scan** (CRITICAL/HIGH blocking) | CVEs in base image, OS packages, build layers; secrets; misconfigs | `aquasecurity/trivy-action` with `image-ref:` | every push |
 | 3 | **Smoke test** | Image boots, health endpoint responds, `/calculate` returns correct result | `make image-smoke-test` | every push |
+| 3b | **Container structure test** | Dockerfile metadata invariants (binary path, USER, entrypoint, /etc/passwd content) | `make image-structure-test` | every push |
 | 4 | Multi-arch build + conditional push (clean image index) | Multi-arch build regressions (linux/arm64 cross-compile issues); on tags, publishes with `provenance: false` + `sbom: false` so the GHCR "OS / Arch" tab renders correctly | `docker/build-push-action` with `push: ${{ startsWith(github.ref, 'refs/tags/') }}` | every push (build); tag only (push) |
 | 5 | **Cosign keyless OIDC signing** | Sigstore signature on the manifest digest (no long-lived keys) — the supply-chain verification primitive for this image | `sigstore/cosign-installer` + `cosign sign` | tag only |
 
@@ -308,11 +305,14 @@ cosign verify ghcr.io/andriykalashnykov/flight-path:<tag> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-A [Claude Code workflow](./.github/workflows/claude.yml) provides interactive mode (responds to `@claude` mentions from trusted authors) and automated PR review on every non-draft PR.
+### Companion workflows
 
-A [Claude CI Fix workflow](./.github/workflows/claude-ci-fix.yml) auto-triggers on CI failures for same-repo PR branches to attempt automated fixes with anti-recursion guards.
-
-A [cleanup workflow](./.github/workflows/cleanup-runs.yml) runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches.
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| [`claude.yml`](./.github/workflows/claude.yml) | `@claude` mention from trusted author; non-draft PR open/sync | Interactive Claude Code responder + automated PR review |
+| [`claude-ci-fix.yml`](./.github/workflows/claude-ci-fix.yml) | CI failure on same-repo PR branch | Attempt automated fix with anti-recursion guards (bot-author + label) |
+| [`auto-merge.yml`](./.github/workflows/auto-merge.yml) | Renovate PR opened or `ci-pass` succeeds | Enable GitHub native auto-merge on Renovate PRs once required checks pass |
+| [`cleanup-runs.yml`](./.github/workflows/cleanup-runs.yml) | Sundays at 00:00 UTC | Delete old workflow runs (retain 7 days, min 5) and prune merged-branch caches |
 
 [Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.
 

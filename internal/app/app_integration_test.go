@@ -8,9 +8,10 @@ package app_test
 
 import (
 	"bytes"
-	"io"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -55,6 +56,13 @@ func TestHealthCheckSecurityHeaders(t *testing.T) {
 			t.Errorf("%s: want %q, got %q", k, v, got)
 		}
 	}
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body["data"] == "" {
+		t.Errorf("health body missing non-empty data field: %v", body)
+	}
 }
 
 func TestCORSDefaultWildcard(t *testing.T) {
@@ -95,6 +103,22 @@ func TestCORSPreflight(t *testing.T) {
 	}
 }
 
+func TestCORSPreflightCustomOrigin(t *testing.T) {
+	s := newTestServer(t, map[string]string{"CORS_ORIGIN": "https://app.example"})
+	req := must(http.NewRequest(http.MethodOptions, s.URL+"/calculate", nil))
+	req.Header.Set("Origin", "https://app.example")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "Content-Type")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		t.Errorf("preflight: want 204 or 200, got %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "https://app.example" {
+		t.Errorf("preflight Access-Control-Allow-Origin: want https://app.example, got %q", got)
+	}
+}
+
 func TestCalculateHappyPath(t *testing.T) {
 	s := newTestServer(t, nil)
 	body := bytes.NewBufferString(`[["SFO","ATL"],["ATL","EWR"]]`)
@@ -105,9 +129,84 @@ func TestCalculateHappyPath(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("want 200, got %d", resp.StatusCode)
 	}
-	b, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(b), `"SFO"`) || !strings.Contains(string(b), `"EWR"`) {
-		t.Errorf("body missing start/end airports: %s", string(b))
+	var got []string
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	want := []string{"SFO", "EWR"}
+	if !slices.Equal(got, want) {
+		t.Errorf("body: want %v, got %v", want, got)
+	}
+}
+
+func TestCalculateEmptyArray(t *testing.T) {
+	s := newTestServer(t, nil)
+	body := bytes.NewBufferString(`[]`)
+	req := must(http.NewRequest(http.MethodPost, s.URL+"/calculate", body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", resp.StatusCode)
+	}
+	var env map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	msg, _ := env["Error"].(string)
+	if !strings.Contains(strings.ToLower(msg), "empty") {
+		t.Errorf("Error: want substring 'empty', got %q", msg)
+	}
+	if _, hasIndex := env["Index"]; hasIndex {
+		t.Errorf("empty-array response should not include Index field, got %v", env)
+	}
+}
+
+func TestCalculateMalformedJSON(t *testing.T) {
+	s := newTestServer(t, nil)
+	body := bytes.NewBufferString(`not valid json`)
+	req := must(http.NewRequest(http.MethodPost, s.URL+"/calculate", body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", resp.StatusCode)
+	}
+	var env map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	msg, _ := env["Error"].(string)
+	if !strings.Contains(strings.ToLower(msg), "parse") {
+		t.Errorf("Error: want substring 'parse', got %q", msg)
+	}
+}
+
+func TestCalculateIncompleteSegmentBody(t *testing.T) {
+	s := newTestServer(t, nil)
+	// Second segment is incomplete — handler should report Error + Index=1.
+	body := bytes.NewBufferString(`[["SFO","EWR"],["JFK"]]`)
+	req := must(http.NewRequest(http.MethodPost, s.URL+"/calculate", body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", resp.StatusCode)
+	}
+	var env map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	msg, _ := env["Error"].(string)
+	if !strings.Contains(strings.ToLower(msg), "source and destination") {
+		t.Errorf("Error: want substring 'source and destination', got %q", msg)
+	}
+	idx, ok := env["Index"].(float64) // JSON numbers decode to float64 in map[string]any
+	if !ok {
+		t.Fatalf("Index: want number, got %T (body: %v)", env["Index"], env)
+	}
+	if int(idx) != 1 {
+		t.Errorf("Index: want 1, got %v", idx)
 	}
 }
 

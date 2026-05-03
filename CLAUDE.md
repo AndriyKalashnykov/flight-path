@@ -38,7 +38,7 @@ flight-path/
 ├── docs/                                # Generated Swagger docs + architecture/planning docs (ARCHITECTURE.md has Mermaid diagrams)
 ├── specs/                               # Reverse-engineered specifications (see specs/README.md for index)
 ├── test/
-│   ├── FlightPath.postman_collection.json  # E2E test collection (11 cases: HealthCheck + 5 happy + 5 negative)
+│   ├── FlightPath.postman_collection.json  # E2E test collection (18 cases: 3 health/security + 1 swagger + 6 happy + 8 negative)
 │   ├── package.json                     # Newman dependency manifest (pnpm)
 │   ├── pnpm-lock.yaml                   # pnpm lock file (reproducible builds)
 │   └── .npmrc                           # pnpm configuration
@@ -103,7 +103,8 @@ make help           # List available tasks
 make deps           # Install toolchain — `mise install` reads .mise.toml and provisions Go, Node, and every quality/security tool (golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser). swag + benchstat stay Go-installed; newman via pnpm + corepack
 make deps-check     # Show required Go version, mise status, and tool status
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
-make format         # Format Go code
+make format         # Format Go code (rewrites in place; for dev use)
+make format-check   # Verify Go code is gofmt-clean (CI gate; non-mutating)
 make lint           # Run golangci-lint + hadolint (comprehensive linting via .golangci.yml)
 make sec            # Run gosec security scanner
 make vulncheck      # Run Go vulnerability check on dependencies
@@ -117,7 +118,7 @@ make fuzz           # Run fuzz tests for 30 seconds
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare latest two benchmark runs
-make static-check   # All static analysis (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check)
+make static-check   # All static analysis (format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check)
 make build          # Generate Swagger docs + compile binary
 make run            # Build and run server locally
 make e2e            # Self-contained: build + start server + run Newman + stop server
@@ -128,7 +129,7 @@ make test-case-three # curl test: 4-segment path
 make update         # Update Go dependencies
 make release        # Tag and push a new release (runs full `ci` pipeline first)
 make check          # Full pre-commit checklist (alias for make ci)
-make ci             # Local CI pipeline (deps + format + static-check + test + integration-test + coverage-check + build + fuzz + deps-prune-check)
+make ci             # Local CI pipeline (deps + static-check + test + integration-test + coverage-check + build + fuzz + deps-prune-check)
 make ci-run         # Run GitHub Actions workflow locally using act
 make coverage       # Run tests with coverage report
 make coverage-check # Verify coverage meets 80% threshold
@@ -138,7 +139,8 @@ make image-run      # Run Docker container locally (detached; use image-stop to 
 make image-stop     # Stop the locally running Docker container
 make image-push     # Push Docker image to GHCR (requires GH_ACCESS_TOKEN)
 make image-smoke-test # Smoke-test a pre-built Docker container (no rebuild)
-make image-test     # Build and smoke-test Docker container
+make image-structure-test # Validate Dockerfile metadata + binary properties (container-structure-test)
+make image-test     # Build, smoke-test, and structure-test Docker container
 make image-scan     # Build Docker image and run Trivy scan (requires trivy)
 make trivy-fs       # Run Trivy filesystem vulnerability scan (requires trivy)
 make trivy-image    # Run Trivy image vulnerability scan (requires trivy)
@@ -250,6 +252,7 @@ All quality/security tools below are installed in one pass by
 | `trivy` | Vulnerability scanner (images + filesystem) | mise / `.mise.toml` |
 | `act` | Local GitHub Actions runner | mise / `.mise.toml` |
 | `goreleaser` | Release binary builder + `.goreleaser.yml` validator | mise / `.mise.toml` |
+| `container-structure-test` | Dockerfile metadata + binary property validator | mise / `.mise.toml` (aqua:GoogleContainerTools/container-structure-test) |
 | `swag` | Swagger generation | `go install` (pinned via `SWAG_VERSION` in Makefile) |
 | `benchstat` | Benchmark comparison | `go install` (pinned via `BENCHSTAT_VERSION` in Makefile) |
 | `newman` | E2E API testing | `pnpm install` in `test/` (pinned in `test/package.json`) |

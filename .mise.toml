@@ -26,3 +26,5 @@ trivy = "0.69.3"
 act = "0.2.87"
 # renovate: datasource=github-releases depName=goreleaser/goreleaser
 goreleaser = "2.15.2"
+# renovate: datasource=github-releases depName=GoogleContainerTools/container-structure-test
+"aqua:GoogleContainerTools/container-structure-test" = "1.22.1"

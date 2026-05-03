@@ -86,7 +86,10 @@ jobs:
     if: |
       github.event_name == 'pull_request' &&
       github.event.pull_request.draft == false &&
-      github.event.pull_request.author_association != 'NONE'
+      (github.event.pull_request.author_association == 'OWNER' ||
+       github.event.pull_request.author_association == 'MEMBER' ||
+       github.event.pull_request.author_association == 'COLLABORATOR' ||
+       github.event.pull_request.user.login == 'renovate[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
