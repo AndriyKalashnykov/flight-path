@@ -465,8 +465,19 @@ jobs:
       # =================================================================
       # GATE 3b: Container structure test (Dockerfile metadata + binary)
       # =================================================================
+      # The docker job intentionally doesn't use mise (it's Docker-tool focused),
+      # so install container-structure-test directly. Version mirrors .mise.toml
+      # — when bumping, update both. Renovate tracks the .mise.toml pin.
+      - name: Install container-structure-test
+        run: |
+          set -euo pipefail
+          CST_VERSION=1.22.1
+          curl -fsSL -o /tmp/cst "https://github.com/GoogleContainerTools/container-structure-test/releases/download/v${CST_VERSION}/container-structure-test-linux-amd64"
+          install -m 0755 /tmp/cst /usr/local/bin/container-structure-test
+          container-structure-test version
+
       - name: Container structure test
-        run: make image-structure-test
+        run: container-structure-test test --image flight-path:local --config container-structure-test.yaml
 
       # =================================================================
       # Multi-arch build — runs on EVERY push. Catches multi-arch build
