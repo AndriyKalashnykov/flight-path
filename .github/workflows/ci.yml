@@ -42,7 +42,9 @@ jobs:
             code:
               - '!(**.md|docs/**|specs/**|LICENSE|.gitignore|.claudeignore|.claude/**|benchmarks/**|**.png|**.jpg|**.gif|**.svg)'
               - 'CLAUDE.md'
-      - name: Decide code output (force true on tag pushes)
+      # Tag pushes always force `code=true` so the full release pipeline runs
+      # even if the tag points at a doc-only commit.
+      - name: Decide code output
         id: decide
         env:
           FILTER_CODE: ${{ steps.filter.outputs.code }}
@@ -69,7 +71,7 @@ jobs:
       # mise-managed installs. Replaces actions/setup-go and the parallel
       # `~/.local/bin` + `~/go/bin` caches that were needed when tools were
       # installed piecemeal by the Makefile.
-      - name: Set up toolchain (mise)
+      - name: Set up mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: true
@@ -97,7 +99,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Set up toolchain (mise)
+      - name: Set up mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: true
@@ -133,7 +135,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Set up toolchain (mise)
+      - name: Set up mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: true
@@ -172,7 +174,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Set up toolchain (mise)
+      - name: Set up mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: true
@@ -210,7 +212,7 @@ jobs:
       # mise-action installs BOTH go (from .mise.toml) and node (from
       # .mise.toml, which mirrors .nvmrc). Replaces the parallel setup-go +
       # setup-node pair.
-      - name: Set up toolchain (mise)
+      - name: Set up mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: true
@@ -242,7 +244,7 @@ jobs:
       # Fallback: rebuild if artifact download failed (e.g., under act,
       # cross-job artifact download is unreliable; continue-on-error + this
       # fallback make the job work in both GHA and act environments).
-      - name: Build (fallback)
+      - name: Build
         if: steps.download-binary.outcome == 'failure'
         run: make build
 
@@ -274,14 +276,16 @@ jobs:
       # Fallback path: install toolchain via mise and rebuild if artifact
       # download failed (pulls Go from .mise.toml — same source of truth as
       # the build job).
-      - name: Set up toolchain (mise, fallback)
+      # Fallback path when artifact download fails (e.g., under act).
+      - name: Set up mise
         if: steps.download-binary.outcome == 'failure'
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: true
           cache: true
 
-      - name: Build (fallback)
+      # Fallback: rebuild if artifact download failed.
+      - name: Build
         if: steps.download-binary.outcome == 'failure'
         run: make build
 
@@ -342,7 +346,7 @@ jobs:
         with:
           fetch-depth: 0   # goreleaser needs full history for changelog
 
-      - name: Set up toolchain (mise)
+      - name: Set up mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: true
@@ -457,6 +461,23 @@ jobs:
       - name: Cleanup smoke container
         if: always()
         run: docker rm -f fp-test 2>/dev/null || true
+
+      # =================================================================
+      # GATE 3b: Container structure test (Dockerfile metadata + binary)
+      # =================================================================
+      # The docker job intentionally doesn't use mise (it's Docker-tool focused),
+      # so install container-structure-test directly. Version mirrors .mise.toml
+      # — when bumping, update both. Renovate tracks the .mise.toml pin.
+      - name: Install container-structure-test
+        run: |
+          set -euo pipefail
+          CST_VERSION=1.22.1
+          curl -fsSL -o /tmp/cst "https://github.com/GoogleContainerTools/container-structure-test/releases/download/v${CST_VERSION}/container-structure-test-linux-amd64"
+          install -m 0755 /tmp/cst /usr/local/bin/container-structure-test
+          container-structure-test version
+
+      - name: Container structure test
+        run: container-structure-test test --image flight-path:local --config container-structure-test.yaml
 
       # =================================================================
       # Multi-arch build — runs on EVERY push. Catches multi-arch build

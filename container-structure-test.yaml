@@ -1,0 +1,23 @@
+schemaVersion: 2.0.0
+
+# Container structure validation for the flight-path runtime image.
+# Run via `make image-structure-test` locally and the `docker` job in CI.
+# Complements the Trivy CVE scan and smoke test by asserting Dockerfile-level
+# invariants that smoke testing alone cannot verify (binary path, ownership,
+# metadata, entrypoint, healthcheck).
+
+fileExistenceTests:
+  - name: 'main binary exists at /main'
+    path: '/main'
+    shouldExist: true
+
+fileContentTests:
+  - name: 'srvuser is a normal user (uid 1000) in /etc/passwd'
+    path: '/etc/passwd'
+    expectedContents: ['srvuser:x:1000:1000']
+
+metadataTest:
+  entrypoint: ['/main']
+  user: 'srvuser:srvgroup'
+  # No ENV / EXPOSE / CMD assertions: we don't pin port via EXPOSE (it's
+  # documentation-only and SERVER_PORT comes from .env / env at runtime).

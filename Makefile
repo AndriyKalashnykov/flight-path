@@ -97,7 +97,7 @@ deps-check:
 	@echo "Go version required: $(GO_VERSION)"
 	@if command -v mise >/dev/null 2>&1; then mise list 2>/dev/null || echo "mise: .mise.toml not trusted — run 'mise trust'"; else echo "mise not installed - install from https://mise.jdx.dev"; fi
 	@echo "--- Tool status ---"
-	@for tool in swag benchstat golangci-lint gosec govulncheck gitleaks actionlint shellcheck hadolint trivy act goreleaser node pnpm; do \
+	@for tool in swag benchstat golangci-lint gosec govulncheck gitleaks actionlint shellcheck hadolint trivy act goreleaser container-structure-test node pnpm; do \
 		printf "  %-16s " "$$tool:"; \
 		command -v $$tool >/dev/null 2>&1 && echo "installed" || echo "NOT installed"; \
 	done
@@ -138,7 +138,8 @@ bench-compare: deps
 			exit 1; \
 		fi; \
 		echo "Comparing: $$OLD_FILE (old) vs $$NEW_FILE (new)"; \
-		$(call go-exec,benchstat $$OLD_FILE $$NEW_FILE); \
+		export OLD_FILE NEW_FILE; \
+		$(call go-exec,benchstat "$$OLD_FILE" "$$NEW_FILE"); \
 	else \
 		$(call go-exec,benchstat $(OLD) $(NEW)); \
 	fi
@@ -164,16 +165,25 @@ sec: deps
 lint-ci: deps
 	@$(call go-exec,actionlint)
 
-#format: @ Format Go code
+#format: @ Format Go code (rewrites files in place; for dev use)
 format: deps
 	@$(call go-exec,gofmt -l -w .)
+
+#format-check: @ Verify Go code is gofmt-clean (CI gate; non-mutating, exits non-zero on diff)
+format-check: deps
+	@DIFF=$$($(call go-exec,gofmt -l .)); \
+	if [ -n "$$DIFF" ]; then \
+		echo "ERROR: gofmt would rewrite the following files. Run 'make format'."; \
+		echo "$$DIFF"; \
+		exit 1; \
+	fi
 
 #release-check: @ Validate .goreleaser.yml syntax and config
 release-check: deps
 	@goreleaser check
 
 #static-check: @ Run code static check
-static-check: lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint release-check
+static-check: format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint release-check
 	@echo "Static check passed."
 
 #build: @ Build REST API server's binary
@@ -222,8 +232,13 @@ image-smoke-test:
 	docker rm -f fp-test 2>/dev/null || true; \
 	exit $$RESULT
 
+#image-structure-test: @ Validate Dockerfile metadata + binary properties (container-structure-test)
+image-structure-test: deps
+	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker is required for image-structure-test"; exit 1; }
+	@$(call go-exec,container-structure-test test --image $(APP_NAME):local --config container-structure-test.yaml)
+
 #image-test: @ Build and smoke-test Docker container
-image-test: image-build image-smoke-test
+image-test: image-build image-smoke-test image-structure-test
 
 #image-scan: @ Build Docker image and run Trivy scan (requires trivy)
 image-scan: deps build
@@ -235,6 +250,10 @@ image-scan: deps build
 
 #release: @ Create and push a new tag
 release: ci
+	@git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1 || { \
+		echo "Error: current branch has no upstream. Set one with 'git push -u origin $$(git symbolic-ref --short HEAD)' before releasing."; \
+		exit 1; \
+	}
 	@NT=$$(bash -c 'read -p "Please provide a new tag (current tag - $(CURRENTTAG)): " newtag; echo $$newtag'); \
 	echo "$$NT" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "Error: Tag must match vN.N.N"; exit 1; }; \
 	read -p "Are you sure to create and push $$NT tag? [y/N] " ans; [ "$${ans:-N}" = y ] || exit 1; \
@@ -309,7 +328,7 @@ coverage-check: coverage
 #ci: @ Run full CI pipeline locally (unit + static + build + fuzz + prune-check).
 # For full e2e validation via Newman, use `make ci-run` which drives act
 # through the `e2e` job (Newman runs against the built binary).
-ci: deps format static-check test integration-test coverage-check build fuzz deps-prune-check
+ci: deps static-check test integration-test coverage-check build fuzz deps-prune-check
 	@echo "Local CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
@@ -416,8 +435,8 @@ deps-prune-check: deps
 	@echo "No prunable dependencies found."
 
 .PHONY: help deps deps-check api-docs test integration-test fuzz bench bench-save bench-compare \
-	lint vulncheck secrets sec lint-ci format static-check mermaid-lint release-check build run release update open-swagger \
+	lint vulncheck secrets sec lint-ci format format-check static-check mermaid-lint release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \
-	image-build image-run image-stop image-push image-smoke-test image-test image-scan \
+	image-build image-run image-stop image-push image-smoke-test image-structure-test image-test image-scan \
 	renovate-validate deps-prune deps-prune-check
