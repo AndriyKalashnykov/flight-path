@@ -66,6 +66,34 @@ sequenceDiagram
     H-->>C: 200 ["SFO", "EWR"]
 ```
 
+## Request Flow — CORS preflight + security headers
+
+Browser-initiated cross-origin requests issue an `OPTIONS` preflight before the
+actual `POST`. The CORS middleware answers preflight; the Secure middleware
+attaches headers (XCTO, XFO, CSP, HSTS, XSS-Protection, Referrer-Policy) and
+Cache-Control / Cross-Origin-Resource-Policy on every response.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser
+    participant E as Echo Server
+    participant CORS as CORS Middleware
+    participant SEC as Secure + Cache Middleware
+    participant H as FlightCalculate Handler
+
+    B->>E: OPTIONS /calculate<br/>Origin, Access-Control-Request-Method, -Headers
+    E->>CORS: preflight
+    CORS-->>B: 204 No Content<br/>Access-Control-Allow-Origin: * (or CORS_ORIGIN)<br/>Access-Control-Allow-Methods: GET, POST, OPTIONS
+
+    B->>E: POST /calculate (real request)
+    E->>CORS: pass through
+    CORS->>SEC: pass through
+    SEC->>H: handler invoked
+    H-->>SEC: 200 ["SFO", "EWR"]
+    SEC-->>B: 200 + security headers<br/>(XCTO, XFO, XSS-Protection, Referrer-Policy,<br/>Cache-Control, Cross-Origin-Resource-Policy)
+```
+
 ## CI/CD Pipeline
 
 The single workflow at [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push, pull request, and `v*` tag. A `changes` paths-filter gates every heavy job on whether the push touches code; `ci-pass` is the single required status check for branch protection.

@@ -4,16 +4,17 @@ on:
   pull_request:
     types: [opened, ready_for_review]
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
-  enable:
+  auto-merge:
     if: >-
       !github.event.pull_request.draft &&
       github.event.pull_request.user.login == 'AndriyKalashnykov'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Enable auto-merge (squash)
         # `--repo` is required because the job has no `actions/checkout` step,

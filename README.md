@@ -5,7 +5,7 @@
 
 # Go REST API to reconstruct flight paths from unordered segments
 
-A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
+A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path from start to end airport.
 
 ## Overview
 
@@ -15,6 +15,7 @@ C4Context
     Person(client, "API Client", "cURL, Postman, Newman, browser")
     System(flightpath, "flight-path", "Go REST API that reconstructs full itinerary from unordered flight segments")
     Rel(client, flightpath, "POST /calculate", "HTTPS/JSON")
+    UpdateLayoutConfig($c4ShapeInRow="2")
 ```
 
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, request-flow sequence, and CI/CD pipeline diagrams.
