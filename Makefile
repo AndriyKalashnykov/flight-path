@@ -48,6 +48,13 @@ MERMAID_CLI_VERSION := 11.12.0
 # Exported so every sub-shell the recipes spawn inherits it.
 export PATH := $(HOME)/.local/bin:$(HOME)/.local/share/mise/shims:$(PATH)
 
+# Ephemeral host-port allocator. Use $$($(PICK_PORT)) inside recipes to bind a
+# free port chosen by the kernel — prevents collisions when two `make image-run`
+# or `make image-smoke-test` invocations run side-by-side (sibling repos, parallel
+# CI jobs, two checkouts). Falls back to a random high-range port if the script
+# isn't executable.
+PICK_PORT := $(shell test -x scripts/pick-port.sh && echo ./scripts/pick-port.sh || echo 'shuf -i 40000-59999 -n 1')
+
 # === Go version management: mise (https://mise.jdx.dev) ===
 # mise auto-activates via shell hook, reads .mise.toml, and publishes semver releases
 # trackable by Renovate. CI uses jdx/mise-action (reads .mise.toml directly).
@@ -89,7 +96,11 @@ deps:
 		echo "Error: Node.js not found. Install mise (https://mise.jdx.dev), then run 'mise install' — .mise.toml pins node=$(NODE_VERSION)."; \
 		exit 1; \
 	}
-	@command -v pnpm >/dev/null 2>&1 || { echo "Enabling pnpm via corepack (version from test/package.json packageManager)..."; corepack enable; }
+	@# pnpm version is pinned in test/package.json via the `packageManager` field
+	@# (e.g., "pnpm@10.5.2"). corepack reads that field on first invocation and
+	@# auto-installs the exact version; no separate PNPM_VERSION constant is
+	@# needed in this Makefile. Renovate updates the field in test/package.json.
+	@command -v pnpm >/dev/null 2>&1 || { echo "Enabling pnpm via corepack (version read from test/package.json packageManager field)..."; corepack enable; }
 	@[ -f test/node_modules/.bin/newman ] || { echo "Installing newman..."; cd test && pnpm install; }
 
 #deps-check: @ Show required Go version and tool status
@@ -102,7 +113,7 @@ deps-check:
 		command -v $$tool >/dev/null 2>&1 && echo "installed" || echo "NOT installed"; \
 	done
 
-#api-docs: @ Build source code for swagger api reference
+#api-docs: @ Generate Swagger API documentation from Go annotations
 api-docs: deps
 	@$(call go-exec,swag init --parseDependency -g main.go)
 
@@ -125,7 +136,10 @@ bench: deps
 #bench-save: @ Save benchmark results to file
 bench-save: deps
 	@mkdir -p benchmarks
-	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s) | tee benchmarks/bench_$(shell date +%Y%m%d_%H%M%S).txt
+	@# $$(date) evaluates at recipe-execution time; $(shell date) would evaluate
+	@# at Make-parse time and stamp identical timestamps on consecutive runs
+	@# inside a single `make` invocation.
+	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s) | tee "benchmarks/bench_$$(date +%Y%m%d_%H%M%S).txt"
 
 #bench-compare: @ Compare two benchmark files (usage: make bench-compare OLD=file1.txt NEW=file2.txt)
 bench-compare: deps
@@ -147,6 +161,7 @@ bench-compare: deps
 #lint: @ Run golangci-lint and hadolint (comprehensive linting via .golangci.yml)
 lint: deps lint-scripts-exec
 	@$(call go-exec,golangci-lint run ./...)
+	@command -v hadolint >/dev/null 2>&1 || { echo "ERROR: hadolint not on PATH. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@hadolint Dockerfile
 
 #lint-scripts-exec: @ Verify all shell scripts are executable (catches subagent 0644 writes)
@@ -190,6 +205,7 @@ format-check: deps
 
 #release-check: @ Validate .goreleaser.yml syntax and config
 release-check: deps
+	@command -v goreleaser >/dev/null 2>&1 || { echo "ERROR: goreleaser not on PATH. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@goreleaser check
 
 #static-check: @ Run code static check
@@ -204,25 +220,36 @@ build: deps api-docs
 run: deps build
 	@export TZ="UTC"; ./server -env-file .env
 
+#require-docker: @ Verify docker CLI is available (internal guard for image-* recipes)
+require-docker:
+	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker is required for image-* targets"; exit 1; }
+
 #image-build: @ Build Docker image for local testing
-image-build: build
+image-build: require-docker build
 	@docker buildx build --load \
 		--build-arg GOMODCACHE=$$($(call go-exec,go env GOMODCACHE)) \
 		--build-arg GOCACHE=$$($(call go-exec,go env GOCACHE)) \
 		-t $(APP_NAME):local .
 
-#image-run: @ Run Docker container locally (assumes image built; run `make image-build` first if needed)
-image-run: image-stop
-	@docker run --rm -d --name $(APP_NAME) -p 8080:8080 -e SERVER_PORT=8080 \
-		--entrypoint sh $(APP_NAME):local -c "touch /tmp/.env && /main -env-file /tmp/.env"
+#image-run: @ Run Docker container locally (detached on an ephemeral host port; use `image-stop` to tear down)
+# Allocates an ephemeral host port so two parallel `make image-run` invocations
+# don't collide. Container's internal port stays 8080. SERVER_PORT comes from
+# .env.example via docker --env-file (host-side injection — the binary sees it
+# as an OS env var, no .env file needed inside the container).
+image-run: require-docker image-stop
+	@PORT=$$($(PICK_PORT)); \
+	docker run --rm -d --name $(APP_NAME) -p $$PORT:8080 \
+		--env-file .env.example \
+		$(APP_NAME):local; \
+	echo "Container $(APP_NAME) listening on http://localhost:$$PORT"
 
 #image-stop: @ Stop the locally running Docker container
-image-stop:
+image-stop: require-docker
 	@docker stop $(APP_NAME) 2>/dev/null || true
 	@docker rm -f $(APP_NAME) 2>/dev/null || true
 
 #image-push: @ Push Docker image to GHCR (requires GH_ACCESS_TOKEN and GHCR_USER)
-image-push: image-build
+image-push: require-docker image-build
 	@if [ -z "$$GH_ACCESS_TOKEN" ]; then echo "Error: GH_ACCESS_TOKEN not set"; exit 1; fi
 	@if [ -z "$(GHCR_USER)" ]; then echo "Error: GHCR_USER not set and git user.name unavailable"; exit 1; fi
 	@echo "$$GH_ACCESS_TOKEN" | docker login ghcr.io -u "$(GHCR_USER)" --password-stdin
@@ -230,16 +257,21 @@ image-push: image-build
 	@docker push ghcr.io/$(GHCR_REPO):$(CURRENTTAG)
 
 #image-smoke-test: @ Smoke-test a pre-built Docker container (no rebuild)
-image-smoke-test:
-	@docker run -d --name fp-test -p 8080:8080 -e SERVER_PORT=8080 \
-		--entrypoint sh $(APP_NAME):local -c "touch /tmp/.env && /main -env-file /tmp/.env"; \
+# Uses an ephemeral host port + .env.example for config injection. Cleans up
+# the test container on exit (success, failure, or interrupt) via trap.
+image-smoke-test: require-docker
+	@PORT=$$($(PICK_PORT)); \
+	BASE="http://localhost:$$PORT"; \
+	trap 'docker rm -f fp-test >/dev/null 2>&1 || true' EXIT INT TERM; \
+	docker run -d --name fp-test -p $$PORT:8080 \
+		--env-file .env.example \
+		$(APP_NAME):local >/dev/null; \
 	RESULT=0; \
-	for i in $$(seq 1 10); do curl -sf http://localhost:8080/ >/dev/null 2>&1 && break; sleep 1; done; \
-	curl -sf http://localhost:8080/ && echo "Health: OK" || { echo "Health: FAIL"; docker logs fp-test; RESULT=1; }; \
-	curl -sf -X POST http://localhost:8080/calculate \
+	for i in $$(seq 1 10); do curl -sf "$$BASE/" >/dev/null 2>&1 && break; sleep 1; done; \
+	curl -sf "$$BASE/" >/dev/null && echo "Health: OK" || { echo "Health: FAIL"; docker logs fp-test; RESULT=1; }; \
+	curl -sf -X POST "$$BASE/calculate" \
 		-H 'Content-Type: application/json' \
-		-d '[["SFO","ATL"],["ATL","EWR"]]' && echo "API: OK" || { echo "API: FAIL"; docker logs fp-test; RESULT=1; }; \
-	docker rm -f fp-test 2>/dev/null || true; \
+		-d '[["SFO","ATL"],["ATL","EWR"]]' >/dev/null && echo "API: OK" || { echo "API: FAIL"; docker logs fp-test; RESULT=1; }; \
 	exit $$RESULT
 
 #image-structure-test: @ Validate Dockerfile metadata + binary properties (container-structure-test)
@@ -258,7 +290,7 @@ image-scan: deps build
 		-t $(APP_NAME):scan .
 	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
 
-#release: @ Create and push a new tag
+#release: @ Run full CI pipeline then tag and push a new release
 release: ci
 	@git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1 || { \
 		echo "Error: current branch has no upstream. Set one with 'git push -u origin $$(git symbolic-ref --short HEAD)' before releasing."; \
@@ -275,7 +307,7 @@ release: ci
 	git push; \
 	echo "Done."
 
-#update: @ Update dependencies to latest versions
+#update: @ Update Go dependencies to latest versions and run `go mod tidy`
 update: deps
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) && go get -u ./... && go mod tidy)
 
@@ -353,12 +385,18 @@ ci-run: deps
 	@docker container prune -f 2>/dev/null || true
 	@EVENT=$$(mktemp /tmp/act-push-event.XXXXXX.json); \
 	printf '{"repository":{"default_branch":"main"},"ref":"refs/heads/main","before":"0000000000000000000000000000000000000000","after":"0000000000000000000000000000000000000000"}' > $$EVENT; \
+	: '~/.secrets is an optional dotenv-style file (e.g., GITHUB_TOKEN=ghp_...) that'; \
+	: 'is sourced into the recipe shell so secret_args below can pass --secret KEY'; \
+	: '(env-only form) to act. Never put secret VALUES on the act command line.'; \
 	if [ -f ~/.secrets ]; then . ~/.secrets; fi; \
 	ACT_PORT=$$(shuf -i 40000-59999 -n 1); \
 	ARTIFACT_PATH=$$(mktemp -d -t act-artifacts.XXXXXX); \
 	secret_args=(); \
 	if [ -n "$$GITHUB_TOKEN" ]; then secret_args+=(--secret GITHUB_TOKEN); fi; \
 	RC=0; \
+	: 'Skipped under act: dast (needs Docker-in-Docker for OWASP ZAP),'; \
+	: 'goreleaser (tag-only, runs in real GHA on v* push). Both are exercised'; \
+	: 'in real CI; the local loop covers every job that can complete under act.'; \
 	for job in static-check build test integration-test e2e docker; do \
 		echo "=== act job: $$job ==="; \
 		act push -W .github/workflows/ci.yml \
@@ -381,6 +419,7 @@ check: ci
 
 #trivy-fs: @ Run Trivy filesystem vulnerability scan
 trivy-fs: deps
+	@command -v trivy >/dev/null 2>&1 || { echo "ERROR: trivy not on PATH. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@trivy fs \
 		--scanners vuln,secret,misconfig \
 		--severity CRITICAL,HIGH \
@@ -389,23 +428,30 @@ trivy-fs: deps
 
 #trivy-image: @ Run Trivy image vulnerability scan
 trivy-image: deps
+	@command -v trivy >/dev/null 2>&1 || { echo "ERROR: trivy not on PATH. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
 
 #e2e: @ Build + start server + run e2e + stop server (self-contained; called by `make ci`)
 # Allocates an ephemeral port via scripts/pick-port.sh so parallel runs
 # (two checkouts, sibling repos under a single dev machine, multi-job CI)
-# don't collide on a fixed 8080. Newman gets baseUrl via --env-var.
+# don't collide on a fixed 8080. Newman gets baseUrl via --env-var. The trap
+# guarantees the server process and PID file are cleaned up even if the
+# wait-for-server poll fails before Newman starts (without trap, a backgrounded
+# server would leak past recipe failure).
 e2e: deps build
 	@PORT=$$(./scripts/pick-port.sh); \
 		BASE="http://localhost:$$PORT"; \
 		PIDFILE=$$(mktemp -t flight-path-e2e.XXXXXX.pid); \
+		cleanup() { \
+			[ -f "$$PIDFILE" ] && kill "$$(cat "$$PIDFILE")" 2>/dev/null || true; \
+			rm -f "$$PIDFILE"; \
+		}; \
+		trap cleanup EXIT INT TERM; \
 		SERVER_PORT=$$PORT ./server -env-file .env >/tmp/flight-path-e2e.log 2>&1 & echo $$! > "$$PIDFILE"; \
 		./scripts/wait-for-server.sh "$$BASE/" 30; \
 		EXIT=0; \
 		./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json \
 			--env-var "baseUrl=$$BASE" || EXIT=$$?; \
-		kill "$$(cat "$$PIDFILE")" 2>/dev/null || true; \
-		rm -f "$$PIDFILE"; \
 		exit $$EXIT
 
 #e2e-quick: @ Run Postman/Newman end-to-end tests (requires server already running)
@@ -467,5 +513,5 @@ deps-prune-check: deps
 	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check static-check mermaid-lint release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \
-	image-build image-run image-stop image-push image-smoke-test image-structure-test image-test image-scan \
+	require-docker image-build image-run image-stop image-push image-smoke-test image-structure-test image-test image-scan \
 	renovate-validate deps-prune deps-prune-check

@@ -127,13 +127,14 @@ jobs:
           ref: ${{ steps.guard.outputs.head_branch }}
           fetch-depth: 1
 
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+      - name: Set up mise
         if: steps.guard.outputs.skip != 'true'
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: true
           cache: true
 
-      - name: Set up Claude config
+      - name: Check out claude-config
         if: steps.guard.outputs.skip != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -193,12 +194,16 @@ jobs:
             3. If you can fix it:
                - Make minimal changes that directly address the failure
                - Verify your fix by running `make check` (or the specific failing target)
-               - Commit and push the fix to this branch
+               - Commit the fix using the `mcp__github_file_ops__commit_files` tool
+                 (commits via GitHub API, NOT via local `git push`). The tool authors
+                 a single commit on the head branch; do not invoke `git add`,
+                 `git commit`, or `git push` directly — those Bash patterns are NOT
+                 permitted in this job.
             4. If you cannot fix it:
                - Comment on PR #${{ steps.guard.outputs.pr_number }} explaining:
                  - What failed and why
                  - What manual action is needed (e.g., "upgrade Go to X.Y.Z", "wait for upstream fix")
-               - Do NOT push any changes
+               - Do NOT commit any changes
 
             ## Protected files (non-negotiable)
 
@@ -218,6 +223,10 @@ jobs:
             - Use conventional commit messages (fix:, chore:, etc.)
           # SECURITY: CI logs are untrusted low-trust input. Bash and WebFetch are
           # withheld to block RCE / exfiltration via prompt-injected log lines.
-          # Verification commands (make check etc.) are scoped via --allowedTools.
-          allowed_tools: "Edit,Read,Write,Glob,Grep,mcp__github_comment__update_claude_comment"
-          claude_args: '--max-turns 30 --allowedTools "Bash(make check:*),Bash(make test:*),Bash(make build:*),Bash(make lint:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr comment:*)"'
+          # Verification-only Bash patterns (make check / test / build / lint) are
+          # scoped via --allowedTools. Commits land via the GitHub API
+          # (`mcp__github_file_ops__commit_files`) — not via local `git push` —
+          # so a prompt-injected log line cannot piggyback an arbitrary push,
+          # force-push to other branches, or pollute git config.
+          allowed_tools: "Edit,Read,Write,Glob,Grep,mcp__github_comment__update_claude_comment,mcp__github_file_ops__commit_files"
+          claude_args: '--max-turns 30 --allowedTools "Bash(make check:*),Bash(make test:*),Bash(make build:*),Bash(make lint:*),Bash(gh pr comment:*)"'

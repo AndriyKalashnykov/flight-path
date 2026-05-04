@@ -101,8 +101,16 @@ func TestLoad(t *testing.T) {
 	}
 }
 
-func TestLoadFileNotFound(t *testing.T) {
-	if err := Load(filepath.Join(t.TempDir(), "does-not-exist.env")); err == nil {
-		t.Fatal("want error for missing file, got nil")
+func TestLoadFileNotFoundIsNoOp(t *testing.T) {
+	// Missing file is intentionally not an error: env vars also come from the
+	// OS environment / docker -e / --env-file. Asserting no error and no
+	// FP_TEST_* leak into the process from a non-existent path.
+	t.Setenv("FP_TEST_NOFILE_SENTINEL", "")
+	_ = os.Unsetenv("FP_TEST_NOFILE_SENTINEL")
+	if err := Load(filepath.Join(t.TempDir(), "does-not-exist.env")); err != nil {
+		t.Fatalf("want nil error for missing file, got %v", err)
+	}
+	if got := os.Getenv("FP_TEST_NOFILE_SENTINEL"); got != "" {
+		t.Errorf("FP_TEST_NOFILE_SENTINEL = %q, want empty (no-op should not write)", got)
 	}
 }

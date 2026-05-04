@@ -1,0 +1,126 @@
+name: Nightly fuzz
+
+on:
+  schedule:
+    # 03:17 UTC daily — off-peak; non-zero minute reduces collision with the
+    # cron herd that fires on the hour.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Fuzz duration (e.g., 10m, 1h)'
+        required: false
+        default: '10m'
+
+concurrency:
+  group: nightly-fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write   # required so failure can open a tracking issue
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # Manual-dispatch override > schedule default. The CI fuzz step in ci.yml
+      # runs at 30s for fast feedback per push; this nightly job runs 10 min by
+      # default to explore deeper input spaces and surface latent corpus gaps.
+      FUZZTIME: ${{ github.event.inputs.duration || '10m' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          install: true
+          cache: true
+
+      - name: Cache Go module + build cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-
+
+      - name: Cache fuzz corpus
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          # Go fuzz writes new interesting inputs under testdata/fuzz/<TestName>.
+          # Caching across nightly runs lets the corpus accumulate over time —
+          # each night's run starts from yesterday's discoveries instead of the
+          # 4 seed inputs in the test source.
+          path: internal/handlers/testdata/fuzz
+          key: fuzz-corpus-${{ runner.os }}-${{ hashFiles('internal/handlers/api_fuzz_test.go') }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-${{ runner.os }}-${{ hashFiles('internal/handlers/api_fuzz_test.go') }}-
+            fuzz-corpus-${{ runner.os }}-
+
+      - name: Run fuzz tests
+        run: |
+          set -euo pipefail
+          go test ./internal/handlers/ -fuzz=FuzzFindItinerary -fuzztime="${FUZZTIME}" -run='^$'
+
+      - name: Upload fuzz failure inputs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          # Go writes failing fuzz inputs under testdata/fuzz/<TestName>/ with a
+          # filename that's the SHA of the input. Capture them so a maintainer
+          # can replay locally with `go test -run=FuzzFindItinerary/<sha>`.
+          name: fuzz-failures-${{ github.run_id }}
+          path: internal/handlers/testdata/fuzz
+          retention-days: 30
+
+      - name: Open tracking issue on failure
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const title = `Nightly fuzz failed (${context.runId})`;
+            // Only one open issue at a time per failure type — successive
+            // nightly failures append a comment instead of spawning duplicates.
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'nightly-fuzz-failure',
+              per_page: 1,
+            });
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `Run: ${runUrl}`,
+              ``,
+              `Fuzz duration: \`${process.env.FUZZTIME}\``,
+              `Failing inputs are uploaded as the \`fuzz-failures-${context.runId}\` artifact.`,
+              ``,
+              `Replay locally:`,
+              '```',
+              `gh run download ${context.runId} -n fuzz-failures-${context.runId} -D internal/handlers/testdata/fuzz`,
+              `go test ./internal/handlers/ -run=FuzzFindItinerary/<sha-from-filename>`,
+              '```',
+            ].join('\n');
+            if (existing.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing[0].number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['nightly-fuzz-failure'],
+              });
+            }
+        env:
+          FUZZTIME: ${{ env.FUZZTIME }}
