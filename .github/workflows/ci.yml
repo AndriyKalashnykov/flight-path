@@ -254,7 +254,7 @@ jobs:
           ./server -env-file .env &
           ./scripts/wait-for-server.sh
 
-      - name: Run Postman/Newman tests
+      - name: Run Newman tests
         run: make e2e-quick
 
   dast:
@@ -409,7 +409,11 @@ jobs:
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
-          images: ghcr.io/andriykalashnykov/flight-path
+          # docker/metadata-action lowercases the registry path automatically,
+          # so this expands to ghcr.io/andriykalashnykov/flight-path even though
+          # github.repository preserves owner casing. Dynamic form survives
+          # repo rename/fork — see /harden-image-pipeline §"GHCR namespace rule".
+          images: ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -471,6 +475,7 @@ jobs:
       - name: Install container-structure-test
         run: |
           set -euo pipefail
+          # renovate: datasource=github-releases depName=GoogleContainerTools/container-structure-test
           CST_VERSION=1.22.1
           curl -fsSL -o /tmp/cst "https://github.com/GoogleContainerTools/container-structure-test/releases/download/v${CST_VERSION}/container-structure-test-linux-amd64"
           install -m 0755 /tmp/cst /usr/local/bin/container-structure-test

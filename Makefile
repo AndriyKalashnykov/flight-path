@@ -145,9 +145,19 @@ bench-compare: deps
 	fi
 
 #lint: @ Run golangci-lint and hadolint (comprehensive linting via .golangci.yml)
-lint: deps
+lint: deps lint-scripts-exec
 	@$(call go-exec,golangci-lint run ./...)
 	@hadolint Dockerfile
+
+#lint-scripts-exec: @ Verify all shell scripts are executable (catches subagent 0644 writes)
+lint-scripts-exec:
+	@NONEXEC=$$(find scripts -name '*.sh' -not -executable -print 2>/dev/null); \
+	if [ -n "$$NONEXEC" ]; then \
+		echo "Error: shell scripts missing +x:"; \
+		echo "$$NONEXEC" | sed 's/^/  /'; \
+		echo "Fix with: chmod +x <file>"; \
+		exit 1; \
+	fi
 
 #vulncheck: @ Run Go vulnerability check on dependencies
 vulncheck: deps
@@ -344,14 +354,25 @@ ci-run: deps
 	@EVENT=$$(mktemp /tmp/act-push-event.XXXXXX.json); \
 	printf '{"repository":{"default_branch":"main"},"ref":"refs/heads/main","before":"0000000000000000000000000000000000000000","after":"0000000000000000000000000000000000000000"}' > $$EVENT; \
 	if [ -f ~/.secrets ]; then . ~/.secrets; fi; \
-	act push -W .github/workflows/ci.yml \
-		--eventpath $$EVENT \
-		--container-architecture linux/amd64 \
-		--artifact-server-path /tmp/act-artifacts \
-		--var ACT=true \
-		$${GITHUB_TOKEN:+-s GITHUB_TOKEN=$$GITHUB_TOKEN}; \
-	RC=$$?; \
+	ACT_PORT=$$(shuf -i 40000-59999 -n 1); \
+	ARTIFACT_PATH=$$(mktemp -d -t act-artifacts.XXXXXX); \
+	secret_args=(); \
+	if [ -n "$$GITHUB_TOKEN" ]; then secret_args+=(--secret GITHUB_TOKEN); fi; \
+	RC=0; \
+	for job in static-check build test integration-test e2e docker; do \
+		echo "=== act job: $$job ==="; \
+		act push -W .github/workflows/ci.yml \
+			--job $$job \
+			--eventpath $$EVENT \
+			--container-architecture linux/amd64 \
+			--pull=false \
+			--artifact-server-port "$$ACT_PORT" \
+			--artifact-server-path "$$ARTIFACT_PATH" \
+			--var ACT=true \
+			"$${secret_args[@]}" || { RC=$$?; break; }; \
+	done; \
 	rm -f $$EVENT; \
+	rm -rf "$$ARTIFACT_PATH"; \
 	exit $$RC
 
 #check: @ Run pre-commit checklist (alias for ci)
@@ -371,12 +392,20 @@ trivy-image: deps
 	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
 
 #e2e: @ Build + start server + run e2e + stop server (self-contained; called by `make ci`)
+# Allocates an ephemeral port via scripts/pick-port.sh so parallel runs
+# (two checkouts, sibling repos under a single dev machine, multi-job CI)
+# don't collide on a fixed 8080. Newman gets baseUrl via --env-var.
 e2e: deps build
-	@pkill -x server 2>/dev/null || true
-	@./server -env-file .env >/tmp/flight-path-e2e.log 2>&1 &
-	@./scripts/wait-for-server.sh
-	@EXIT=0; ./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json || EXIT=$$?; \
-		pkill -x server 2>/dev/null || true; \
+	@PORT=$$(./scripts/pick-port.sh); \
+		BASE="http://localhost:$$PORT"; \
+		PIDFILE=$$(mktemp -t flight-path-e2e.XXXXXX.pid); \
+		SERVER_PORT=$$PORT ./server -env-file .env >/tmp/flight-path-e2e.log 2>&1 & echo $$! > "$$PIDFILE"; \
+		./scripts/wait-for-server.sh "$$BASE/" 30; \
+		EXIT=0; \
+		./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json \
+			--env-var "baseUrl=$$BASE" || EXIT=$$?; \
+		kill "$$(cat "$$PIDFILE")" 2>/dev/null || true; \
+		rm -f "$$PIDFILE"; \
 		exit $$EXIT
 
 #e2e-quick: @ Run Postman/Newman end-to-end tests (requires server already running)
@@ -435,7 +464,7 @@ deps-prune-check: deps
 	@echo "No prunable dependencies found."
 
 .PHONY: help deps deps-check api-docs test integration-test fuzz bench bench-save bench-compare \
-	lint vulncheck secrets sec lint-ci format format-check static-check mermaid-lint release-check build run release update open-swagger \
+	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check static-check mermaid-lint release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \
 	image-build image-run image-stop image-push image-smoke-test image-structure-test image-test image-scan \

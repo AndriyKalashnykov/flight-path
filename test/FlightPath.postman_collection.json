@@ -1,908 +1,891 @@
 {
-	"info": {
-		"_postman_id": "c86d49fc-4957-4030-bf09-554f318aea89",
-		"name": "FlightPath",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "21490464"
-	},
-	"event": [
-		{
-			"listen": "prerequest",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					"// Global JSON schemas for Ajv response validation.",
-					"// These schemas only apply to the /calculate endpoint; the",
-					"// collection-level test script below guards on the URL so other",
-					"// endpoints (e.g. GET /) can use their own per-request assertions.",
-					"",
-					"// Success: array of exactly 2 IATA airport codes (3 uppercase letters)",
-					"var successSchema = {",
-					"    type: \"array\",",
-					"    items: { type: \"string\", pattern: \"^[A-Z]{3}$\" },",
-					"    minItems: 2,",
-					"    maxItems: 2",
-					"};",
-					"",
-					"// Error: object with required Error string, optional Index integer",
-					"var errorSchema = {",
-					"    type: \"object\",",
-					"    required: [\"Error\"],",
-					"    properties: {",
-					"        Error: { type: \"string\", minLength: 1 },",
-					"        Index: { type: \"integer\" }",
-					"    },",
-					"    additionalProperties: false",
-					"};",
-					"",
-					"pm.globals.set(\"successSchema\", JSON.stringify(successSchema));",
-					"pm.globals.set(\"errorSchema\", JSON.stringify(errorSchema));"
-				]
-			}
-		},
-		{
-			"listen": "test",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					"// Collection-level schema validation runs for every POST /calculate request.",
-					"// Non-/calculate endpoints (e.g. GET /) and non-POST methods on /calculate",
-					"// (e.g. UseCase11 wrong-method negative case) are skipped — those requests",
-					"// use per-request assertions only.",
-					"if (!pm.request.url.getPath().endsWith('/calculate') || pm.request.method !== 'POST') {",
-					"    return;",
-					"}",
-					"",
-					"var Ajv = require('ajv');",
-					"var ajv = new Ajv({ allErrors: true });",
-					"var schemaKey = pm.response.code === 200 ? \"successSchema\" : \"errorSchema\";",
-					"var schema = JSON.parse(pm.globals.get(schemaKey));",
-					"var validate = ajv.compile(schema);",
-					"",
-					"pm.test(\"Response matches JSON schema\", function () {",
-					"    var valid = validate(pm.response.json());",
-					"    pm.expect(valid, valid ? '' : ajv.errorsText(validate.errors)).to.be.true;",
-					"});"
-				]
-			}
-		}
-	],
-	"item": [
-		{
-			"name": "HealthCheck",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Response has data field\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON).to.have.property('data');",
-							"    pm.expect(responseJSON.data).to.be.a('string');",
-							"    pm.expect(responseJSON.data.length).to.be.above(0);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8080/",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						""
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase01",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Response has correct airports\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
-							"    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "[[\"SFO\", \"EWR\"]]",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase02",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Response has correct airports\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
-							"    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "[[\"ATL\", \"EWR\"], [\"SFO\", \"ATL\"]]",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase03",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Response has correct airports\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
-							"    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "[[\"IND\", \"EWR\"], [\"SFO\", \"ATL\"], [\"GSO\", \"IND\"], [\"ATL\", \"GSO\"]]",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase04_EmptyBody",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 400\", function () {",
-							"    pm.response.to.have.status(400);",
-							"});",
-							"",
-							"pm.test(\"Error mentions empty segments\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON.Error).to.include(\"empty\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "[]",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase05_MalformedJSON",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 400\", function () {",
-							"    pm.response.to.have.status(400);",
-							"});",
-							"",
-							"pm.test(\"Error mentions parsing\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON.Error).to.include(\"parse\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "not valid json",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase06_IncompleteSegment",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 400\", function () {",
-							"    pm.response.to.have.status(400);",
-							"});",
-							"",
-							"pm.test(\"Error mentions source and destination\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON.Error).to.include(\"source and destination\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "[[\"SFO\"]]",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase07_ExtraItemsInSegmentIgnored",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Only first two elements of segment are used\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
-							"    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "[[\"SFO\", \"EWR\", \"JFK\"]]",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase08_TenSegmentChain",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Ten-segment scrambled chain resolves LAX to SFO\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON[0]).to.equal(\"LAX\");",
-							"    pm.expect(responseJSON[1]).to.equal(\"SFO\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "[[\"ORD\",\"ATL\"],[\"LAX\",\"PHX\"],[\"JFK\",\"EWR\"],[\"BOS\",\"JFK\"],[\"PHX\",\"DEN\"],[\"EWR\",\"SEA\"],[\"DEN\",\"ORD\"],[\"ATL\",\"MIA\"],[\"SEA\",\"SFO\"],[\"MIA\",\"BOS\"]]",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase09_ObjectRoot",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 400\", function () {",
-							"    pm.response.to.have.status(400);",
-							"});",
-							"",
-							"pm.test(\"Error mentions parsing\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON.Error).to.include(\"parse\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "{\"foo\":\"bar\"}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase10_SecondSegmentIncomplete",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 400\", function () {",
-							"    pm.response.to.have.status(400);",
-							"});",
-							"",
-							"pm.test(\"Error mentions source and destination\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON.Error).to.include(\"source and destination\");",
-							"});",
-							"",
-							"pm.test(\"Error Index points at offending segment\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON.Index).to.equal(1);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "[[\"SFO\",\"EWR\"],[\"JFK\"]]",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "HealthCheck_SecurityHeaders",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"X-Frame-Options is DENY\", function () {",
-							"    pm.expect(pm.response.headers.get('X-Frame-Options')).to.equal('DENY');",
-							"});",
-							"",
-							"pm.test(\"X-XSS-Protection is set\", function () {",
-							"    pm.expect(pm.response.headers.get('X-XSS-Protection')).to.equal('1; mode=block');",
-							"});",
-							"",
-							"pm.test(\"X-Content-Type-Options is nosniff\", function () {",
-							"    pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.equal('nosniff');",
-							"});",
-							"",
-							"pm.test(\"Referrer-Policy is strict-origin-when-cross-origin\", function () {",
-							"    pm.expect(pm.response.headers.get('Referrer-Policy')).to.equal('strict-origin-when-cross-origin');",
-							"});",
-							"",
-							"pm.test(\"Cross-Origin-Resource-Policy is same-origin\", function () {",
-							"    pm.expect(pm.response.headers.get('Cross-Origin-Resource-Policy')).to.equal('same-origin');",
-							"});",
-							"",
-							"pm.test(\"Cache-Control is no-store\", function () {",
-							"    pm.expect(pm.response.headers.get('Cache-Control')).to.equal('no-store');",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8080/",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						""
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "HealthCheck_CORS",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Access-Control-Allow-Origin echoes wildcard\", function () {",
-							"    // Server defaults CORS_ORIGIN to '*' when unset; Echo's CORSWithConfig",
-							"    // reflects that in Access-Control-Allow-Origin.",
-							"    pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal('*');",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "Origin",
-						"value": "https://example.com"
-					}
-				],
-				"url": {
-					"raw": "http://localhost:8080/",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						""
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "Swagger_UI",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Content-Type is text/html\", function () {",
-							"    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html');",
-							"});",
-							"",
-							"pm.test(\"Response body references swagger-ui\", function () {",
-							"    pm.expect(pm.response.text()).to.include('swagger-ui');",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8080/swagger/index.html",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"swagger",
-						"index.html"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase11_WrongMethod",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 405 Method Not Allowed\", function () {",
-							"    pm.response.to.have.status(405);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase12_UnknownRoute",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 404 Not Found\", function () {",
-							"    pm.response.to.have.status(404);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8080/does-not-exist",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"does-not-exist"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase13_LargeChain",
-			"event": [
-				{
-					"listen": "prerequest",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Build a 100-segment chain AAA -> AAB -> ... -> ADW, then shuffle",
-							"// the segments so the server must reconstruct the order.",
-							"function codeFor(i) {",
-							"    return 'A' + String.fromCharCode(65 + Math.floor(i / 26)) + String.fromCharCode(65 + (i % 26));",
-							"}",
-							"var segments = [];",
-							"for (var i = 0; i < 100; i++) {",
-							"    segments.push([codeFor(i), codeFor(i + 1)]);",
-							"}",
-							"for (var j = segments.length - 1; j > 0; j--) {",
-							"    var k = Math.floor(Math.random() * (j + 1));",
-							"    var tmp = segments[j]; segments[j] = segments[k]; segments[k] = tmp;",
-							"}",
-							"pm.variables.set('largeChainBody', JSON.stringify(segments));",
-							"pm.variables.set('largeChainStart', codeFor(0));",
-							"pm.variables.set('largeChainEnd', codeFor(100));"
-						]
-					}
-				},
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Response reconstructs the full 100-segment chain\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON[0]).to.equal(pm.variables.get('largeChainStart'));",
-							"    pm.expect(responseJSON[1]).to.equal(pm.variables.get('largeChainEnd'));",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{{largeChainBody}}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "UseCase14_WrongContentType",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"status code is 400 Bad Request\", function () {",
-							"    pm.response.to.have.status(400);",
-							"});",
-							"",
-							"pm.test(\"Error message indicates parse failure\", function () {",
-							"    var responseJSON = pm.response.json();",
-							"    pm.expect(responseJSON).to.have.property('Error');",
-							"    pm.expect(responseJSON.Error).to.include(\"parse\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "text/plain"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "[[\"SFO\", \"EWR\"]]"
-				},
-				"url": {
-					"raw": "http://localhost:8080/calculate",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"calculate"
-					]
-				}
-			},
-			"response": []
-		}
-	]
+  "info": {
+    "_postman_id": "c86d49fc-4957-4030-bf09-554f318aea89",
+    "name": "FlightPath",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "21490464"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global JSON schemas for Ajv response validation.",
+          "// These schemas only apply to the /calculate endpoint; the",
+          "// collection-level test script below guards on the URL so other",
+          "// endpoints (e.g. GET /) can use their own per-request assertions.",
+          "",
+          "// Success: array of exactly 2 IATA airport codes (3 uppercase letters)",
+          "var successSchema = {",
+          "    type: \"array\",",
+          "    items: { type: \"string\", pattern: \"^[A-Z]{3}$\" },",
+          "    minItems: 2,",
+          "    maxItems: 2",
+          "};",
+          "",
+          "// Error: object with required Error string, optional Index integer",
+          "var errorSchema = {",
+          "    type: \"object\",",
+          "    required: [\"Error\"],",
+          "    properties: {",
+          "        Error: { type: \"string\", minLength: 1 },",
+          "        Index: { type: \"integer\" }",
+          "    },",
+          "    additionalProperties: false",
+          "};",
+          "",
+          "pm.globals.set(\"successSchema\", JSON.stringify(successSchema));",
+          "pm.globals.set(\"errorSchema\", JSON.stringify(errorSchema));"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Collection-level schema validation runs for every POST /calculate request.",
+          "// Non-/calculate endpoints (e.g. GET /) and non-POST methods on /calculate",
+          "// (e.g. UseCase11 wrong-method negative case) are skipped — those requests",
+          "// use per-request assertions only.",
+          "if (!pm.request.url.getPath().endsWith('/calculate') || pm.request.method !== 'POST') {",
+          "    return;",
+          "}",
+          "",
+          "var Ajv = require('ajv');",
+          "var ajv = new Ajv({ allErrors: true });",
+          "var schemaKey = pm.response.code === 200 ? \"successSchema\" : \"errorSchema\";",
+          "var schema = JSON.parse(pm.globals.get(schemaKey));",
+          "var validate = ajv.compile(schema);",
+          "",
+          "pm.test(\"Response matches JSON schema\", function () {",
+          "    var valid = validate(pm.response.json());",
+          "    pm.expect(valid, valid ? '' : ajv.errorsText(validate.errors)).to.be.true;",
+          "});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "HealthCheck",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has data field\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON).to.have.property('data');",
+              "    pm.expect(responseJSON.data).to.be.a('string');",
+              "    pm.expect(responseJSON.data.length).to.be.above(0);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase01",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has correct airports\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
+              "    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
+              "});",
+              "",
+              "pm.test(\"Content-Type is application/json\", function () {",
+              "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[[\"SFO\", \"EWR\"]]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase02",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has correct airports\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
+              "    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
+              "});",
+              "",
+              "pm.test(\"Content-Type is application/json\", function () {",
+              "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[[\"ATL\", \"EWR\"], [\"SFO\", \"ATL\"]]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase03",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has correct airports\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
+              "    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
+              "});",
+              "",
+              "pm.test(\"Content-Type is application/json\", function () {",
+              "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[[\"IND\", \"EWR\"], [\"SFO\", \"ATL\"], [\"GSO\", \"IND\"], [\"ATL\", \"GSO\"]]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase04_EmptyBody",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 400\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error mentions empty segments\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON.Error).to.include(\"empty\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase05_MalformedJSON",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 400\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error mentions parsing\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON.Error).to.include(\"parse\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "not valid json",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase06_IncompleteSegment",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 400\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error mentions source and destination\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON.Error).to.include(\"source and destination\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[[\"SFO\"]]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase07_ExtraItemsInSegmentIgnored",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Only first two elements of segment are used\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON[0]).to.equal(\"SFO\");",
+              "    pm.expect(responseJSON[1]).to.equal(\"EWR\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[[\"SFO\", \"EWR\", \"JFK\"]]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase08_TenSegmentChain",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Ten-segment scrambled chain resolves LAX to SFO\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON[0]).to.equal(\"LAX\");",
+              "    pm.expect(responseJSON[1]).to.equal(\"SFO\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[[\"ORD\",\"ATL\"],[\"LAX\",\"PHX\"],[\"JFK\",\"EWR\"],[\"BOS\",\"JFK\"],[\"PHX\",\"DEN\"],[\"EWR\",\"SEA\"],[\"DEN\",\"ORD\"],[\"ATL\",\"MIA\"],[\"SEA\",\"SFO\"],[\"MIA\",\"BOS\"]]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase09_ObjectRoot",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 400\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error mentions parsing\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON.Error).to.include(\"parse\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"foo\":\"bar\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase10_SecondSegmentIncomplete",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 400\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error mentions source and destination\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON.Error).to.include(\"source and destination\");",
+              "});",
+              "",
+              "pm.test(\"Error Index points at offending segment\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON.Index).to.equal(1);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[[\"SFO\",\"EWR\"],[\"JFK\"]]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "HealthCheck_SecurityHeaders",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"X-Frame-Options is DENY\", function () {",
+              "    pm.expect(pm.response.headers.get('X-Frame-Options')).to.equal('DENY');",
+              "});",
+              "",
+              "pm.test(\"X-XSS-Protection is set\", function () {",
+              "    pm.expect(pm.response.headers.get('X-XSS-Protection')).to.equal('1; mode=block');",
+              "});",
+              "",
+              "pm.test(\"X-Content-Type-Options is nosniff\", function () {",
+              "    pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.equal('nosniff');",
+              "});",
+              "",
+              "pm.test(\"Referrer-Policy is strict-origin-when-cross-origin\", function () {",
+              "    pm.expect(pm.response.headers.get('Referrer-Policy')).to.equal('strict-origin-when-cross-origin');",
+              "});",
+              "",
+              "pm.test(\"Cross-Origin-Resource-Policy is same-origin\", function () {",
+              "    pm.expect(pm.response.headers.get('Cross-Origin-Resource-Policy')).to.equal('same-origin');",
+              "});",
+              "",
+              "pm.test(\"Cache-Control is no-store\", function () {",
+              "    pm.expect(pm.response.headers.get('Cache-Control')).to.equal('no-store');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "HealthCheck_CORS",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Access-Control-Allow-Origin echoes wildcard\", function () {",
+              "    // Server defaults CORS_ORIGIN to '*' when unset; Echo's CORSWithConfig",
+              "    // reflects that in Access-Control-Allow-Origin.",
+              "    pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal('*');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "https://example.com"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Swagger_UI",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Content-Type is text/html\", function () {",
+              "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html');",
+              "});",
+              "",
+              "pm.test(\"Response body references swagger-ui\", function () {",
+              "    pm.expect(pm.response.text()).to.include('swagger-ui');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/swagger/index.html",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "swagger",
+            "index.html"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase11_WrongMethod",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 405 Method Not Allowed\", function () {",
+              "    pm.response.to.have.status(405);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase12_UnknownRoute",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 404 Not Found\", function () {",
+              "    pm.response.to.have.status(404);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/does-not-exist",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "does-not-exist"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase13_LargeChain",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Build a 100-segment chain AAA -> AAB -> ... -> ADW, then shuffle",
+              "// the segments so the server must reconstruct the order.",
+              "function codeFor(i) {",
+              "    return 'A' + String.fromCharCode(65 + Math.floor(i / 26)) + String.fromCharCode(65 + (i % 26));",
+              "}",
+              "var segments = [];",
+              "for (var i = 0; i < 100; i++) {",
+              "    segments.push([codeFor(i), codeFor(i + 1)]);",
+              "}",
+              "for (var j = segments.length - 1; j > 0; j--) {",
+              "    var k = Math.floor(Math.random() * (j + 1));",
+              "    var tmp = segments[j]; segments[j] = segments[k]; segments[k] = tmp;",
+              "}",
+              "pm.variables.set('largeChainBody', JSON.stringify(segments));",
+              "pm.variables.set('largeChainStart', codeFor(0));",
+              "pm.variables.set('largeChainEnd', codeFor(100));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response reconstructs the full 100-segment chain\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON[0]).to.equal(pm.variables.get('largeChainStart'));",
+              "    pm.expect(responseJSON[1]).to.equal(pm.variables.get('largeChainEnd'));",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{largeChainBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "UseCase14_WrongContentType",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"status code is 400 Bad Request\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error message indicates parse failure\", function () {",
+              "    var responseJSON = pm.response.json();",
+              "    pm.expect(responseJSON).to.have.property('Error');",
+              "    pm.expect(responseJSON.Error).to.include(\"parse\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/plain"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "[[\"SFO\", \"EWR\"]]"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/calculate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "calculate"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    }
+  ]
 }
