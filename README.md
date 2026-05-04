@@ -5,7 +5,7 @@
 
 # Go REST API to reconstruct flight paths from unordered segments
 
-A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path from start to end airport.
+A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of `[source, destination]` pairs, it determines the complete path from origin (the airport with no incoming segment) to terminus (the airport with no outgoing segment).
 
 ## Overview
 
@@ -15,7 +15,7 @@ C4Context
     Person(client, "API Client", "cURL, Postman, Newman, browser")
     System(flightpath, "flight-path", "Go REST API that reconstructs full itinerary from unordered flight segments")
     Rel(client, flightpath, "POST /calculate", "HTTPS/JSON")
-    UpdateLayoutConfig($c4ShapeInRow="2")
+    UpdateLayoutConfig($c4ShapeInRow="2", $showLegend="true")
 ```
 
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, request-flow sequence, and CI/CD pipeline diagrams.
@@ -28,7 +28,7 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, request-flow s
 | Framework | Echo v5.1.0 | Lightweight router with built-in JSON binding, middleware stack, Swagger integration |
 | API Docs | Swagger (swaggo/swag v2) | Auto-generated OpenAPI spec from Go annotations |
 | Testing | go test (unit, bench, fuzz), Newman/Postman (E2E) | Table-driven unit tests + black-box API tests against the built binary |
-| Linting | golangci-lint v2.11.4, hadolint, actionlint, shellcheck, mermaid-cli | Meta-linter + Dockerfile + workflows + shell + diagrams |
+| Linting | golangci-lint v2.11.4, hadolint, actionlint, shellcheck, mermaid-cli (via Docker) | Meta-linter + Dockerfile + workflows + shell + diagrams |
 | Container | Docker (multi-stage Alpine) | Small image, reproducible build, scratch-like runtime |
 | CI/CD | GitHub Actions + GoReleaser | Tag-gated release pipeline with cosign keyless signing |
 | Dependencies | Renovate | Auto-updates with platform automerge and security fast-track |
@@ -175,9 +175,9 @@ Run `make help` to see all available targets.
 |--------|-------------|
 | `make build` | Build REST API server's binary |
 | `make run` | Run REST API locally |
-| `make api-docs` | Build source code for swagger api reference |
+| `make api-docs` | Generate Swagger API documentation from Go annotations |
 | `make clean` | Remove build artifacts and test cache |
-| `make update` | Update dependencies to latest versions |
+| `make update` | Update Go dependencies to latest versions and run `go mod tidy` |
 
 ### Testing
 
@@ -313,6 +313,7 @@ cosign verify ghcr.io/andriykalashnykov/flight-path:<tag> \
 | [`claude.yml`](./.github/workflows/claude.yml) | `@claude` mention from trusted author; non-draft PR open/sync | Interactive Claude Code responder + automated PR review |
 | [`claude-ci-fix.yml`](./.github/workflows/claude-ci-fix.yml) | CI failure on same-repo PR branch | Attempt automated fix with anti-recursion guards (bot-author + label) |
 | [`auto-merge.yml`](./.github/workflows/auto-merge.yml) | Renovate PR opened or `ci-pass` succeeds | Enable GitHub native auto-merge on Renovate PRs once required checks pass |
+| [`nightly-fuzz.yml`](./.github/workflows/nightly-fuzz.yml) | Daily at 03:17 UTC + manual dispatch | Run `FuzzFindItinerary` for 10 min (vs the 30 s in `ci.yml`); accumulates the corpus across runs and opens a tracking issue on failure |
 | [`cleanup-runs.yml`](./.github/workflows/cleanup-runs.yml) | Sundays at 00:00 UTC | Delete old workflow runs (retain 7 days, min 5) and prune merged-branch caches |
 
 [Renovate](https://docs.renovatebot.com/) keeps dependencies up to date with platform automerge enabled.

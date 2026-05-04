@@ -21,6 +21,8 @@ C4Container
     }
 
     Rel(client, server, "POST /calculate, GET /, GET /swagger/*", "HTTPS / JSON")
+
+    UpdateLayoutConfig($showLegend="true")
 ```
 
 The internal package layout (`internal/{routes,handlers}`, `pkg/api/`) mirrors
@@ -98,45 +100,34 @@ sequenceDiagram
 
 The single workflow at [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push, pull request, and `v*` tag. A `changes` paths-filter gates every heavy job on whether the push touches code; `ci-pass` is the single required status check for branch protection.
 
+Two paths — every push runs the **PR pipeline**; `v*` tags additionally trigger
+the **release pipeline**. Both feed into `ci-pass`, the single required status
+check for branch protection.
+
+### PR pipeline (every push, PR, and tag)
+
 ```mermaid
 flowchart TD
     trigger["push / pull_request / tag v*"] --> changes["changes<br/>(dorny/paths-filter)"]
 
-    changes -->|code = true| static["static-check<br/>(make static-check)"]
-    changes -->|code = true| build["build<br/>(upload binary)"]
+    changes -->|code = true| gates
 
-    static --> test["test<br/>(coverage 80% + fuzz)"]
-    static --> integ["integration-test<br/>(httptest, //go:build integration)"]
+    subgraph gates["Quality gates (parallel after changes)"]
+        static["static-check<br/>(make static-check)"]
+        build["build<br/>(upload binary)"]
+    end
 
-    build --> e2e["e2e<br/>(Newman / Postman, 18 cases)"]
-    test --> e2e
-    build --> dast["dast<br/>(OWASP ZAP, skipped under act)"]
-    test --> dast
+    subgraph verify["Verification (parallel after static-check + build)"]
+        test["test<br/>(coverage 80% + fuzz)"]
+        integ["integration-test<br/>(httptest, //go:build integration)"]
+        e2e["e2e<br/>(Newman / Postman, 18 cases)"]
+        dast["dast<br/>(OWASP ZAP, skipped under act)"]
+    end
 
-    static --> docker
-    build --> docker
-    test --> docker
+    static --> verify
+    build --> verify
 
-    docker["docker<br/>build → Trivy → smoke → multi-arch<br/>(push + cosign sign on tag)"]
-
-    e2e --> goreleaser
-    dast --> goreleaser
-    integ --> goreleaser
-    static --> goreleaser
-    build --> goreleaser
-    test --> goreleaser
-    goreleaser["goreleaser<br/>(tag only)"] --> docker
-
-    changes --> pass
-    static --> pass
-    build --> pass
-    test --> pass
-    integ --> pass
-    e2e --> pass
-    dast --> pass
-    goreleaser --> pass
-    docker --> pass
-    pass["ci-pass<br/>(required status check)"]
+    verify --> docker["docker<br/>build → Trivy → smoke → structure-test → multi-arch"]
 
     style changes fill:#fff3e0
     style static fill:#e1f5fe
@@ -145,6 +136,27 @@ flowchart TD
     style e2e fill:#e8f5e9
     style dast fill:#fce4ec
     style docker fill:#f3e5f5
+```
+
+### Release pipeline (tag pushes only)
+
+On `v*.*.*` tag pushes the PR pipeline runs first; once every gate passes,
+goreleaser builds the GitHub Release and **then** docker pushes the multi-arch
+image and cosign-signs by digest. Serializing `docker` after `goreleaser`
+guarantees a tag either produces both artifacts or none.
+
+```mermaid
+flowchart LR
+    pr["PR pipeline<br/>(static + build + verify)"] --> goreleaser["goreleaser<br/>(GitHub Release)"]
+    goreleaser --> docker["docker<br/>(GHCR push + cosign sign)"]
+    docker --> pass["ci-pass<br/>(required status check)"]
+
     style goreleaser fill:#f3e5f5
+    style docker fill:#f3e5f5
     style pass fill:#c8e6c9
 ```
+
+`ci-pass` uses `if: always()` and treats skipped jobs (e.g., `goreleaser` on
+non-tag pushes, `dast` under act, every gate on doc-only PRs) as success — so
+the same aggregator gate works for the PR pipeline and the release pipeline
+without divergence.

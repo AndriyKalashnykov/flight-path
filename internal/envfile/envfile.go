@@ -25,11 +25,19 @@ import (
 
 // Load parses the file at path and calls os.Setenv for each non-comment
 // KEY=VALUE line whose key is not already defined in the process environment.
+//
+// A missing file is treated as a no-op (returns nil) — env vars can also come
+// from the OS environment, docker `-e` flags, or `--env-file` host injection,
+// so the file is an optional override, not a hard requirement. Other I/O
+// errors (permission denied, malformed lines) still return an error.
 func Load(path string) error {
 	// #nosec G304 -- path is a CLI flag (-env-file) set by the operator;
 	// there is no untrusted input reaching this call site.
 	f, err := os.Open(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return fmt.Errorf("envfile: open %s: %w", path, err)
 	}
 	defer func() { _ = f.Close() }()

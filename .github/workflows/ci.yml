@@ -38,6 +38,11 @@ jobs:
         id: filter
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         with:
+          # Explicit base required for `act push` compatibility — act's synthetic
+          # event payload omits repository.default_branch, which dorny would
+          # otherwise fall back to. Without this, `make ci-run` aborts the
+          # `changes` job and every downstream gated job is blocked.
+          base: main
           filters: |
             code:
               - '!(**.md|docs/**|specs/**|LICENSE|.gitignore|.claudeignore|.claude/**|benchmarks/**|**.png|**.jpg|**.gif|**.svg)'
@@ -273,10 +278,9 @@ jobs:
         with:
           name: server-binary
 
-      # Fallback path: install toolchain via mise and rebuild if artifact
-      # download failed (pulls Go from .mise.toml — same source of truth as
-      # the build job).
-      # Fallback path when artifact download fails (e.g., under act).
+      # Fallback path: install toolchain via mise and rebuild if the cross-job
+      # artifact download failed (e.g., under act). Pulls Go from .mise.toml —
+      # same source of truth as the build job.
       - name: Set up mise
         if: steps.download-binary.outcome == 'failure'
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
@@ -284,13 +288,9 @@ jobs:
           install: true
           cache: true
 
-      # Fallback: rebuild if artifact download failed.
       - name: Build
         if: steps.download-binary.outcome == 'failure'
         run: make build
-
-      - name: Make binary executable
-        run: chmod +x server
 
       - name: Compute ZAP cache key
         id: zap-week
@@ -309,6 +309,7 @@ jobs:
 
       - name: Start server
         run: |
+          chmod +x server
           ./server -env-file .env &
           ./scripts/wait-for-server.sh
 
@@ -324,7 +325,7 @@ jobs:
         if: steps.zap-cache.outputs.cache-hit != 'true'
         run: docker save ghcr.io/zaproxy/zaproxy:stable -o /tmp/zap-image.tar
 
-      - name: Cleanup server process
+      - name: Stop server process
         if: always()
         run: pkill -f './server' 2>/dev/null || true
 
@@ -334,7 +335,11 @@ jobs:
   # serialized after this via `needs:` so a tag either produces both
   # artifacts or none.
   goreleaser:
-    if: startsWith(github.ref, 'refs/tags/')
+    # Explicit `code == 'true'` gate is redundant on tag pushes (the `changes`
+    # job force-flips code=true on tags so the full release pipeline runs even
+    # for doc-only commits), but stating it makes the gate self-documenting and
+    # robust to future changes in the changes-detector job's tag handling.
+    if: startsWith(github.ref, 'refs/tags/') && needs.changes.outputs.code == 'true'
     needs: [changes, static-check, build, test, integration-test, e2e, dast]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -462,7 +467,7 @@ jobs:
       - name: Smoke test
         run: make image-smoke-test
 
-      - name: Cleanup smoke container
+      - name: Stop smoke container
         if: always()
         run: docker rm -f fp-test 2>/dev/null || true
 

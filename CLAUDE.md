@@ -283,7 +283,7 @@ The `dast` job is skipped when running locally with `act` (`vars.ACT == 'true'`)
 
 There is no separate `release.yml` — the tag-push release pipeline lives inside `ci.yml` as tag-gated sibling jobs, so `ci-pass` aggregates both CI and release phases into a single green check.
 
-Cleanup workflow runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches.
+Prune workflow (`cleanup-runs.yml`) runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches. Nightly fuzz workflow (`nightly-fuzz.yml`) runs `FuzzFindItinerary` for 10 minutes daily at 03:17 UTC (vs 30 s in `ci.yml`), accumulates the corpus across runs via `internal/handlers/testdata/fuzz` cache, and opens (or appends to) a tracking issue labeled `nightly-fuzz-failure` on failure.
 
 ## Troubleshooting
 

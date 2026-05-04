@@ -1,4 +1,4 @@
-name: Cleanup old workflow runs
+name: Prune old workflow runs and branch caches
 
 on:
   schedule:
@@ -7,14 +7,14 @@ on:
   workflow_call:
 
 concurrency:
-  group: cleanup-${{ github.workflow }}
+  group: prune-${{ github.workflow }}
   cancel-in-progress: true
 
 permissions:
   actions: write
 
 jobs:
-  cleanup-runs:
+  prune-runs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -31,7 +31,7 @@ jobs:
             'sort_by(.createdAt) | reverse | .[$keep:] | .[] | select(.createdAt < $cutoff) | .databaseId' \
           | xargs -r -I{} gh run delete {} --repo "${{ github.repository }}"
 
-  cleanup-caches:
+  prune-branch-caches:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
