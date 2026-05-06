@@ -167,7 +167,7 @@ jobs:
 
       - name: Run Claude fix
         if: steps.guard.outputs.skip != 'true'
-        uses: anthropics/claude-code-action@fefa07e9c665b7320f08c3b525980457f22f58aa # v1.0.111
+        uses: anthropics/claude-code-action@7d7d3055f1fdc9a97a040c69ead9ba392fa6326a # v1.0.113
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           use_sticky_comment: true
