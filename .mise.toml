@@ -4,27 +4,15 @@ go = "1.26.3"
 node = "24"
 
 # Static analysis + security tooling — version-of-truth for local + CI.
-# Each pin is Renovate-tracked via the inline comment (see renovate.json
-# `.mise.toml` customManager).
-# renovate: datasource=github-releases depName=golangci/golangci-lint
+# Tracked by Renovate's native `mise` manager (no custom regex needed).
 golangci-lint = "2.11.4"
-# renovate: datasource=github-releases depName=securego/gosec
 "aqua:securego/gosec" = "2.25.0"
-# renovate: datasource=go depName=golang.org/x/vuln/cmd/govulncheck
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.1.4"
-# renovate: datasource=github-releases depName=zricethezav/gitleaks
 gitleaks = "8.30.1"
-# renovate: datasource=github-releases depName=rhysd/actionlint
 actionlint = "1.7.12"
-# renovate: datasource=github-releases depName=koalaman/shellcheck
 shellcheck = "0.11.0"
-# renovate: datasource=github-releases depName=hadolint/hadolint
 hadolint = "2.14.0"
-# renovate: datasource=github-releases depName=aquasecurity/trivy
 trivy = "0.69.3"
-# renovate: datasource=github-releases depName=nektos/act
 act = "0.2.87"
-# renovate: datasource=github-releases depName=goreleaser/goreleaser
 goreleaser = "2.15.2"
-# renovate: datasource=github-releases depName=GoogleContainerTools/container-structure-test
 "aqua:GoogleContainerTools/container-structure-test" = "1.22.1"

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/AndriyKalashnykov/flight-path/pkg/api"
@@ -12,12 +13,14 @@ func TestFindItinerary(t *testing.T) {
 		flights   []api.Flight
 		wantStart string
 		wantEnd   string
+		wantErr   error
 	}{
 		{
 			name:      "empty input",
 			flights:   []api.Flight{},
 			wantStart: "",
 			wantEnd:   "",
+			wantErr:   nil,
 		},
 		{
 			name: "single flight",
@@ -62,11 +65,58 @@ func TestFindItinerary(t *testing.T) {
 			wantStart: "BGY",
 			wantEnd:   "AKL",
 		},
+		{
+			name: "circular path A-B-A is rejected",
+			flights: []api.Flight{
+				{Start: "A", End: "B"},
+				{Start: "B", End: "A"},
+			},
+			wantErr: ErrCircularPath,
+		},
+		{
+			name: "disconnected pairs are rejected",
+			flights: []api.Flight{
+				{Start: "A", End: "B"},
+				{Start: "C", End: "D"},
+			},
+			wantErr: ErrDisconnectedGraph,
+		},
+		{
+			name: "two segments sharing a source are rejected (ambiguous start)",
+			flights: []api.Flight{
+				{Start: "A", End: "B"},
+				{Start: "A", End: "C"},
+			},
+			wantErr: ErrDisconnectedGraph,
+		},
+		{
+			name: "two segments sharing a destination are rejected (ambiguous end)",
+			flights: []api.Flight{
+				{Start: "A", End: "C"},
+				{Start: "B", End: "C"},
+			},
+			wantErr: ErrDisconnectedGraph,
+		},
+		{
+			name: "duplicate segment behaves as a single segment",
+			flights: []api.Flight{
+				{Start: "A", End: "B"},
+				{Start: "A", End: "B"},
+			},
+			wantStart: "A",
+			wantEnd:   "B",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotStart, gotEnd := FindItinerary(tt.flights)
+			gotStart, gotEnd, err := FindItinerary(tt.flights)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("FindItinerary() err = %v, want %v", err, tt.wantErr)
+			}
+			if tt.wantErr != nil {
+				return
+			}
 			if gotStart != tt.wantStart {
 				t.Errorf("FindItinerary() start = %q, want %q", gotStart, tt.wantStart)
 			}

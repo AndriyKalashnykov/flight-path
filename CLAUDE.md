@@ -14,18 +14,21 @@
 
 ```
 flight-path/
-├── main.go                              # Entry point — parses flags, loads .env, calls app.New() + app.Port()
+├── main.go                              # Entry point — parses flags, loads .env via internal/envfile, calls app.New() + app.Port()
 ├── internal/app/
-│   ├── app.go                           # App bootstrap (Echo instance + middleware + routes)
+│   ├── app.go                           # App bootstrap (Echo instance + middleware + routes; imports docs for Swagger spec init)
 │   └── app_integration_test.go          # //go:build integration — full HTTP stack tests
+├── internal/envfile/
+│   ├── envfile.go                       # In-house .env parser (replaces godotenv) — Load() reads KEY=VALUE pairs into os.Setenv
+│   └── envfile_test.go                  # Unit tests for env-file parsing
 ├── internal/handlers/
 │   ├── handlers.go                      # Handler struct constructor (New())
 │   ├── flight.go                        # FlightCalculate handler (POST /calculate)
 │   ├── healthcheck.go                   # ServerHealthCheck handler (GET /)
-│   ├── api.go                           # FindItinerary algorithm (core business logic)
-│   ├── api_test.go                     # Unit tests for FindItinerary (table-driven)
+│   ├── api.go                           # FindItinerary algorithm (core business logic) + ErrCircularPath / ErrDisconnectedGraph sentinels
+│   ├── api_test.go                     # Unit tests for FindItinerary (table-driven, includes contract-violation cases)
 │   ├── api_bench_test.go               # Benchmark tests for FindItinerary
-│   ├── api_fuzz_test.go                # Fuzz tests for FindItinerary
+│   ├── api_fuzz_test.go                # Fuzz tests: FuzzFindItinerary (algorithm) + FuzzFlightCalculate (HTTP layer)
 │   ├── flight_test.go                  # Handler tests for FlightCalculate
 │   └── healthcheck_test.go             # Handler tests for ServerHealthCheck
 ├── internal/routes/
@@ -233,7 +236,9 @@ Update specs when changing architecture, API, or testing strategy.
 | `github.com/labstack/echo/v5` | v5.1.0 | Web framework |
 | `github.com/swaggo/echo-swagger/v2` | v2.0.1 | Swagger UI |
 | `github.com/swaggo/swag/v2` | v2.0.0-rc5 | Swagger generator |
-| `github.com/joho/godotenv` | v1.5.1 | Environment variables |
+
+`.env` parsing is handled in-house by `internal/envfile` (no third-party
+dependency).
 
 ## Dev Tools
 

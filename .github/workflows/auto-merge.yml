@@ -6,6 +6,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   auto-merge:
     if: >-
@@ -13,10 +17,9 @@ jobs:
       github.event.pull_request.user.login == 'AndriyKalashnykov'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
       pull-requests: write
     steps:
-      - name: Enable auto-merge (squash)
+      - name: Enable auto-merge
         # `--repo` is required because the job has no `actions/checkout` step,
         # so cwd is not a git repo and `gh pr merge` cannot auto-detect the
         # remote — without this flag every run fails with
