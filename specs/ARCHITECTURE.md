@@ -102,23 +102,29 @@ Routes in `internal/routes/` receive `*handlers.Handler` and wire methods.
 
 Registered in `internal/app/app.go` in this order:
 
-1. `RequestLogger` — request access log
-2. `Recover` — panic → 500
-3. `CORS` — `CORS_ORIGIN` env var (defaults to `*`)
-4. `Secure` — XSS, nosniff, X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-origin
-5. Custom headers — `Cache-Control: no-store`, `Cross-Origin-Resource-Policy: same-origin`
+1. `RequestID` — per-request `X-Request-Id` header
+2. `RequestLogger` — structured JSON access log (includes the request id)
+3. `Recover` — panic → 500
+4. `BodyLimit(1 << 20)` — caps requests at 1 MiB; oversize → 413
+5. `Gzip` — gzip-encodes responses when the client sends `Accept-Encoding: gzip`
+6. `RateLimiter` (in-memory store) — 100 req/s sustained, 200-burst per IP; oversize → 429
+7. `CORS` — `CORS_ORIGIN` env var (defaults to `*`; comma-separated list supported for multi-origin allowlists)
+8. `Secure` — XSS, nosniff, X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-origin
+9. Custom headers — `Cache-Control: no-store`, `Cross-Origin-Resource-Policy: same-origin`
 
 ### Configuration
 
-- `.env` loaded via `godotenv`, overridable with `--env-file` flag
+- `.env` loaded via the in-house `internal/envfile` package, overridable with the `--env-file` flag
 - `SERVER_PORT` — server port (default `8080`)
-- `CORS_ORIGIN` — single allowed origin for CORS (default `*`)
+- `SERVER_HOST` — bind / introspect host (default `localhost` in scripts, `127.0.0.1` in the container HEALTHCHECK)
+- `CORS_ORIGIN` — single origin or comma-separated allowlist (default `*`)
+- `RATE_LIMIT_PER_SEC` — sustained-rate quota for the in-memory rate limiter, float (default `100`)
+- `RATE_LIMIT_BURST` — burst quota for the in-memory rate limiter, int (default `200`)
 
 ## Dependencies
 
 | Package | Purpose |
 |---|---|
 | `echo/v5` | HTTP framework |
-| `godotenv` | Load `.env` files |
 | `swaggo/echo-swagger/v2` | Serve Swagger UI |
 | `swaggo/swag` | Generate OpenAPI spec from annotations |
