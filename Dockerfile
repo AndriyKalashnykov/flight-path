@@ -40,6 +40,13 @@ USER srvuser:srvgroup
 #USER 65532:65532
 
 COPY --from=build /app/main /
+
+# HEALTHCHECK introspects the container itself, so the host portion is fixed
+# to 127.0.0.1 (loopback inside the namespace). Port comes from $SERVER_PORT
+# at runtime, falling back to 8080 to match .env. SERVER_HOST is also
+# overridable for non-default bind addresses (e.g., binding to a sidecar
+# proxy's loopback IP).
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider \
+      "http://${SERVER_HOST:-127.0.0.1}:${SERVER_PORT:-8080}/" || exit 1
 ENTRYPOINT ["/main"]

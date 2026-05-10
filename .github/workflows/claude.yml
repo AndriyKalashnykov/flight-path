@@ -105,12 +105,37 @@ jobs:
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
+      # Skip when the PR modifies the Claude workflow files themselves.
+      # The action's OIDC token exchange refuses to authenticate against a
+      # workflow whose contents differ from the default branch (a deliberate
+      # security feature — otherwise a malicious PR could rewrite the
+      # workflow to exfiltrate secrets). Without this guard, every Renovate
+      # bump of `anthropics/claude-code-action` produces a red
+      # `claude-pr-review` check that requires manual override.
+      - name: Detect Claude-workflow modifications
+        id: wf-touch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          touched=$(gh pr diff "$PR" --repo "$REPO" --name-only)
+          if echo "$touched" | grep -qE '^\.github/workflows/claude[a-z-]*\.ya?ml$'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping claude-pr-review — PR modifies a Claude workflow file; the action's OIDC token exchange refuses to authenticate when the PR-branch workflow differs from the default-branch workflow (security feature)."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.wf-touch.outputs.skip != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
 
       - name: Check out claude-config
+        if: steps.wf-touch.outputs.skip != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           repository: AndriyKalashnykov/claude-config
@@ -118,9 +143,11 @@ jobs:
           path: .claude-config
 
       - name: Apply Claude config
+        if: steps.wf-touch.outputs.skip != 'true'
         run: bash .claude-config/setup.sh .claude-config && rm -rf .claude-config
 
       - name: Run Claude review
+        if: steps.wf-touch.outputs.skip != 'true'
         uses: anthropics/claude-code-action@476e359e6203e73dad705c8b322e333fabbd7416 # v1.0.119
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

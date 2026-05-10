@@ -66,8 +66,10 @@ help:
 	@echo "Commands :"
 	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST)| tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-22s\033[0m - %s\n", $$1, $$2}'
 
-#deps: @ Download and install dependencies
-deps:
+#deps-mise: @ Bootstrap mise + install every tool pinned in .mise.toml
+# Internal helper used by deps and deps-image; the `mise install` step is
+# the same in both, so factor it once.
+deps-mise:
 	@# Install mise if not present (local development only; CI uses jdx/mise-action)
 	@if [ -z "$$CI" ] && ! command -v mise >/dev/null 2>&1; then \
 		echo "Installing mise v$(MISE_VERSION)..."; \
@@ -86,6 +88,9 @@ deps:
 	else \
 		command -v go >/dev/null 2>&1 || { echo "Error: Go required. Install mise from https://mise.jdx.dev or Go from https://go.dev/dl/"; exit 1; }; \
 	fi
+
+#deps: @ Download and install dependencies (full toolchain — Go, Node, every quality tool, Newman)
+deps: deps-mise
 	@command -v node >/dev/null 2>&1 || { \
 		echo "Error: Node.js not found. Install mise (https://mise.jdx.dev), then run 'mise install' — .mise.toml pins node=$(NODE_VERSION)."; \
 		exit 1; \
@@ -96,6 +101,13 @@ deps:
 	@# needed in this Makefile. Renovate updates the field in test/package.json.
 	@command -v pnpm >/dev/null 2>&1 || { echo "Enabling pnpm via corepack (version read from test/package.json packageManager field)..."; corepack enable; }
 	@[ -f test/node_modules/.bin/newman ] || { echo "Installing newman..."; cd test && pnpm install; }
+
+#deps-image: @ Lean dependency target for image-* targets (mise tools only — no Node/pnpm/Newman)
+# The image targets do not exercise Newman or any Go test code, so skipping
+# Node + pnpm + the test/ pnpm install knocks ~10s off `make image-test` from
+# a clean checkout in CI. `deps-mise` provides container-structure-test,
+# trivy, and goreleaser via .mise.toml.
+deps-image: deps-mise
 
 #deps-check: @ Show required Go version and tool status
 deps-check:
@@ -234,10 +246,11 @@ image-build: require-docker build
 # as an OS env var, no .env file needed inside the container).
 image-run: require-docker image-stop
 	@PORT=$$($(PICK_PORT)); \
-	docker run --rm -d --name $(APP_NAME) -p $$PORT:8080 \
+	CONTAINER_PORT=$$(awk -F= '/^SERVER_PORT=/{print $$2; exit}' .env.example); \
+	docker run --rm -d --name $(APP_NAME) -p $$PORT:$$CONTAINER_PORT \
 		--env-file .env.example \
 		$(APP_NAME):local; \
-	echo "Container $(APP_NAME) listening on http://localhost:$$PORT"
+	echo "Container $(APP_NAME) listening on http://$(LOCAL_HOST):$$PORT"
 
 #image-stop: @ Stop the locally running Docker container
 image-stop: require-docker
@@ -257,9 +270,10 @@ image-push: require-docker image-build
 # the test container on exit (success, failure, or interrupt) via trap.
 image-smoke-test: require-docker
 	@PORT=$$($(PICK_PORT)); \
-	BASE="http://localhost:$$PORT"; \
+	CONTAINER_PORT=$$(awk -F= '/^SERVER_PORT=/{print $$2; exit}' .env.example); \
+	BASE="http://$(LOCAL_HOST):$$PORT"; \
 	trap 'docker rm -f fp-test >/dev/null 2>&1 || true' EXIT INT TERM; \
-	docker run -d --name fp-test -p $$PORT:8080 \
+	docker run -d --name fp-test -p $$PORT:$$CONTAINER_PORT \
 		--env-file .env.example \
 		$(APP_NAME):local >/dev/null; \
 	RESULT=0; \
@@ -271,14 +285,14 @@ image-smoke-test: require-docker
 	exit $$RESULT
 
 #image-structure-test: @ Validate Dockerfile metadata + binary properties (container-structure-test)
-image-structure-test: require-docker deps
+image-structure-test: require-docker deps-image
 	@$(call go-exec,container-structure-test test --image $(APP_NAME):local --config container-structure-test.yaml)
 
 #image-test: @ Build and smoke-test Docker container
 image-test: image-build image-smoke-test image-structure-test
 
 #image-scan: @ Build Docker image and run Trivy scan (requires trivy)
-image-scan: require-docker deps build
+image-scan: require-docker deps-image build
 	@docker buildx build --load \
 		--build-arg GOMODCACHE=/go/pkg/mod \
 		--build-arg GOCACHE=/root/.cache/go-build \
@@ -309,10 +323,12 @@ update: deps
 # === Platform Detection ===
 OPEN_CMD := $(if $(filter Darwin,$(shell uname -s)),open,xdg-open)
 
-# Local port for dev-convenience curl/open targets — honors SERVER_PORT so
-# overrides set in .env (or exported in the shell) flow through.
+# Host + port for dev-convenience curl/open targets — both env-overridable so
+# overrides set in .env (or exported in the shell) flow through. Default host
+# is localhost (single-machine dev), default port is 8080 (matches .env).
+LOCAL_HOST ?= $(or $(SERVER_HOST),localhost)
 LOCAL_PORT ?= $(or $(SERVER_PORT),8080)
-LOCAL_BASE := http://localhost:$(LOCAL_PORT)
+LOCAL_BASE := http://$(LOCAL_HOST):$(LOCAL_PORT)
 
 #open-swagger: @ Open browser with Swagger docs pointing to localhost
 open-swagger:
@@ -426,7 +442,7 @@ check: ci
 	@echo "All pre-commit checks passed."
 
 #trivy-fs: @ Run Trivy filesystem vulnerability scan
-trivy-fs: deps
+trivy-fs: deps-image
 	@command -v trivy >/dev/null 2>&1 || { echo "ERROR: trivy not on PATH. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@trivy fs \
 		--scanners vuln,secret,misconfig \
@@ -435,7 +451,7 @@ trivy-fs: deps
 		--exit-code 1 .
 
 #trivy-image: @ Run Trivy image vulnerability scan
-trivy-image: deps
+trivy-image: deps-image
 	@command -v trivy >/dev/null 2>&1 || { echo "ERROR: trivy not on PATH. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@trivy image --severity CRITICAL,HIGH --exit-code 1 $(APP_NAME):scan
 
@@ -448,7 +464,7 @@ trivy-image: deps
 # server would leak past recipe failure).
 e2e: deps build
 	@PORT=$$(./scripts/pick-port.sh); \
-		BASE="http://localhost:$$PORT"; \
+		BASE="http://$(LOCAL_HOST):$$PORT"; \
 		PIDFILE=$$(mktemp -t flight-path-e2e.XXXXXX.pid); \
 		cleanup() { \
 			[ -f "$$PIDFILE" ] && kill "$$(cat "$$PIDFILE")" 2>/dev/null || true; \
@@ -464,15 +480,18 @@ e2e: deps build
 
 #e2e-quick: @ Run Postman/Newman end-to-end tests (requires server already running)
 e2e-quick: deps
-	@PORT="$${SERVER_PORT:-8080}"; \
-		BASE="http://localhost:$$PORT"; \
-		curl -sf "$$BASE/" >/dev/null 2>&1 || { echo "Error: Server not running on $$BASE. Start with 'make run &' first."; exit 1; }; \
+	@BASE="$(LOCAL_BASE)"; \
+		curl -sf "$$BASE/" >/dev/null 2>&1 || { echo "Error: Server not running on $$BASE. Start with 'make run &' first (or override LOCAL_HOST/LOCAL_PORT for a remote host)."; exit 1; }; \
 		./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json \
 			--env-var "baseUrl=$$BASE"
 
 #renovate-validate: @ Validate Renovate configuration
 renovate-validate: deps
-	@pnpm dlx renovate --platform=local
+	@# Use `npx` (corepack-installed alongside Node) rather than `pnpm dlx`.
+	@# Renovate currently declares `engines.pnpm: ^10.0.0`; corepack here ships
+	@# pnpm 11, so `pnpm dlx renovate` aborts with ERR_PNPM_UNSUPPORTED_ENGINE.
+	@# `npx` resolves the tarball directly, side-stepping the engine gate.
+	@npx --yes renovate --platform=local
 
 #mermaid-lint: @ Validate Mermaid diagrams in markdown files
 mermaid-lint:
@@ -520,7 +539,7 @@ deps-prune-check: deps
 	fi
 	@echo "No prunable dependencies found."
 
-.PHONY: help deps deps-check api-docs test integration-test fuzz bench bench-save bench-compare \
+.PHONY: help deps deps-mise deps-image deps-check api-docs test integration-test fuzz bench bench-save bench-compare \
 	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check static-check mermaid-lint release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \

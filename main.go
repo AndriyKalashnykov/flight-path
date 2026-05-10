@@ -21,9 +21,12 @@ import (
 // @license.name Apache 2.0
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
 
-// @host localhost:8080
 // @BasePath /
-// @schemes http
+// (No @host or @schemes annotations — when the OpenAPI spec omits these,
+// Swagger UI infers them from the URL it was loaded from, so the spec
+// works correctly whether the server is behind localhost, a load balancer,
+// or a reverse proxy. Pinning @host to a literal would break "Try it out"
+// for any non-default deployment.)
 func main() {
 	var envFile string
 	flag.StringVar(&envFile, "env-file", ".env", "File from which to load environment")

@@ -1,5 +1,4 @@
 basePath: /
-host: localhost:8080
 info:
   contact:
     email: AndriyKalashnykov@gmail.com
@@ -67,6 +66,4 @@ paths:
       summary: Determine the flight path of a person.
       tags:
       - FlightCalculate
-schemes:
-- http
 swagger: "2.0"

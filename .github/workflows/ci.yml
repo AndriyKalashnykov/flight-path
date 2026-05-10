@@ -216,6 +216,12 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    env:
+      # Single source of truth for the e2e target URL. Both the wait-for-server
+      # poll and Newman (via make e2e-quick → LOCAL_BASE) read it; no recipe
+      # carries a literal `localhost:8080`.
+      LOCAL_HOST: 127.0.0.1
+      LOCAL_PORT: 8080
 
     steps:
       - name: Checkout
@@ -263,41 +269,58 @@ jobs:
       - name: Start server
         run: |
           chmod +x server
-          ./server -env-file .env &
-          ./scripts/wait-for-server.sh
+          SERVER_PORT="${LOCAL_PORT}" ./server -env-file .env &
+          ./scripts/wait-for-server.sh "http://${LOCAL_HOST}:${LOCAL_PORT}/"
 
       - name: Run Newman tests
+        # make e2e-quick reads LOCAL_HOST + LOCAL_PORT from the job env.
         run: make e2e-quick
 
+  # DAST scans the actually-built Docker image (Pattern A: clean image-index)
+  # rather than the bare server binary. Catches container-level surface that
+  # the binary doesn't carry — e.g., headers added by entrypoint scripts,
+  # apk-upgrade-week deltas in the Alpine layer, USER permission gotchas.
+  # The image is built once here using the GHA layer cache populated by the
+  # docker job, so the scan is fast on a warm cache.
   dast:
     if: vars.ACT != 'true' && needs.changes.outputs.code == 'true'
-    needs: [changes, build, test]
+    needs: [changes, static-check, test]
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    env:
+      # Host + port for the runner-local DAST target. Both env-driven so every
+      # subsequent step uses the same canonical value — no `localhost`/`8080`
+      # literals scattered through the recipe.
+      DAST_HOST: 127.0.0.1
+      DAST_HOST_PORT: 18080
+      DAST_BASE_URL: http://127.0.0.1:18080
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Download build artifact
-        id: download-binary
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        continue-on-error: true
-        with:
-          name: server-binary
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
-      # Fallback path: install toolchain via mise and rebuild if the cross-job
-      # artifact download failed (e.g., under act). Pulls Go from .mise.toml —
-      # same source of truth as the build job.
-      - name: Set up mise
-        if: steps.download-binary.outcome == 'failure'
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
-        with:
-          install: true
-          cache: true
+      # Weekly cache-bust for the apk upgrade layer keeps DAST honest about
+      # base-image security drift even when the Dockerfile is unchanged.
+      - name: Compute APK cache-bust week
+        id: apk-week
+        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
 
-      - name: Build binary (fallback)
-        if: steps.download-binary.outcome == 'failure'
-        run: make build
+      - name: Build image for DAST
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: flight-path:dast
+          build-args: |
+            GOMODCACHE=/go/pkg/mod
+            GOCACHE=/root/.cache/go-build
+            APK_UPGRADE_WEEK=${{ steps.apk-week.outputs.week }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Compute ZAP cache key
         id: zap-week
@@ -314,19 +337,34 @@ jobs:
         if: steps.zap-cache.outputs.cache-hit == 'true'
         run: docker load -i /tmp/zap-image.tar
 
-      - name: Start server
+      - name: Start container under test
         run: |
-          chmod +x server
-          ./server -env-file .env &
-          ./scripts/wait-for-server.sh
+          set -euo pipefail
+          # Container-internal port is read from .env.example so this recipe
+          # has no literal port — same canonical source the binary itself reads.
+          CONTAINER_PORT=$(awk -F= '/^SERVER_PORT=/{print $2; exit}' .env.example)
+          docker run --rm -d --name fp-dast \
+            -p "${DAST_HOST}:${DAST_HOST_PORT}:${CONTAINER_PORT}" \
+            -e "SERVER_PORT=${CONTAINER_PORT}" \
+            flight-path:dast
+          for _ in $(seq 1 30); do
+            curl -sf "${DAST_BASE_URL}/" >/dev/null 2>&1 && break
+            sleep 1
+          done
 
       - name: OWASP ZAP API scan
         uses: zaproxy/action-api-scan@5158fe4d9d8fcc75ea204db81317cce7f9e5453d # v0.10.0
         with:
-          target: 'http://localhost:8080/swagger/doc.json'
+          target: '${{ env.DAST_BASE_URL }}/swagger/doc.json'
           format: openapi
           rules_file_name: '.zap/rules.tsv'
           fail_action: true
+          # The action otherwise tries to file a tracking issue on every
+          # alert. We treat false positives via .zap/rules.tsv (canonical
+          # IGNORE entries with rationale) rather than via auto-filed
+          # issues, so disable the side effect — it also avoids needing
+          # `issues: write` on this job, keeping permissions least-privilege.
+          allow_issue_writing: false
 
       - name: Save ZAP image for cache
         if: steps.zap-cache.outputs.cache-hit != 'true'
@@ -334,7 +372,7 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: pkill -f './server' 2>/dev/null || true
+        run: docker rm -f fp-dast 2>/dev/null || true
 
   # Release: binaries via GoReleaser. Tag-gated — only runs on v*.*.* pushes.
   # Anchor of the multi-artifact release: creates the GitHub Release object

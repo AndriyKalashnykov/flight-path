@@ -884,8 +884,9 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8080",
-      "type": "string"
+      "value": "",
+      "type": "string",
+      "description": "Base URL of the running flight-path server (e.g. http://localhost:8080). MUST be supplied at run time via Newman --env-var baseUrl=... or the Postman GUI's collection-variables panel. The empty default forces callers to provide it explicitly so misconfigured runs fail loudly instead of silently hitting a hardcoded port."
     }
   ]
 }
