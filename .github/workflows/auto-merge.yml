@@ -17,6 +17,13 @@ jobs:
       github.event.pull_request.user.login == 'AndriyKalashnykov'
     runs-on: ubuntu-latest
     permissions:
+      # `gh pr merge --auto` triggers the enablePullRequestAutoMerge GraphQL
+      # mutation, which requires contents: write in addition to
+      # pull-requests: write — it gates on the caller's ability to write
+      # to the default branch even though the actual merge is queued for
+      # later. Removing contents: write makes the step fail with
+      # "Resource not accessible by integration".
+      contents: write
       pull-requests: write
     steps:
       - name: Enable auto-merge
