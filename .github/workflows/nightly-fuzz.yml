@@ -68,7 +68,7 @@ jobs:
           go test ./internal/handlers/ -fuzz=FuzzFindItinerary -fuzztime="${FUZZTIME}" -run='^$'
 
       - name: Upload fuzz failure inputs
-        if: failure()
+        if: failure() && vars.ACT != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           # Go writes failing fuzz inputs under testdata/fuzz/<TestName>/ with a

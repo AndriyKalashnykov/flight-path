@@ -23,7 +23,7 @@ func BenchmarkFindItinerary_10(b *testing.B) {
 	flights := generateFlights(10)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		FindItinerary(flights)
+		_, _, _ = FindItinerary(flights)
 	}
 }
 
@@ -32,7 +32,7 @@ func BenchmarkFindItinerary_50(b *testing.B) {
 	flights := generateFlights(50)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		FindItinerary(flights)
+		_, _, _ = FindItinerary(flights)
 	}
 }
 
@@ -41,7 +41,7 @@ func BenchmarkFindItinerary_100(b *testing.B) {
 	flights := generateFlights(100)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		FindItinerary(flights)
+		_, _, _ = FindItinerary(flights)
 	}
 }
 
@@ -50,6 +50,6 @@ func BenchmarkFindItinerary_500(b *testing.B) {
 	flights := generateFlights(500)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		FindItinerary(flights)
+		_, _, _ = FindItinerary(flights)
 	}
 }

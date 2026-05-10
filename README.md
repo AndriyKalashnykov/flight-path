@@ -131,7 +131,7 @@ Auto-generated OpenAPI spec: [`docs/swagger.json`](./docs/swagger.json)
 |------|-------|-------------|
 | [Trivy](https://github.com/aquasecurity/trivy) | CI + local (`make trivy-fs`, `make image-scan`) | Scans Docker images and filesystem for CVEs |
 
-### Testing
+### Testing tools
 
 | Tool | Command | What it does |
 |------|---------|-------------|
@@ -237,7 +237,7 @@ Run `make help` to see all available targets.
 | Target | Description |
 |--------|-------------|
 | `make help` | List available tasks |
-| `make deps` | Install dev tools — `mise install` reads `.mise.toml` and provisions Go, Node, and every quality/security tool (golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser). swag + benchstat stay Go-installed; newman via pnpm + corepack |
+| `make deps` | Install dev tools — `mise install` reads `.mise.toml` and provisions Go, Node, and every Go-, aqua-, or core-backend-managed tool: golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser, container-structure-test, swag, benchstat. Newman is the only remaining non-mise tool — installed via pnpm + corepack inside `test/`. mermaid-cli runs as a Docker image (no mise backend). |
 | `make deps-check` | Show required Go version, mise status, and tool status |
 | `make release` | Run full CI pipeline then tag and push a new release |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
@@ -271,11 +271,10 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All j
 |------|------|---------|---------------|
 | `CLAUDE_CONFIG_TOKEN` | Secret | `claude.yml`, `claude-ci-fix.yml` | PAT with `contents: read` for [`AndriyKalashnykov/claude-config`](https://github.com/AndriyKalashnykov/claude-config) — allows workflows to check out shared Claude configuration |
 | `ANTHROPIC_API_KEY` | Secret | `claude.yml`, `claude-ci-fix.yml` | [console.anthropic.com](https://console.anthropic.com/) API key — powers the Claude Code action |
+| `ACT` | Variable (local-only) | `dast` job guard, upload-artifact guards in `ci.yml` and `nightly-fuzz.yml` | Injected by `make ci-run` via `--var ACT=true`. Do **not** set on GitHub Actions runners — it would skip the `dast` job in production CI. |
 
 Set secrets via **Settings > Secrets and variables > Actions > New repository secret**.
 Set variables via **Settings > Secrets and variables > Actions > Variables tab > New repository variable**.
-
-**Local-only variables (act):** `ACT=true` is injected automatically by `make ci-run` (via `--var ACT=true`) to guard the `dast` job, which needs Docker-in-Docker for OWASP ZAP and doesn't run cleanly under act. Do **not** set `ACT` on GitHub Actions runners.
 
 ### Pre-push image hardening
 

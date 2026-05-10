@@ -241,11 +241,9 @@ func TestUnknownRoute(t *testing.T) {
 	}
 }
 
-// TestCalculateDisconnectedGraph documents current observed behavior for
-// disconnected inputs: the algorithm returns the airport with no incoming
-// edge as start and no outgoing edge as end, regardless of connectivity.
-// This is a contract-lock test — if we later add validation, flip the
-// assertion to expect 400.
+// TestCalculateDisconnectedGraph asserts the documented contract for
+// disconnected inputs: the handler rejects them with 400 because no single
+// connected itinerary exists.
 func TestCalculateDisconnectedGraph(t *testing.T) {
 	s := newTestServer(t, nil)
 	body := bytes.NewBufferString(`[["A","B"],["C","D"]]`)
@@ -253,13 +251,21 @@ func TestCalculateDisconnectedGraph(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := do(t, req)
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Logf("disconnected-graph status: %d (behavior may have tightened — update expectation)", resp.StatusCode)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("disconnected graph: want 400, got %d", resp.StatusCode)
+	}
+	var env map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if msg, _ := env["Error"].(string); !strings.Contains(strings.ToLower(msg), "disconnected") {
+		t.Errorf("Error: want substring 'disconnected', got %q", msg)
 	}
 }
 
-// TestCalculateCircularPath documents current observed behavior for
-// circular inputs (every airport has both in- and out-edges).
+// TestCalculateCircularPath asserts that circular inputs (every airport has
+// both in- and out-edges) are rejected with 400 — there is no unambiguous
+// start/end pair.
 func TestCalculateCircularPath(t *testing.T) {
 	s := newTestServer(t, nil)
 	body := bytes.NewBufferString(`[["A","B"],["B","A"]]`)
@@ -267,9 +273,15 @@ func TestCalculateCircularPath(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	resp := do(t, req)
 	defer resp.Body.Close()
-	// Either 200 with empty start/end or 4xx if validation added — just assert non-5xx.
-	if resp.StatusCode >= 500 {
-		t.Errorf("circular path returned 5xx: %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("circular path: want 400, got %d", resp.StatusCode)
+	}
+	var env map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if msg, _ := env["Error"].(string); !strings.Contains(strings.ToLower(msg), "circular") {
+		t.Errorf("Error: want substring 'circular', got %q", msg)
 	}
 }
 
@@ -455,4 +467,141 @@ func must(req *http.Request, err error) *http.Request {
 		panic(err)
 	}
 	return req
+}
+
+// TestBodyLimitEnforced asserts the BodyLimit("1M") middleware rejects 2 MiB
+// bodies with 413, preventing unbounded request memory consumption.
+func TestBodyLimitEnforced(t *testing.T) {
+	s := newTestServer(t, nil)
+	const twoMiB = 2 * 1024 * 1024
+	body := make([]byte, twoMiB)
+	for i := range body {
+		body[i] = 'a'
+	}
+	req := must(http.NewRequest(http.MethodPost, s.URL+"/calculate", bytes.NewReader(body)))
+	req.Header.Set("Content-Type", "application/json")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("want 413 for 2 MiB body, got %d", resp.StatusCode)
+	}
+}
+
+// TestRequestIDPropagated asserts every response carries an X-Request-ID
+// header (RequestID middleware enabled). Two consecutive requests must
+// produce different IDs.
+func TestRequestIDPropagated(t *testing.T) {
+	s := newTestServer(t, nil)
+	resp1 := do(t, must(http.NewRequest(http.MethodGet, s.URL+"/", nil)))
+	resp1.Body.Close()
+	id1 := resp1.Header.Get("X-Request-Id")
+	if id1 == "" {
+		t.Fatalf("X-Request-Id missing on response 1")
+	}
+	resp2 := do(t, must(http.NewRequest(http.MethodGet, s.URL+"/", nil)))
+	resp2.Body.Close()
+	id2 := resp2.Header.Get("X-Request-Id")
+	if id2 == "" {
+		t.Fatalf("X-Request-Id missing on response 2")
+	}
+	if id1 == id2 {
+		t.Errorf("request IDs should differ between requests, got %q twice", id1)
+	}
+}
+
+// TestGzipNegotiated asserts that requests with Accept-Encoding: gzip receive
+// a gzip-encoded response. The Gzip middleware compresses successful 2xx
+// responses transparently.
+func TestGzipNegotiated(t *testing.T) {
+	s := newTestServer(t, nil)
+	req := must(http.NewRequest(http.MethodGet, s.URL+"/", nil))
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if got := resp.Header.Get("Content-Encoding"); got != "gzip" {
+		t.Errorf("Content-Encoding: want gzip, got %q", got)
+	}
+}
+
+// TestCORSDisallowedOriginNotEchoed asserts that when CORS_ORIGIN restricts
+// origins to a specific domain, requests from unrelated origins do not get
+// their origin echoed in Access-Control-Allow-Origin.
+func TestCORSDisallowedOriginNotEchoed(t *testing.T) {
+	s := newTestServer(t, map[string]string{"CORS_ORIGIN": "https://app.example"})
+	req := must(http.NewRequest(http.MethodGet, s.URL+"/", nil))
+	req.Header.Set("Origin", "https://evil.example")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got == "https://evil.example" {
+		t.Errorf("disallowed origin echoed back: got %q", got)
+	}
+}
+
+// TestCORSMultiOriginCommaSeparated asserts the CORS_ORIGIN env supports a
+// comma-separated allowlist — both listed origins must be echoed back, and
+// unlisted origins must not.
+func TestCORSMultiOriginCommaSeparated(t *testing.T) {
+	s := newTestServer(t, map[string]string{
+		"CORS_ORIGIN": "https://app.example, https://admin.example",
+	})
+	for _, origin := range []string{"https://app.example", "https://admin.example"} {
+		req := must(http.NewRequest(http.MethodGet, s.URL+"/", nil))
+		req.Header.Set("Origin", origin)
+		resp := do(t, req)
+		resp.Body.Close()
+		if got := resp.Header.Get("Access-Control-Allow-Origin"); got != origin {
+			t.Errorf("origin %q not echoed: got %q", origin, got)
+		}
+	}
+	// Unlisted origin should not be echoed.
+	req := must(http.NewRequest(http.MethodGet, s.URL+"/", nil))
+	req.Header.Set("Origin", "https://evil.example")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got == "https://evil.example" {
+		t.Errorf("unlisted origin echoed: got %q", got)
+	}
+}
+
+// TestSwaggerJSONSpec asserts the generated Swagger spec is valid JSON and
+// describes the /calculate endpoint. Catches regressions where `make api-docs`
+// produces a malformed spec that the HTML UI silently fails to render.
+func TestSwaggerJSONSpec(t *testing.T) {
+	s := newTestServer(t, nil)
+	resp := do(t, must(http.NewRequest(http.MethodGet, s.URL+"/swagger/doc.json", nil)))
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+	var spec map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&spec); err != nil {
+		t.Fatalf("decode swagger spec: %v", err)
+	}
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("swagger spec missing paths: %v", spec)
+	}
+	if _, ok := paths["/calculate"]; !ok {
+		keys := make([]string, 0, len(paths))
+		for k := range paths {
+			keys = append(keys, k)
+		}
+		t.Errorf("swagger spec missing /calculate path; have: %v", keys)
+	}
+}
+
+// TestHealthCheckBodyContract locks the exact health response shape so future
+// drift is caught by tests rather than by Newman in production.
+func TestHealthCheckBodyContract(t *testing.T) {
+	s := newTestServer(t, nil)
+	resp := do(t, must(http.NewRequest(http.MethodGet, s.URL+"/", nil)))
+	defer resp.Body.Close()
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	got, _ := body["data"].(string)
+	if got != "Server is up and running" {
+		t.Errorf("data: want %q, got %q", "Server is up and running", got)
+	}
 }

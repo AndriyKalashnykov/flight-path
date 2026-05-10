@@ -29,6 +29,9 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read   # required by dorny/paths-filter on pull_request events
     outputs:
       code: ${{ steps.decide.outputs.code }}
     steps:
@@ -40,9 +43,11 @@ jobs:
         with:
           # Explicit base required for `act push` compatibility — act's synthetic
           # event payload omits repository.default_branch, which dorny would
-          # otherwise fall back to. Without this, `make ci-run` aborts the
-          # `changes` job and every downstream gated job is blocked.
-          base: main
+          # otherwise fall back to. Set ONLY on push events: dorny ignores
+          # `base:` on pull_request events and emits a "passed with annotations"
+          # warning on every PR run when set unconditionally. Template form
+          # avoids that warning on PRs while preserving act compatibility.
+          base: ${{ github.event_name == 'push' && 'main' || '' }}
           filters: |
             code:
               - '!(**.md|docs/**|specs/**|LICENSE|.gitignore|.claudeignore|.claude/**|benchmarks/**|**.png|**.jpg|**.gif|**.svg)'
@@ -124,8 +129,8 @@ jobs:
         run: make build
 
       - name: Upload build artifact
+        if: ${{ vars.ACT != 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        continue-on-error: true
         with:
           name: server-binary
           path: server
@@ -157,14 +162,16 @@ jobs:
             go-mod-${{ runner.os }}-
 
       - name: Test with coverage
-        run: make coverage-check
+        run: |
+          make coverage
+          make coverage-check
 
       - name: Run fuzz tests
         run: make fuzz
 
       - name: Upload coverage report
+        if: ${{ vars.ACT != 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        continue-on-error: true
         with:
           name: coverage-report
           path: covprof.out
@@ -249,7 +256,7 @@ jobs:
       # Fallback: rebuild if artifact download failed (e.g., under act,
       # cross-job artifact download is unreliable; continue-on-error + this
       # fallback make the job work in both GHA and act environments).
-      - name: Build
+      - name: Build binary (fallback)
         if: steps.download-binary.outcome == 'failure'
         run: make build
 
@@ -288,7 +295,7 @@ jobs:
           install: true
           cache: true
 
-      - name: Build
+      - name: Build binary (fallback)
         if: steps.download-binary.outcome == 'failure'
         run: make build
 
@@ -325,7 +332,7 @@ jobs:
         if: steps.zap-cache.outputs.cache-hit != 'true'
         run: docker save ghcr.io/zaproxy/zaproxy:stable -o /tmp/zap-image.tar
 
-      - name: Stop server process
+      - name: Cleanup
         if: always()
         run: pkill -f './server' 2>/dev/null || true
 
@@ -380,14 +387,10 @@ jobs:
   # produces both artifacts or none. On non-tag pushes goreleaser is skipped
   # (treated as success by `needs:`), so docker still runs every push.
   docker:
-    needs: [changes, static-check, build, test, goreleaser]
+    needs: [changes, static-check, build, test, integration-test, goreleaser]
     if: |
-      always() &&
-      needs.changes.outputs.code == 'true' &&
-      needs.static-check.result == 'success' &&
-      needs.build.result == 'success' &&
-      needs.test.result == 'success' &&
-      (needs.goreleaser.result == 'success' || needs.goreleaser.result == 'skipped')
+      !failure() && !cancelled() &&
+      needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -397,6 +400,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      # mise installs container-structure-test (pinned in .mise.toml) and
+      # surfaces it on PATH for the structure-test step below. Single source of
+      # truth — no parallel CST_VERSION pin in this workflow.
+      - name: Set up mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          install: true
+          cache: true
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -474,20 +486,8 @@ jobs:
       # =================================================================
       # GATE 3b: Container structure test (Dockerfile metadata + binary)
       # =================================================================
-      # The docker job intentionally doesn't use mise (it's Docker-tool focused),
-      # so install container-structure-test directly. Version mirrors .mise.toml
-      # — when bumping, update both. Renovate tracks the .mise.toml pin.
-      - name: Install container-structure-test
-        run: |
-          set -euo pipefail
-          # renovate: datasource=github-releases depName=GoogleContainerTools/container-structure-test
-          CST_VERSION=1.22.1
-          curl -fsSL -o /tmp/cst "https://github.com/GoogleContainerTools/container-structure-test/releases/download/v${CST_VERSION}/container-structure-test-linux-amd64"
-          install -m 0755 /tmp/cst /usr/local/bin/container-structure-test
-          container-structure-test version
-
       - name: Container structure test
-        run: container-structure-test test --image flight-path:local --config container-structure-test.yaml
+        run: make image-structure-test
 
       # =================================================================
       # Multi-arch build — runs on EVERY push. Catches multi-arch build
@@ -556,6 +556,7 @@ jobs:
     needs: [changes, static-check, build, test, integration-test, e2e, dast, goreleaser, docker]
     timeout-minutes: 2
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Verify all jobs passed
         run: |

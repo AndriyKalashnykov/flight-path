@@ -5,7 +5,6 @@ import (
 	"flag"
 	"log"
 
-	_ "github.com/AndriyKalashnykov/flight-path/docs"
 	"github.com/AndriyKalashnykov/flight-path/internal/app"
 	"github.com/AndriyKalashnykov/flight-path/internal/envfile"
 )

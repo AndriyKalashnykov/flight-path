@@ -14,18 +14,21 @@
 
 ```
 flight-path/
-├── main.go                              # Entry point — parses flags, loads .env, calls app.New() + app.Port()
+├── main.go                              # Entry point — parses flags, loads .env via internal/envfile, calls app.New() + app.Port()
 ├── internal/app/
-│   ├── app.go                           # App bootstrap (Echo instance + middleware + routes)
+│   ├── app.go                           # App bootstrap (Echo instance + middleware + routes; imports docs for Swagger spec init)
 │   └── app_integration_test.go          # //go:build integration — full HTTP stack tests
+├── internal/envfile/
+│   ├── envfile.go                       # In-house .env parser (replaces godotenv) — Load() reads KEY=VALUE pairs into os.Setenv
+│   └── envfile_test.go                  # Unit tests for env-file parsing
 ├── internal/handlers/
 │   ├── handlers.go                      # Handler struct constructor (New())
 │   ├── flight.go                        # FlightCalculate handler (POST /calculate)
 │   ├── healthcheck.go                   # ServerHealthCheck handler (GET /)
-│   ├── api.go                           # FindItinerary algorithm (core business logic)
-│   ├── api_test.go                     # Unit tests for FindItinerary (table-driven)
+│   ├── api.go                           # FindItinerary algorithm (core business logic) + ErrCircularPath / ErrDisconnectedGraph sentinels
+│   ├── api_test.go                     # Unit tests for FindItinerary (table-driven, includes contract-violation cases)
 │   ├── api_bench_test.go               # Benchmark tests for FindItinerary
-│   ├── api_fuzz_test.go                # Fuzz tests for FindItinerary
+│   ├── api_fuzz_test.go                # Fuzz tests: FuzzFindItinerary (algorithm) + FuzzFlightCalculate (HTTP layer)
 │   ├── flight_test.go                  # Handler tests for FlightCalculate
 │   └── healthcheck_test.go             # Handler tests for ServerHealthCheck
 ├── internal/routes/
@@ -156,17 +159,18 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 |----------|---------|---------|
 | `APP_NAME` | flight-path | Application name (used in Docker tags) |
 | `GO_VERSION` | (auto-extracted from go.mod) | Go version auto-parsed from `go.mod` via regex (mise also reads `go.mod` natively) |
-| `SWAG_VERSION` | 2.0.0-rc5 | Swagger code generator (Go install — no stable mise backend) |
-| `BENCHSTAT_VERSION` | 0.0.0-20260409210113-8e83ce0f7b1c | Benchmark comparison (Go install) |
-| `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image) |
-| `MISE_VERSION` | 2026.4.11 | Toolchain version manager bootstrap (reads `.mise.toml`) |
+| `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image — only ecosystem mise can't manage) |
+| `MISE_VERSION` | 2026.4.11 | mise bootstrap version (used by `make deps` if mise isn't already installed) |
 | `NODE_VERSION` | 24 | Node.js major version (source of truth: `.nvmrc` / `.mise.toml`; installed via mise) |
 
-The quality/security toolchain (golangci-lint, gosec, govulncheck, gitleaks,
-actionlint, shellcheck, hadolint, trivy, act, goreleaser) is pinned in
-`.mise.toml` — one source of truth, consumed by both local dev (`make deps` →
-`mise install --yes`) and CI (`jdx/mise-action`). Do not re-pin these tools in
-the Makefile or workflow YAML.
+Every other tool — `go`, `node`, `golangci-lint`, `gosec`, `govulncheck`,
+`gitleaks`, `actionlint`, `shellcheck`, `hadolint`, `trivy`, `act`,
+`goreleaser`, `container-structure-test`, **`swag`**, and **`benchstat`** — is
+pinned in `.mise.toml` and installed by `mise install --yes` (local) /
+`jdx/mise-action` (CI). Do not re-pin them in the Makefile or workflow YAML.
+The two earlier `SWAG_VERSION`/`BENCHSTAT_VERSION` Makefile constants were
+retired in favor of the mise `go:` backend (`go:github.com/swaggo/swag/v2/cmd/swag`
+and `go:golang.org/x/perf/cmd/benchstat`).
 
 ## Testing Pyramid
 
@@ -233,7 +237,9 @@ Update specs when changing architecture, API, or testing strategy.
 | `github.com/labstack/echo/v5` | v5.1.0 | Web framework |
 | `github.com/swaggo/echo-swagger/v2` | v2.0.1 | Swagger UI |
 | `github.com/swaggo/swag/v2` | v2.0.0-rc5 | Swagger generator |
-| `github.com/joho/godotenv` | v1.5.1 | Environment variables |
+
+`.env` parsing is handled in-house by `internal/envfile` (no third-party
+dependency).
 
 ## Dev Tools
 
@@ -253,8 +259,8 @@ All quality/security tools below are installed in one pass by
 | `act` | Local GitHub Actions runner | mise / `.mise.toml` |
 | `goreleaser` | Release binary builder + `.goreleaser.yml` validator | mise / `.mise.toml` |
 | `container-structure-test` | Dockerfile metadata + binary property validator | mise / `.mise.toml` (aqua:GoogleContainerTools/container-structure-test) |
-| `swag` | Swagger generation | `go install` (pinned via `SWAG_VERSION` in Makefile) |
-| `benchstat` | Benchmark comparison | `go install` (pinned via `BENCHSTAT_VERSION` in Makefile) |
+| `swag` | Swagger generation | mise / `.mise.toml` (go:github.com/swaggo/swag/v2/cmd/swag) |
+| `benchstat` | Benchmark comparison | mise / `.mise.toml` (go:golang.org/x/perf/cmd/benchstat) |
 | `newman` | E2E API testing | `pnpm install` in `test/` (pinned in `test/package.json`) |
 | `mermaid-cli` | Mermaid diagram validator (runs as Docker image) | `make mermaid-lint` (pulls image on demand) |
 

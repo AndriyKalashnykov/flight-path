@@ -26,12 +26,9 @@ GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 # (jdx/mise-action). Do NOT re-pin those tools here.
 #
 # The remaining Makefile-level pins are for tools that mise does not manage:
-# Go-installed tools without a stable aqua backend, and Docker-image tools.
+# the mise bootstrap version itself, the Node major-version mirror of .nvmrc,
+# and the mermaid-cli Docker image.
 
-# renovate: datasource=github-releases depName=swaggo/swag
-SWAG_VERSION        := 2.0.0-rc5
-# renovate: datasource=go depName=golang.org/x/perf/cmd/benchstat versioning=loose
-BENCHSTAT_VERSION   := 0.0.0-20260409210113-8e83ce0f7b1c
 # NODE_VERSION tracks major only — source of truth: .nvmrc (Renovate cannot track major-only values).
 # Node is installed via mise (.mise.toml pins `node = "24"`); .nvmrc is kept for mise's native read.
 NODE_VERSION        := $(shell cat .nvmrc 2>/dev/null || echo 24)
@@ -89,9 +86,6 @@ deps:
 	else \
 		command -v go >/dev/null 2>&1 || { echo "Error: Go required. Install mise from https://mise.jdx.dev or Go from https://go.dev/dl/"; exit 1; }; \
 	fi
-	@# Tools that don't have a stable mise backend stay Go-installed.
-	@$(call go-exec,command -v swag) >/dev/null 2>&1 || { echo "Installing swag..."; $(call go-exec,go install github.com/swaggo/swag/v2/cmd/swag@v$(SWAG_VERSION)); }
-	@$(call go-exec,command -v benchstat) >/dev/null 2>&1 || { echo "Installing benchstat..."; $(call go-exec,go install golang.org/x/perf/cmd/benchstat@v$(BENCHSTAT_VERSION)); }
 	@command -v node >/dev/null 2>&1 || { \
 		echo "Error: Node.js not found. Install mise (https://mise.jdx.dev), then run 'mise install' — .mise.toml pins node=$(NODE_VERSION)."; \
 		exit 1; \
@@ -129,17 +123,19 @@ integration-test: deps
 fuzz: deps
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test ./internal/handlers/ -fuzz=FuzzFindItinerary -fuzztime=30s)
 
-#bench: @ Run bench tests
+#bench: @ Run benchmarks for 3 seconds
 bench: deps
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s)
 
-#bench-save: @ Save benchmark results to file
+#bench-save: @ Save benchmark results to a timestamped file
 bench-save: deps
 	@mkdir -p benchmarks
 	@# $$(date) evaluates at recipe-execution time; $(shell date) would evaluate
 	@# at Make-parse time and stamp identical timestamps on consecutive runs
-	@# inside a single `make` invocation.
-	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s) | tee "benchmarks/bench_$$(date +%Y%m%d_%H%M%S).txt"
+	@# inside a single `make` invocation. `set -o pipefail` ensures a failed
+	@# benchmark run propagates exit status through `tee` instead of being
+	@# masked as exit 0.
+	@set -o pipefail; $(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s) | tee "benchmarks/bench_$$(date +%Y%m%d_%H%M%S).txt"
 
 #bench-compare: @ Compare two benchmark files (usage: make bench-compare OLD=file1.txt NEW=file2.txt)
 bench-compare: deps
@@ -275,15 +271,14 @@ image-smoke-test: require-docker
 	exit $$RESULT
 
 #image-structure-test: @ Validate Dockerfile metadata + binary properties (container-structure-test)
-image-structure-test: deps
-	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker is required for image-structure-test"; exit 1; }
+image-structure-test: require-docker deps
 	@$(call go-exec,container-structure-test test --image $(APP_NAME):local --config container-structure-test.yaml)
 
 #image-test: @ Build and smoke-test Docker container
 image-test: image-build image-smoke-test image-structure-test
 
 #image-scan: @ Build Docker image and run Trivy scan (requires trivy)
-image-scan: deps build
+image-scan: require-docker deps build
 	@docker buildx build --load \
 		--build-arg GOMODCACHE=/go/pkg/mod \
 		--build-arg GOCACHE=/root/.cache/go-build \
@@ -314,14 +309,19 @@ update: deps
 # === Platform Detection ===
 OPEN_CMD := $(if $(filter Darwin,$(shell uname -s)),open,xdg-open)
 
+# Local port for dev-convenience curl/open targets — honors SERVER_PORT so
+# overrides set in .env (or exported in the shell) flow through.
+LOCAL_PORT ?= $(or $(SERVER_PORT),8080)
+LOCAL_BASE := http://localhost:$(LOCAL_PORT)
+
 #open-swagger: @ Open browser with Swagger docs pointing to localhost
 open-swagger:
-	@$(OPEN_CMD) http://localhost:8080/swagger/index.html 1>/dev/null 2>&1
+	@$(OPEN_CMD) $(LOCAL_BASE)/swagger/index.html 1>/dev/null 2>&1
 
 #test-case-one: @ Test case #1 [["SFO", "EWR"]]
 test-case-one:
 	@curl -X 'POST' \
-	      'http://localhost:8080/calculate' \
+	      '$(LOCAL_BASE)/calculate' \
 	      -H 'accept: application/json' \
 	      -H 'Content-Type: application/json' \
 	      -d '[["SFO", "EWR"]]'
@@ -329,7 +329,7 @@ test-case-one:
 #test-case-two: @ Test case #2 [["ATL", "EWR"], ["SFO", "ATL"]]
 test-case-two:
 	@curl -X 'POST' \
-	      'http://localhost:8080/calculate' \
+	      '$(LOCAL_BASE)/calculate' \
 	      -H 'accept: application/json' \
 	      -H 'Content-Type: application/json' \
 	      -d '[["ATL", "EWR"], ["SFO", "ATL"]]'
@@ -337,7 +337,7 @@ test-case-two:
 #test-case-three: @ Test case #3 [["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]
 test-case-three:
 	@curl -X 'POST' \
-	      'http://localhost:8080/calculate' \
+	      '$(LOCAL_BASE)/calculate' \
 	      -H 'accept: application/json' \
 	      -H 'Content-Type: application/json' \
 	      -d '[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]'
@@ -357,8 +357,12 @@ coverage: deps
 	@$(call go-exec,go tool cover -html=$(COVPROF) -o $(OUTDIR)/coverage.html)
 	@echo "Coverage report: $(OUTDIR)/coverage.html"
 
-#coverage-check: @ Verify coverage meets 80% threshold
-coverage-check: coverage
+#coverage-check: @ Verify the coverage profile meets the 80% threshold (run `make coverage` first)
+coverage-check: deps
+	@if [ ! -s $(COVPROF) ]; then \
+		echo "ERROR: $(COVPROF) missing or empty. Run 'make coverage' first."; \
+		exit 1; \
+	fi
 	@TOTAL=$$($(call go-exec,go tool cover -func=$(COVPROF)) | grep total | awk '{print $$3}' | tr -d '%'); \
 	echo "Coverage: $${TOTAL}%"; \
 	if awk "BEGIN {exit !($${TOTAL} < 80)}"; then \
@@ -370,7 +374,11 @@ coverage-check: coverage
 #ci: @ Run full CI pipeline locally (unit + static + build + fuzz + prune-check).
 # For full e2e validation via Newman, use `make ci-run` which drives act
 # through the `e2e` job (Newman runs against the built binary).
-ci: deps static-check test integration-test coverage-check build fuzz deps-prune-check
+# Note: `coverage` runs the integration-tagged test suite to produce the
+# profile that `coverage-check` then asserts against; running it after `test`
+# and `integration-test` ensures `coverage-check` operates on a fresh profile
+# without re-running every assertion a third time.
+ci: deps static-check test integration-test coverage coverage-check build fuzz deps-prune-check
 	@echo "Local CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
@@ -456,8 +464,11 @@ e2e: deps build
 
 #e2e-quick: @ Run Postman/Newman end-to-end tests (requires server already running)
 e2e-quick: deps
-	@curl -sf http://localhost:8080/ >/dev/null 2>&1 || { echo "Error: Server not running on port 8080. Start with 'make run &' first."; exit 1; }
-	@./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json
+	@PORT="$${SERVER_PORT:-8080}"; \
+		BASE="http://localhost:$$PORT"; \
+		curl -sf "$$BASE/" >/dev/null 2>&1 || { echo "Error: Server not running on $$BASE. Start with 'make run &' first."; exit 1; }; \
+		./test/node_modules/.bin/newman run $(NEWMANTESTSLOCATION)FlightPath.postman_collection.json \
+			--env-var "baseUrl=$$BASE"
 
 #renovate-validate: @ Validate Renovate configuration
 renovate-validate: deps

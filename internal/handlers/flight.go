@@ -52,7 +52,12 @@ func (h Handler) FlightCalculate(c *echo.Context) error {
 		})
 	}
 
-	start, finish := FindItinerary(flights)
+	start, finish, err := FindItinerary(flights)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]any{
+			"Error": err.Error(),
+		})
+	}
 
 	return c.JSON(http.StatusOK, []string{start, finish})
 }
