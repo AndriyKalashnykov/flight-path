@@ -24,7 +24,7 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, request-flow s
 
 | Component | Technology | Rationale |
 |-----------|------------|-----------|
-| Language | Go 1.26.2 (from `go.mod`) | Statically compiled binary, strong stdlib HTTP, goroutine concurrency |
+| Language | Go 1.26.3 (from `go.mod`) | Statically compiled binary, strong stdlib HTTP, goroutine concurrency |
 | Framework | Echo v5.1.0 | Lightweight router with built-in JSON binding, middleware stack, Swagger integration |
 | API Docs | Swagger (swaggo/swag v2) | Auto-generated OpenAPI spec from Go annotations |
 | Testing | go test (unit, bench, fuzz), Newman/Postman (E2E) | Table-driven unit tests + black-box API tests against the built binary |
@@ -47,7 +47,7 @@ make run       # build and start the server
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| [Go](https://go.dev/dl/) | 1.26.2 (see `go.mod`) | Language runtime and compiler |
+| [Go](https://go.dev/dl/) | 1.26.3 (see `go.mod`) | Language runtime and compiler |
 | [mise](https://mise.jdx.dev/) | latest | Toolchain manager — reads `.mise.toml` to install pinned Go + Node |
 | [GNU Make](https://www.gnu.org/software/make/) | 3.81+ | Build orchestration |
 | [Git](https://git-scm.com/) | 2.0+ | Version control |

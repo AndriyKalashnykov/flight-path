@@ -6,7 +6,7 @@ Go and Node are provisioned by [mise](https://mise.jdx.dev/) from `.mise.toml` (
 
 | Tool | Source of truth | Purpose |
 |---|---|---|
-| Go | `go.mod` + `.mise.toml` | Language runtime (currently 1.26.2) |
+| Go | `go.mod` + `.mise.toml` | Language runtime (currently 1.26.3) |
 | Node.js | `.nvmrc` + `.mise.toml` | Newman E2E runner (currently major 24) |
 | golangci-lint | `.mise.toml` | Meta-linter (configured via `.golangci.yml`) |
 | gosec | `.mise.toml` (aqua:securego/gosec) | Security scanner |

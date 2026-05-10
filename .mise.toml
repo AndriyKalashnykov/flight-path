@@ -1,6 +1,6 @@
 [tools]
 # Language toolchains (Go version mirrors go.mod; node mirrors .nvmrc)
-go = "1.26.2"
+go = "1.26.3"
 node = "24"
 
 # Static analysis + security tooling — version-of-truth for local + CI.

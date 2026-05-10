@@ -17,7 +17,7 @@ C4Container
     Person(client, "API Client", "cURL, Postman, Newman, browser")
 
     System_Boundary(api, "Flight Path API") {
-        Container(server, "flight-path server", "Go 1.26.2, Echo v5.1.0", "Single static binary. Serves POST /calculate, GET /, and GET /swagger/* (embedded Swagger UI via swaggo/echo-swagger v2.0.1). Middleware stack: Logger, Recover, CORS, Secure, Cache-Control, Gzip, RequestID, BodyLimit 1 MiB.")
+        Container(server, "flight-path server", "Go 1.26.3, Echo v5.1.0", "Single static binary. Serves POST /calculate, GET /, and GET /swagger/* (embedded Swagger UI via swaggo/echo-swagger v2.0.1). Middleware stack: Logger, Recover, CORS, Secure, Cache-Control, Gzip, RequestID, BodyLimit 1 MiB.")
     }
 
     Rel(client, server, "POST /calculate, GET /, GET /swagger/*", "HTTPS / JSON")
