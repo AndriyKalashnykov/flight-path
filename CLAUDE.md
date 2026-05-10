@@ -159,17 +159,18 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 |----------|---------|---------|
 | `APP_NAME` | flight-path | Application name (used in Docker tags) |
 | `GO_VERSION` | (auto-extracted from go.mod) | Go version auto-parsed from `go.mod` via regex (mise also reads `go.mod` natively) |
-| `SWAG_VERSION` | 2.0.0-rc5 | Swagger code generator (Go install — no stable mise backend) |
-| `BENCHSTAT_VERSION` | 0.0.0-20260409210113-8e83ce0f7b1c | Benchmark comparison (Go install) |
-| `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image) |
-| `MISE_VERSION` | 2026.4.11 | Toolchain version manager bootstrap (reads `.mise.toml`) |
+| `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image — only ecosystem mise can't manage) |
+| `MISE_VERSION` | 2026.4.11 | mise bootstrap version (used by `make deps` if mise isn't already installed) |
 | `NODE_VERSION` | 24 | Node.js major version (source of truth: `.nvmrc` / `.mise.toml`; installed via mise) |
 
-The quality/security toolchain (golangci-lint, gosec, govulncheck, gitleaks,
-actionlint, shellcheck, hadolint, trivy, act, goreleaser) is pinned in
-`.mise.toml` — one source of truth, consumed by both local dev (`make deps` →
-`mise install --yes`) and CI (`jdx/mise-action`). Do not re-pin these tools in
-the Makefile or workflow YAML.
+Every other tool — `go`, `node`, `golangci-lint`, `gosec`, `govulncheck`,
+`gitleaks`, `actionlint`, `shellcheck`, `hadolint`, `trivy`, `act`,
+`goreleaser`, `container-structure-test`, **`swag`**, and **`benchstat`** — is
+pinned in `.mise.toml` and installed by `mise install --yes` (local) /
+`jdx/mise-action` (CI). Do not re-pin them in the Makefile or workflow YAML.
+The two earlier `SWAG_VERSION`/`BENCHSTAT_VERSION` Makefile constants were
+retired in favor of the mise `go:` backend (`go:github.com/swaggo/swag/v2/cmd/swag`
+and `go:golang.org/x/perf/cmd/benchstat`).
 
 ## Testing Pyramid
 
@@ -258,8 +259,8 @@ All quality/security tools below are installed in one pass by
 | `act` | Local GitHub Actions runner | mise / `.mise.toml` |
 | `goreleaser` | Release binary builder + `.goreleaser.yml` validator | mise / `.mise.toml` |
 | `container-structure-test` | Dockerfile metadata + binary property validator | mise / `.mise.toml` (aqua:GoogleContainerTools/container-structure-test) |
-| `swag` | Swagger generation | `go install` (pinned via `SWAG_VERSION` in Makefile) |
-| `benchstat` | Benchmark comparison | `go install` (pinned via `BENCHSTAT_VERSION` in Makefile) |
+| `swag` | Swagger generation | mise / `.mise.toml` (go:github.com/swaggo/swag/v2/cmd/swag) |
+| `benchstat` | Benchmark comparison | mise / `.mise.toml` (go:golang.org/x/perf/cmd/benchstat) |
 | `newman` | E2E API testing | `pnpm install` in `test/` (pinned in `test/package.json`) |
 | `mermaid-cli` | Mermaid diagram validator (runs as Docker image) | `make mermaid-lint` (pulls image on demand) |
 

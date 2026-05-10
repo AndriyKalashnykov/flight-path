@@ -237,7 +237,7 @@ Run `make help` to see all available targets.
 | Target | Description |
 |--------|-------------|
 | `make help` | List available tasks |
-| `make deps` | Install dev tools — `mise install` reads `.mise.toml` and provisions Go, Node, and every quality/security tool (golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser). swag + benchstat stay Go-installed; newman via pnpm + corepack |
+| `make deps` | Install dev tools — `mise install` reads `.mise.toml` and provisions Go, Node, and every Go-, aqua-, or core-backend-managed tool: golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser, container-structure-test, swag, benchstat. Newman is the only remaining non-mise tool — installed via pnpm + corepack inside `test/`. mermaid-cli runs as a Docker image (no mise backend). |
 | `make deps-check` | Show required Go version, mise status, and tool status |
 | `make release` | Run full CI pipeline then tag and push a new release |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |

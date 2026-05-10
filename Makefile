@@ -26,12 +26,9 @@ GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 # (jdx/mise-action). Do NOT re-pin those tools here.
 #
 # The remaining Makefile-level pins are for tools that mise does not manage:
-# Go-installed tools without a stable aqua backend, and Docker-image tools.
+# the mise bootstrap version itself, the Node major-version mirror of .nvmrc,
+# and the mermaid-cli Docker image.
 
-# renovate: datasource=github-releases depName=swaggo/swag
-SWAG_VERSION        := 2.0.0-rc5
-# renovate: datasource=go depName=golang.org/x/perf/cmd/benchstat versioning=loose
-BENCHSTAT_VERSION   := 0.0.0-20260409210113-8e83ce0f7b1c
 # NODE_VERSION tracks major only — source of truth: .nvmrc (Renovate cannot track major-only values).
 # Node is installed via mise (.mise.toml pins `node = "24"`); .nvmrc is kept for mise's native read.
 NODE_VERSION        := $(shell cat .nvmrc 2>/dev/null || echo 24)
@@ -89,9 +86,6 @@ deps:
 	else \
 		command -v go >/dev/null 2>&1 || { echo "Error: Go required. Install mise from https://mise.jdx.dev or Go from https://go.dev/dl/"; exit 1; }; \
 	fi
-	@# Tools that don't have a stable mise backend stay Go-installed.
-	@$(call go-exec,command -v swag) >/dev/null 2>&1 || { echo "Installing swag..."; $(call go-exec,go install github.com/swaggo/swag/v2/cmd/swag@v$(SWAG_VERSION)); }
-	@$(call go-exec,command -v benchstat) >/dev/null 2>&1 || { echo "Installing benchstat..."; $(call go-exec,go install golang.org/x/perf/cmd/benchstat@v$(BENCHSTAT_VERSION)); }
 	@command -v node >/dev/null 2>&1 || { \
 		echo "Error: Node.js not found. Install mise (https://mise.jdx.dev), then run 'mise install' — .mise.toml pins node=$(NODE_VERSION)."; \
 		exit 1; \
@@ -315,14 +309,19 @@ update: deps
 # === Platform Detection ===
 OPEN_CMD := $(if $(filter Darwin,$(shell uname -s)),open,xdg-open)
 
+# Local port for dev-convenience curl/open targets — honors SERVER_PORT so
+# overrides set in .env (or exported in the shell) flow through.
+LOCAL_PORT ?= $(or $(SERVER_PORT),8080)
+LOCAL_BASE := http://localhost:$(LOCAL_PORT)
+
 #open-swagger: @ Open browser with Swagger docs pointing to localhost
 open-swagger:
-	@$(OPEN_CMD) http://localhost:8080/swagger/index.html 1>/dev/null 2>&1
+	@$(OPEN_CMD) $(LOCAL_BASE)/swagger/index.html 1>/dev/null 2>&1
 
 #test-case-one: @ Test case #1 [["SFO", "EWR"]]
 test-case-one:
 	@curl -X 'POST' \
-	      'http://localhost:8080/calculate' \
+	      '$(LOCAL_BASE)/calculate' \
 	      -H 'accept: application/json' \
 	      -H 'Content-Type: application/json' \
 	      -d '[["SFO", "EWR"]]'
@@ -330,7 +329,7 @@ test-case-one:
 #test-case-two: @ Test case #2 [["ATL", "EWR"], ["SFO", "ATL"]]
 test-case-two:
 	@curl -X 'POST' \
-	      'http://localhost:8080/calculate' \
+	      '$(LOCAL_BASE)/calculate' \
 	      -H 'accept: application/json' \
 	      -H 'Content-Type: application/json' \
 	      -d '[["ATL", "EWR"], ["SFO", "ATL"]]'
@@ -338,7 +337,7 @@ test-case-two:
 #test-case-three: @ Test case #3 [["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]
 test-case-three:
 	@curl -X 'POST' \
-	      'http://localhost:8080/calculate' \
+	      '$(LOCAL_BASE)/calculate' \
 	      -H 'accept: application/json' \
 	      -H 'Content-Type: application/json' \
 	      -d '[["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]'

@@ -16,3 +16,8 @@ trivy = "0.69.3"
 act = "0.2.87"
 goreleaser = "2.15.2"
 "aqua:GoogleContainerTools/container-structure-test" = "1.22.1"
+
+# Project-specific Go-installable tools — migrated off the parallel
+# `go install` recipe in the Makefile so there's a single source of truth.
+"go:github.com/swaggo/swag/v2/cmd/swag" = "2.0.0-rc5"
+"go:golang.org/x/perf/cmd/benchstat" = "0.0.0-20260409210113-8e83ce0f7b1c"
