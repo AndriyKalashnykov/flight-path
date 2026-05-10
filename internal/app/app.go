@@ -4,7 +4,9 @@ package app
 
 import (
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
@@ -30,6 +32,17 @@ func New() *echo.Echo {
 	e.Use(middleware.Recover())
 	e.Use(middleware.BodyLimit(1 << 20)) // 1 MiB
 	e.Use(middleware.Gzip())
+	// Per-IP rate limiter using the in-memory store. 100 req/s sustained,
+	// 200-request burst. Tunable via env (RATE_LIMIT_PER_SEC,
+	// RATE_LIMIT_BURST) so operators can relax it for load tests or
+	// tighten it under abuse without rebuilding the binary.
+	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStoreWithConfig(
+		middleware.RateLimiterMemoryStoreConfig{
+			Rate:      envFloat("RATE_LIMIT_PER_SEC", 100),
+			Burst:     envInt("RATE_LIMIT_BURST", 200),
+			ExpiresIn: 3 * time.Minute,
+		},
+	)))
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: parseCORSOrigins(os.Getenv("CORS_ORIGIN")),
@@ -54,6 +67,24 @@ func New() *echo.Echo {
 	routes.FlightRoutes(e, &h)
 
 	return e
+}
+
+func envFloat(key string, fallback float64) float64 {
+	if raw := os.Getenv(key); raw != "" {
+		if v, err := strconv.ParseFloat(raw, 64); err == nil && v > 0 {
+			return v
+		}
+	}
+	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	if raw := os.Getenv(key); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+			return v
+		}
+	}
+	return fallback
 }
 
 func parseCORSOrigins(raw string) []string {
