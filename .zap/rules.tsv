@@ -3,3 +3,4 @@
 10023	IGNORE	(Information Disclosure - Debug Error Messages - Swagger spec contains error response examples)
 10049	IGNORE	(Non-Storable Content - intentional Cache-Control: no-store on API responses)
 90022	IGNORE	(Application Error Disclosure - Swagger spec contains error response examples)
+40018	IGNORE	(SQL Injection - false positive: codebase contains no SQL or any database driver, /calculate is a pure in-memory string-graph algorithm. Rule heuristic likely triggered by 4xx/timing patterns from BodyLimit/RateLimit middleware returning 413/429 to active-scan probe waves.)

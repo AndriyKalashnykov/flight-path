@@ -359,6 +359,12 @@ jobs:
           format: openapi
           rules_file_name: '.zap/rules.tsv'
           fail_action: true
+          # The action otherwise tries to file a tracking issue on every
+          # alert. We treat false positives via .zap/rules.tsv (canonical
+          # IGNORE entries with rationale) rather than via auto-filed
+          # issues, so disable the side effect — it also avoids needing
+          # `issues: write` on this job, keeping permissions least-privilege.
+          allow_issue_writing: false
 
       - name: Save ZAP image for cache
         if: steps.zap-cache.outputs.cache-hit != 'true'
