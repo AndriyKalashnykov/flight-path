@@ -57,7 +57,7 @@ jobs:
         run: bash .claude-config/setup.sh .claude-config && rm -rf .claude-config
 
       - name: Run Claude
-        uses: anthropics/claude-code-action@86eb26bf0139bdd75acd15ea5f00f45ee0a284c2 # v1.0.122
+        uses: anthropics/claude-code-action@51ea8ea73a139f2a74ff649e3092c25a904aed7e # v1.0.123
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # assignee_trigger: claude  # Uncomment to also trigger when issues are assigned to "claude"
@@ -148,7 +148,7 @@ jobs:
 
       - name: Run Claude review
         if: steps.wf-touch.outputs.skip != 'true'
-        uses: anthropics/claude-code-action@86eb26bf0139bdd75acd15ea5f00f45ee0a284c2 # v1.0.122
+        uses: anthropics/claude-code-action@51ea8ea73a139f2a74ff649e3092c25a904aed7e # v1.0.123
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           use_sticky_comment: true
