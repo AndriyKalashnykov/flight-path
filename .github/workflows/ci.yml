@@ -308,7 +308,7 @@ jobs:
         run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
 
       - name: Build image for DAST
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: .
           file: ./Dockerfile
@@ -483,7 +483,7 @@ jobs:
       # GATE 1: Local single-arch build for scanning + smoke testing
       # =================================================================
       - name: Build image for scan
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: .
           file: ./Dockerfile
@@ -542,7 +542,7 @@ jobs:
 
       - name: Build and push
         id: push
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: .
           file: ./Dockerfile
