@@ -20,4 +20,3 @@ output/
 main
 server
 test/node_modules/
-test/pnpm-lock.yaml
