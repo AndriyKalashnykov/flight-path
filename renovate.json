@@ -12,6 +12,21 @@
     "npm",
     "custom.regex"
   ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/__pycache__/**",
+    "**/dist/**",
+    "**/.terraform/**",
+    "**/.devcontainer/**",
+    "**/.deno/**",
+    "**/.idea/**",
+    "**/.k8s/**",
+    "**/.npmrc/**",
+    "**/.vscode/**",
+    "**/.yarn/**"
+  ],
   "customManagers": [
     {
       "customType": "regex",
@@ -90,11 +105,25 @@
       ]
     },
     {
-      "description": "Group toolchain pins (Makefile and .mise.toml inline-renovate-comment updates)",
+      "description": "Group toolchain pins into one PR — Makefile `# renovate:` version constants (custom.regex manager) and .mise.toml tool versions (mise manager).",
+      "matchManagers": [
+        "custom.regex",
+        "mise"
+      ],
+      "groupName": "Toolchain pins"
+    },
+    {
+      "description": "Disable digest pinning for the Makefile docker-datasource custom-regex pin (MERMAID_CLI_VERSION). config:best-practices enables docker:pinDigests; without this, Renovate would generate a pinDigest update colliding with the version bump on the same Toolchain pins branch, and collision-dedup would silently drop the version bump. Placed after the Toolchain pins rule so it merges into that group.",
       "matchManagers": [
         "custom.regex"
       ],
-      "groupName": "Toolchain pins"
+      "matchFileNames": [
+        "Makefile"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "pinDigests": false
     },
     {
       "description": "Group Node.js dependencies",
@@ -102,6 +131,19 @@
         "npm"
       ],
       "groupName": "Node.js dependencies"
+    },
+    {
+      "description": "Group the Go toolchain version across every manager that pins it — the `go` directive in go.mod (gomod), the `go` pin in .mise.toml (mise), and the golang base image in the Dockerfile (dockerfile) — so a Go release bumps all three in one PR instead of three split, drifting PRs. Placed after the gomod `rangeStrategy: bump` and Toolchain pins rules so its groupName wins for go/golang; it merges with (does not replace) those rules.",
+      "matchManagers": [
+        "gomod",
+        "dockerfile",
+        "mise"
+      ],
+      "matchDepNames": [
+        "go",
+        "golang"
+      ],
+      "groupName": "Go toolchain"
     },
     {
       "description": "govulncheck is an official Go sub-repo under golang/ with active main-branch commits and 0 open issues. Its CLI is intentionally stable; the CVE database at vuln.go.dev updates server-side independently of releases. Renovate's release-age abandonment heuristic produces a false positive here — set a 5-year threshold to silence it locally while still tracking version bumps. See CLAUDE.md Upgrade Backlog.",

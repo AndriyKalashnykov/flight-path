@@ -5,7 +5,7 @@
 **flight-path** is a Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
 - **Language**: Go 1.26.3 (via mise, optional — system Go works too)
-- **Framework**: Echo v5 (v5.1.0)
+- **Framework**: Echo v5 (v5.1.1)
 - **Docs**: Swagger/Swaggo (auto-generated)
 - **Version**: See `pkg/api/version.txt`
 - **Repo**: https://github.com/AndriyKalashnykov/flight-path
@@ -103,7 +103,9 @@ func FlightRoutes(e *echo.Echo, h *handlers.Handler) {
 
 ```bash
 make help           # List available tasks
-make deps           # Install toolchain — `mise install` reads .mise.toml and provisions Go, Node, and every quality/security tool (golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser). swag + benchstat stay Go-installed; newman via pnpm + corepack
+make deps           # Install toolchain — `mise install` reads .mise.toml and provisions Go, Node, and every quality/security tool (golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser, container-structure-test, swag, benchstat). newman is installed via pnpm + corepack
+make deps-mise      # Bootstrap mise + install every tool pinned in .mise.toml
+make deps-image     # Lean dependency target for image-* targets (mise tools only — no Node/pnpm/Newman)
 make deps-check     # Show required Go version, mise status, and tool status
 make api-docs       # Generate Swagger docs (run after changing Swagger comments)
 make format         # Format Go code (rewrites in place; for dev use)
@@ -113,6 +115,7 @@ make sec            # Run gosec security scanner
 make vulncheck      # Run Go vulnerability check on dependencies
 make secrets        # Scan for hardcoded secrets (gitleaks)
 make lint-ci        # Lint GitHub Actions workflow files (actionlint + shellcheck)
+make lint-scripts-exec # Verify all shell scripts are executable (catches subagent 0644 writes)
 make mermaid-lint   # Validate Mermaid diagrams in markdown files (minlag/mermaid-cli Docker)
 make release-check  # Validate .goreleaser.yml syntax and config (goreleaser check)
 make test           # Run unit + handler tests (go test -race -v ./...)
@@ -120,7 +123,7 @@ make integration-test # Run integration tests (full HTTP stack + middleware; //g
 make fuzz           # Run fuzz tests for 30 seconds
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
-make bench-compare  # Compare latest two benchmark runs
+make bench-compare  # Compare two benchmark runs (auto-discovers latest two, or pass OLD=/NEW=)
 make static-check   # All static analysis (format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check)
 make build          # Generate Swagger docs + compile binary
 make run            # Build and run server locally
@@ -132,7 +135,7 @@ make test-case-three # curl test: 4-segment path
 make update         # Update Go dependencies
 make release        # Tag and push a new release (runs full `ci` pipeline first)
 make check          # Full pre-commit checklist (alias for make ci)
-make ci             # Local CI pipeline (deps + static-check + test + integration-test + coverage-check + build + fuzz + deps-prune-check)
+make ci             # Local CI pipeline (deps + static-check + test + integration-test + coverage + coverage-check + build + fuzz + deps-prune-check)
 make ci-run         # Run GitHub Actions workflow locally using act
 make coverage       # Run tests with coverage report
 make coverage-check # Verify coverage meets 80% threshold
@@ -159,8 +162,8 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 |----------|---------|---------|
 | `APP_NAME` | flight-path | Application name (used in Docker tags) |
 | `GO_VERSION` | (auto-extracted from go.mod) | Go version auto-parsed from `go.mod` via regex (mise also reads `go.mod` natively) |
-| `MERMAID_CLI_VERSION` | 11.12.0 | Mermaid diagram validator (Docker image — only ecosystem mise can't manage) |
-| `MISE_VERSION` | 2026.4.11 | mise bootstrap version (used by `make deps` if mise isn't already installed) |
+| `MERMAID_CLI_VERSION` | 11.15.0 | Mermaid diagram validator (Docker image — only ecosystem mise can't manage) |
+| `MISE_VERSION` | 2026.5.13 | mise bootstrap version (used by `make deps` if mise isn't already installed) |
 | `NODE_VERSION` | 24 | Node.js major version (source of truth: `.nvmrc` / `.mise.toml`; installed via mise) |
 
 Every other tool — `go`, `node`, `golangci-lint`, `gosec`, `govulncheck`,
@@ -187,7 +190,7 @@ Three layers, run in order of increasing cost:
 ## Before Committing
 
 ```bash
-make check          # Alias for `make ci` — full local pipeline (format + static-check + test + integration-test + coverage-check + build + fuzz + deps-prune-check)
+make check          # Alias for `make ci` — full local pipeline (deps + static-check + test + integration-test + coverage + coverage-check + build + fuzz + deps-prune-check)
 ```
 
 ## Specifications
@@ -234,7 +237,7 @@ Update specs when changing architecture, API, or testing strategy.
 
 | Package | Version | Purpose |
 |---|---|---|
-| `github.com/labstack/echo/v5` | v5.1.0 | Web framework |
+| `github.com/labstack/echo/v5` | v5.1.1 | Web framework |
 | `github.com/swaggo/echo-swagger/v2` | v2.0.1 | Swagger UI |
 | `github.com/swaggo/swag/v2` | v2.0.0-rc5 | Swagger generator |
 
@@ -289,7 +292,7 @@ The `dast` job is skipped when running locally with `act` (`vars.ACT == 'true'`)
 
 There is no separate `release.yml` — the tag-push release pipeline lives inside `ci.yml` as tag-gated sibling jobs, so `ci-pass` aggregates both CI and release phases into a single green check.
 
-Prune workflow (`cleanup-runs.yml`) runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches. Nightly fuzz workflow (`nightly-fuzz.yml`) runs `FuzzFindItinerary` for 10 minutes daily at 03:17 UTC (vs 30 s in `ci.yml`), accumulates the corpus across runs via `internal/handlers/testdata/fuzz` cache, and opens (or appends to) a tracking issue labeled `nightly-fuzz-failure` on failure.
+Auto-merge workflow (`auto-merge.yml`) enables GitHub native auto-merge on Renovate PRs (triggered on Renovate PR open and on `ci-pass` success) so dependency PRs land automatically once required checks pass. Prune workflow (`cleanup-runs.yml`) runs weekly (Sundays at 00:00 UTC) to delete old workflow runs (retain 7 days, keep minimum 5) and prune caches from merged/deleted branches. Nightly fuzz workflow (`nightly-fuzz.yml`) runs `FuzzFindItinerary` for 10 minutes daily at 03:17 UTC (vs 30 s in `ci.yml`), accumulates the corpus across runs via `internal/handlers/testdata/fuzz` cache, and opens (or appends to) a tracking issue labeled `nightly-fuzz-failure` on failure.
 
 ## Troubleshooting
 
@@ -317,19 +320,16 @@ When spawning subagents, always pass conventions from the respective skill into 
 
 Items to check each session until resolved (remove when done):
 
-- [ ] **swag v2 GA**: `swaggo/swag` v2 is still RC (v2.0.0-rc5) — check `gh api repos/swaggo/swag/releases --jq '[.[] | select(.tag_name | startswith("v2"))][0].tag_name'` for stable release, then upgrade `SWAG_VERSION` in Makefile and `go.mod`
-- [ ] **ZAP Automation Framework**: `zaproxy/action-api-scan` is actively maintained (not deprecated as of 2026-04-06). `zaproxy/action-af` exists as a more flexible alternative but has less activity. Re-evaluate if `action-api-scan` gets a deprecation notice
-- [ ] **Newman DEP0176**: Newman 6.2.2 emits `[DEP0176] DeprecationWarning: fs.F_OK is deprecated` from `newman/lib/run/secure-fs.js:146`. No newer Newman version available (6.2.2 is latest). Check `pnpm view newman version` for a fix release
-- [ ] **echo-swagger v2: remove swag v1 dep**: PR [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146) and issue [#147](https://github.com/swaggo/echo-swagger/issues/147) — migrates echo-swagger to swag/v2 exclusively, removing the transitive swag v1 dependency. Check `gh pr view 146 --repo swaggo/echo-swagger --json state --jq '.state'` — when merged, run `go get github.com/swaggo/echo-swagger/v2@latest && go mod tidy` to drop swag v1 from our go.mod
+- [ ] **swag v2 GA**: `swaggo/swag` v2 is still RC (v2.0.0-rc5) — check `gh api repos/swaggo/swag/releases --jq '[.[] | select(.tag_name | startswith("v2"))][0].tag_name'` for a stable release, then bump the swag pin in `.mise.toml` (the `go:github.com/swaggo/swag/v2/cmd/swag` backend entry) and `go.mod`
 
 ## Upgrade Backlog
 
 Items identified by upgrade analysis. Review periodically, act when conditions change:
 
 - [ ] **govulncheck Renovate "abandoned" false positive**: `golang.org/x/vuln/cmd/govulncheck` last release (v1.1.4) is ~15 months old, which trips Renovate's release-age abandonment heuristic. The repo is actively maintained (main-branch pushes within days, 0 open issues, official Go sub-repo under `golang/`), and the CVE database the tool consults at `vuln.go.dev` updates server-side independently of the CLI's release cadence. Locally suppressed in `renovate.json` via `abandonmentThreshold: "5 years"` for this depName. Upstream tracked in [renovatebot/renovate discussions#42727](https://github.com/renovatebot/renovate/discussions/42727) under *Suggest an Idea* (proposal: fold commit activity + `archived` flag into the abandonment heuristic, not just release age) — when that lands, consider removing the local override. Originally filed as issue [#42725](https://github.com/renovatebot/renovate/issues/42725), auto-closed by the Renovate bot per its Issues-are-for-maintainers policy and re-filed as the Discussion above.
-- [ ] **Newman sandbox lag**: Newman 6.2.2 bundles postman-sandbox 4.7.1 (upstream 6.6.1) and postman-runtime 7.39.1 (upstream 7.53.0). Check `pnpm view newman version` for Newman 7.x or new 6.x
+- [ ] **Newman version lag**: Newman 6.2.2 is the latest release but ships stale internals — it emits `[DEP0176] DeprecationWarning: fs.F_OK is deprecated` (from `newman/lib/run/secure-fs.js:146`), bundles postman-sandbox 4.7.1 (upstream 6.6.1) + postman-runtime 7.39.1 (upstream 7.53.0), and carries an open moderate `pnpm audit` finding GHSA-w5hq-g745-h8pq (`uuid` <11.1.1, transitive via `postman-collection` — resolves to 3.4.0 / 8.3.2). The `uuid` advisory canNOT be safely fixed with a `pnpm-workspace.yaml` override: patched `uuid` is ≥11.1.1, a breaking API major over the v3/v8 the tree uses. All three resolve only with a newer Newman — check `pnpm view newman version` for Newman 7.x or a new 6.x release
 - [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
-- [ ] **swaggo/swag v1 indirect dep**: `echo-swagger/v2` pulls in `swag v1` transitively. Fix submitted upstream as [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146). Will auto-resolve when PR is merged and we update echo-swagger
+- [ ] **swaggo/swag v1 indirect dep**: `echo-swagger/v2` pulls in `swag v1` transitively. Fix submitted upstream as [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146) (issue [#147](https://github.com/swaggo/echo-swagger/issues/147)). Check `gh pr view 146 --repo swaggo/echo-swagger --json state --jq '.state'`; when merged, run `go get github.com/swaggo/echo-swagger/v2@latest && go mod tidy` to drop swag v1 from `go.mod`
 
 ## Environment
 

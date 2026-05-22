@@ -3,9 +3,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 [![Renovate enabled](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://app.renovatebot.com/dashboard#github/AndriyKalashnykov/flight-path)
 
-# Go REST API to reconstruct flight paths from unordered segments
+# Go/Echo REST API reconstructing full flight itineraries from unordered segments
 
 A Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of `[source, destination]` pairs, it determines the complete path from origin (the airport with no incoming segment) to terminus (the airport with no outgoing segment).
+
+The **runtime surface** is an Echo v5 HTTP service with Swagger/OpenAPI docs and an O(n) in-memory reconstruction algorithm. The **delivery surface** is a hardened pipeline: table-driven unit tests, fuzzing, Newman/Postman E2E, `golangci-lint`/`gosec`/`govulncheck`/`gitleaks` SAST, Trivy and OWASP ZAP scanning, and cosign-signed multi-arch GHCR images built via GitHub Actions and GoReleaser.
 
 ## Overview
 
@@ -25,10 +27,10 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, request-flow s
 | Component | Technology | Rationale |
 |-----------|------------|-----------|
 | Language | Go 1.26.3 (from `go.mod`) | Statically compiled binary, strong stdlib HTTP, goroutine concurrency |
-| Framework | Echo v5.1.0 | Lightweight router with built-in JSON binding, middleware stack, Swagger integration |
+| Framework | Echo v5.1.1 | Lightweight router with built-in JSON binding, middleware stack, Swagger integration |
 | API Docs | Swagger (swaggo/swag v2) | Auto-generated OpenAPI spec from Go annotations |
 | Testing | go test (unit, bench, fuzz), Newman/Postman (E2E) | Table-driven unit tests + black-box API tests against the built binary |
-| Linting | golangci-lint v2.11.4, hadolint, actionlint, shellcheck, mermaid-cli (via Docker) | Meta-linter + Dockerfile + workflows + shell + diagrams |
+| Linting | golangci-lint v2.12.2, hadolint, actionlint, shellcheck, mermaid-cli (via Docker) | Meta-linter + Dockerfile + workflows + shell + diagrams |
 | Container | Docker (multi-stage Alpine) | Small image, reproducible build, scratch-like runtime |
 | CI/CD | GitHub Actions + GoReleaser | Tag-gated release pipeline with cosign keyless signing |
 | Dependencies | Renovate | Auto-updates with platform automerge and security fast-track |
@@ -205,6 +207,7 @@ Run `make help` to see all available targets.
 | `make vulncheck` | Run Go vulnerability check on dependencies |
 | `make secrets` | Scan for hardcoded secrets in source code and git history |
 | `make lint-ci` | Lint GitHub Actions workflow files |
+| `make lint-scripts-exec` | Verify all shell scripts are executable (catches subagent 0644 writes) |
 | `make mermaid-lint` | Validate Mermaid diagrams in markdown files |
 | `make release-check` | Validate `.goreleaser.yml` syntax and config via `goreleaser check` |
 | `make static-check` | Run code static check (format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
@@ -238,6 +241,8 @@ Run `make help` to see all available targets.
 |--------|-------------|
 | `make help` | List available tasks |
 | `make deps` | Install dev tools — `mise install` reads `.mise.toml` and provisions Go, Node, and every Go-, aqua-, or core-backend-managed tool: golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser, container-structure-test, swag, benchstat. Newman is the only remaining non-mise tool — installed via pnpm + corepack inside `test/`. mermaid-cli runs as a Docker image (no mise backend). |
+| `make deps-mise` | Bootstrap mise + install every tool pinned in `.mise.toml` |
+| `make deps-image` | Lean dependency target for `image-*` targets (mise tools only — no Node/pnpm/Newman) |
 | `make deps-check` | Show required Go version, mise status, and tool status |
 | `make release` | Run full CI pipeline then tag and push a new release |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
