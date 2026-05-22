@@ -216,8 +216,23 @@ release-check: deps
 	@command -v goreleaser >/dev/null 2>&1 || { echo "ERROR: goreleaser not on PATH. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@goreleaser check
 
+#check-go-alignment: @ Verify the Go version matches across go.mod and .mise.toml (drift guard)
+# The Dockerfile pins `golang:1.26-alpine` (minor tag, no patch), so only
+# go.mod and .mise.toml carry the full patch version — those two are checked.
+# Wired as the first dep of static-check so a 1-line version typo fails in
+# milliseconds, before the expensive lint/vuln/trivy steps.
+check-go-alignment:
+	@gomod=$$(grep -oP '^go \K[0-9]+\.[0-9]+\.[0-9]+' go.mod); \
+	misetoml=$$(grep -oP '^go\s*=\s*"\K[0-9]+\.[0-9]+\.[0-9]+' .mise.toml); \
+	if [ "$$gomod" != "$$misetoml" ]; then \
+		echo "ERROR: Go version disagrees between files:"; \
+		printf "  %-12s %s\n" go.mod "$$gomod" .mise.toml "$$misetoml"; \
+		echo "  Fix: align go.mod and .mise.toml to the same patch version."; \
+		exit 1; \
+	fi
+
 #static-check: @ Run code static check
-static-check: format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint release-check
+static-check: check-go-alignment format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint release-check
 	@echo "Static check passed."
 
 #build: @ Build REST API server's binary
@@ -551,7 +566,7 @@ deps-prune-check: deps
 	@echo "No prunable dependencies found."
 
 .PHONY: help deps deps-mise deps-image deps-check api-docs test integration-test fuzz bench bench-save bench-compare \
-	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check static-check mermaid-lint release-check build run release update open-swagger \
+	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check check-go-alignment static-check mermaid-lint release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \
 	require-docker image-build image-run image-stop image-push image-smoke-test image-structure-test image-test image-scan \

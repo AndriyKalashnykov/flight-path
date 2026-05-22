@@ -124,7 +124,8 @@ make fuzz           # Run fuzz tests for 30 seconds
 make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare two benchmark runs (auto-discovers latest two, or pass OLD=/NEW=)
-make static-check   # All static analysis (format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check)
+make check-go-alignment # Verify Go version matches across go.mod and .mise.toml
+make static-check   # All static analysis (check-go-alignment + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check)
 make build          # Generate Swagger docs + compile binary
 make run            # Build and run server locally
 make e2e            # Self-contained: build + start server + run Newman + stop server

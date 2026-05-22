@@ -210,7 +210,8 @@ Run `make help` to see all available targets.
 | `make lint-scripts-exec` | Verify all shell scripts are executable (catches subagent 0644 writes) |
 | `make mermaid-lint` | Validate Mermaid diagrams in markdown files |
 | `make release-check` | Validate `.goreleaser.yml` syntax and config via `goreleaser check` |
-| `make static-check` | Run code static check (format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| `make check-go-alignment` | Verify the Go version matches across `go.mod` and `.mise.toml` |
+| `make static-check` | Run code static check (check-go-alignment + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
 
 ### Docker
 
