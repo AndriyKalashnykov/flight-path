@@ -67,7 +67,7 @@ jobs:
 
   static-check:
     needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -102,7 +102,7 @@ jobs:
 
   build:
     needs: [changes, static-check]
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
@@ -138,7 +138,7 @@ jobs:
 
   test:
     needs: [changes, static-check]
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
@@ -179,7 +179,7 @@ jobs:
 
   integration-test:
     needs: [changes, static-check]
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
@@ -213,7 +213,7 @@ jobs:
   # Cypress / Failsafe / pytest+requests as appropriate per project.
   e2e:
     needs: [changes, build, test]
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     timeout-minutes: 15
     runs-on: ubuntu-latest
     env:
@@ -283,7 +283,7 @@ jobs:
   # The image is built once here using the GHA layer cache populated by the
   # docker job, so the scan is fast on a warm cache.
   dast:
-    if: vars.ACT != 'true' && needs.changes.outputs.code == 'true'
+    if: vars.ACT != 'true' && !failure() && !cancelled() && needs.changes.outputs.code == 'true'
     needs: [changes, static-check, test]
     timeout-minutes: 15
     runs-on: ubuntu-latest
@@ -384,7 +384,7 @@ jobs:
     # job force-flips code=true on tags so the full release pipeline runs even
     # for doc-only commits), but stating it makes the gate self-documenting and
     # robust to future changes in the changes-detector job's tag handling.
-    if: startsWith(github.ref, 'refs/tags/') && needs.changes.outputs.code == 'true'
+    if: startsWith(github.ref, 'refs/tags/') && !failure() && !cancelled() && needs.changes.outputs.code == 'true'
     needs: [changes, static-check, build, test, integration-test, e2e, dast]
     runs-on: ubuntu-latest
     timeout-minutes: 30

@@ -8,6 +8,9 @@ import (
 	"github.com/AndriyKalashnykov/flight-path/pkg/api"
 )
 
+// errorKey is the JSON field name for error messages in 400/500 responses.
+const errorKey = "Error"
+
 // FlightCalculate godoc
 // @Summary Determine the flight path of a person.
 // @Description get the flight path of a person.
@@ -27,14 +30,14 @@ func (h Handler) FlightCalculate(c *echo.Context) error {
 	err := c.Bind(&payload)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]any{
-			"Error": "Can't parse the payload",
+			errorKey: "Can't parse the payload",
 		})
 	}
 
 	// validate payload
 	if len(payload) == 0 {
 		return c.JSON(http.StatusBadRequest, map[string]any{
-			"Error": "Flight segments cannot be empty",
+			errorKey: "Flight segments cannot be empty",
 		})
 	}
 
@@ -42,8 +45,8 @@ func (h Handler) FlightCalculate(c *echo.Context) error {
 	for i, v := range payload {
 		if len(v) < 2 {
 			return c.JSON(http.StatusBadRequest, map[string]any{
-				"Error": "Each flight segment must contain both source and destination",
-				"Index": i,
+				errorKey: "Each flight segment must contain both source and destination",
+				"Index":  i,
 			})
 		}
 		flights = append(flights, api.Flight{
@@ -55,7 +58,7 @@ func (h Handler) FlightCalculate(c *echo.Context) error {
 	start, finish, err := FindItinerary(flights)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]any{
-			"Error": err.Error(),
+			errorKey: err.Error(),
 		})
 	}
 

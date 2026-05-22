@@ -34,9 +34,9 @@ GO_VERSION := $(shell grep -oP '^go \K[0-9.]+' go.mod)
 NODE_VERSION        := $(shell cat .nvmrc 2>/dev/null || echo 24)
 # pnpm is pinned in test/package.json via the `packageManager` field (corepack auto-switches).
 # renovate: datasource=github-releases depName=jdx/mise
-MISE_VERSION        := 2026.4.11
+MISE_VERSION        := 2026.5.13
 # renovate: datasource=docker depName=minlag/mermaid-cli
-MERMAID_CLI_VERSION := 11.12.0
+MERMAID_CLI_VERSION := 11.15.0
 
 # Ensure tools installed to ~/.local/bin (mise bootstrap lives here) AND mise's
 # shim dir (hadolint, trivy, act, goreleaser, golangci-lint, gosec, gitleaks,
@@ -149,7 +149,7 @@ bench-save: deps
 	@# masked as exit 0.
 	@set -o pipefail; $(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s) | tee "benchmarks/bench_$$(date +%Y%m%d_%H%M%S).txt"
 
-#bench-compare: @ Compare two benchmark files (usage: make bench-compare OLD=file1.txt NEW=file2.txt)
+#bench-compare: @ Compare two benchmark runs (auto-discovers latest two, or pass OLD=/NEW=)
 bench-compare: deps
 	@if [ -z "$(OLD)" ] || [ -z "$(NEW)" ]; then \
 		NEW_FILE=$$(ls -t benchmarks/bench_*.txt 2>/dev/null | head -n 1); \
@@ -216,8 +216,23 @@ release-check: deps
 	@command -v goreleaser >/dev/null 2>&1 || { echo "ERROR: goreleaser not on PATH. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@goreleaser check
 
+#check-go-alignment: @ Verify the Go version matches across go.mod and .mise.toml (drift guard)
+# The Dockerfile pins `golang:1.26-alpine` (minor tag, no patch), so only
+# go.mod and .mise.toml carry the full patch version — those two are checked.
+# Wired as the first dep of static-check so a 1-line version typo fails in
+# milliseconds, before the expensive lint/vuln/trivy steps.
+check-go-alignment:
+	@gomod=$$(grep -oP '^go \K[0-9]+\.[0-9]+\.[0-9]+' go.mod); \
+	misetoml=$$(grep -oP '^go\s*=\s*"\K[0-9]+\.[0-9]+\.[0-9]+' .mise.toml); \
+	if [ "$$gomod" != "$$misetoml" ]; then \
+		echo "ERROR: Go version disagrees between files:"; \
+		printf "  %-12s %s\n" go.mod "$$gomod" .mise.toml "$$misetoml"; \
+		echo "  Fix: align go.mod and .mise.toml to the same patch version."; \
+		exit 1; \
+	fi
+
 #static-check: @ Run code static check
-static-check: format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint release-check
+static-check: check-go-alignment format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint release-check
 	@echo "Static check passed."
 
 #build: @ Build REST API server's binary
@@ -288,7 +303,7 @@ image-smoke-test: require-docker
 image-structure-test: require-docker deps-image
 	@$(call go-exec,container-structure-test test --image $(APP_NAME):local --config container-structure-test.yaml)
 
-#image-test: @ Build and smoke-test Docker container
+#image-test: @ Build, smoke-test, and structure-test Docker container
 image-test: image-build image-smoke-test image-structure-test
 
 #image-scan: @ Build Docker image and run Trivy scan (requires trivy)
@@ -491,7 +506,18 @@ renovate-validate: deps
 	@# Renovate currently declares `engines.pnpm: ^10.0.0`; corepack here ships
 	@# pnpm 11, so `pnpm dlx renovate` aborts with ERR_PNPM_UNSUPPORTED_ENGINE.
 	@# `npx` resolves the tarball directly, side-stepping the engine gate.
-	@npx --yes renovate --platform=local
+	@# `renovate@latest` (not bare `renovate`): npx caches the resolved binary
+	@# indefinitely, so a stale cache can reject current config schema (e.g.
+	@# `managerFilePatterns`). `@latest` forces a fresh dist-tag resolve.
+	@# GITHUB_COM_TOKEN (env-renamed from GH_ACCESS_TOKEN via `export`, never
+	@# argv) gives Renovate authenticated API calls — avoids the rate-limit
+	@# warning on changelog/version lookups.
+	@if [ -n "$$GH_ACCESS_TOKEN" ]; then \
+		export GITHUB_COM_TOKEN="$$GH_ACCESS_TOKEN"; \
+	else \
+		echo "Warning: GH_ACCESS_TOKEN not set — Renovate API lookups may hit rate limits"; \
+	fi; \
+		npx --yes renovate@latest --platform=local
 
 #mermaid-lint: @ Validate Mermaid diagrams in markdown files
 mermaid-lint:
@@ -540,7 +566,7 @@ deps-prune-check: deps
 	@echo "No prunable dependencies found."
 
 .PHONY: help deps deps-mise deps-image deps-check api-docs test integration-test fuzz bench bench-save bench-compare \
-	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check static-check mermaid-lint release-check build run release update open-swagger \
+	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check check-go-alignment static-check mermaid-lint release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \
 	require-docker image-build image-run image-stop image-push image-smoke-test image-structure-test image-test image-scan \
