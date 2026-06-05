@@ -231,8 +231,31 @@ check-go-alignment:
 		exit 1; \
 	fi
 
+#check-docs-go-version: @ Verify docs reference the same Go patch version as go.mod (drift guard)
+# Catches the recurring miss where a go.mod patch bump (e.g. 1.26.3 -> 1.26.4)
+# lands but prose docs keep advertising the old version. Scoped to the go.mod
+# minor series (e.g. 1.26.x) so it flags ONLY Go-version drift — never Echo,
+# Alpine, or tool versions — and ignores minor-only mentions like "Go 1.26".
+# Dated history under docs/plan and docs/research is excluded (append, don't
+# rewrite). Wired into static-check next to check-go-alignment so a forgotten
+# doc sweep fails CI in milliseconds instead of shipping stale.
+check-docs-go-version:
+	@want=$$(grep -oP '^go \K[0-9]+\.[0-9]+\.[0-9]+' go.mod); \
+	minor=$${want%.*}; \
+	minore=$$(printf '%s' "$$minor" | sed 's/\./\\./g'); \
+	bad=$$(git ls-files '*.md' ':(exclude)docs/plan/**' ':(exclude)docs/research/**' \
+	      | xargs grep -nE "$$minore\.[0-9]+" 2>/dev/null \
+	      | grep -vF "$$want" || true); \
+	if [ -n "$$bad" ]; then \
+		echo "ERROR: docs reference a Go $$minor.x version != go.mod ($$want):"; \
+		echo "$$bad"; \
+		echo "  Fix: update every live-state doc to $$want, then re-run."; \
+		echo "  See the 'Bumping the Go version' checklist in the workflows skill."; \
+		exit 1; \
+	fi
+
 #static-check: @ Run code static check
-static-check: check-go-alignment format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint release-check
+static-check: check-go-alignment check-docs-go-version format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint release-check
 	@echo "Static check passed."
 
 #build: @ Build REST API server's binary

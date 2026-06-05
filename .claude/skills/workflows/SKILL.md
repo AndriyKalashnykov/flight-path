@@ -101,6 +101,42 @@ Pipeline in `.github/workflows/ci.yml`, runs on push and PRs (with `paths-ignore
 - **Automated**: Renovate auto-creates and auto-merges PRs (config: `renovate.json`)
 - **Manual**: `make update` (runs `go get -u && go mod tidy`)
 
+## Bumping the Go version
+
+A Go patch bump is **ONE PR** that updates the source-of-truth pins **and**
+every live-state doc — never split the doc sweep into a follow-up PR (doing so
+is how stale version strings ship).
+
+1. Get the target patch and the new base-image digest, and confirm it:
+   ```bash
+   docker buildx imagetools inspect golang:1.26-alpine --format '{{.Manifest.Digest}}'
+   docker run --rm golang:1.26-alpine@<digest> go version   # MUST show goX.Y.Z
+   ```
+2. Bump the three pins: `go.mod` (`go X.Y.Z`), `.mise.toml` (`go = "X.Y.Z"`),
+   `Dockerfile` (`golang:1.26-alpine@sha256:<digest>` — so the docker job's
+   Trivy scan doesn't ship a binary built against the old stdlib).
+3. `go mod tidy`; verify the bump cleared what prompted it:
+   ```bash
+   mise install go@X.Y.Z && mise exec -- govulncheck ./...   # "No vulnerabilities found"
+   ```
+4. **Sweep every live-state doc in the SAME commit.** Do NOT grep one exact
+   version string — grep the broad pattern across the whole tree and inspect
+   every hit, then prove zero stale remain:
+   ```bash
+   git ls-files | xargs grep -nE 'go ?1\.26|gvm' 2>/dev/null   # check each hit
+   ```
+   Update the patch number AND any version-implied staleness (toolchain manager
+   names like `gvm`→`mise`, framework versions). Leave dated history
+   (`docs/plan/`, `docs/research/`) unchanged — append, don't rewrite.
+5. Prove it before declaring done:
+   ```bash
+   make check-go-alignment && make check-docs-go-version && make static-check
+   ```
+
+`check-docs-go-version` is wired into `static-check`, so a forgotten doc sweep
+**reds CI and cannot merge** — it is the mechanical backstop for step 4. See the
+project `troubleshooting` skill for the govulncheck-fired-the-bump runbook.
+
 ## Quick Test Commands
 
 ```bash
