@@ -42,7 +42,7 @@ make run
 ## Build Fails
 
 ```bash
-go version                # Must match go.mod (1.26.3)
+go version                # Must match the `go` directive in go.mod
 go mod tidy && make build # Clean up and retry
 go clean -cache           # Nuclear option
 ```
@@ -50,6 +50,62 @@ go clean -cache           # Nuclear option
 - `make build` depends on `api-docs` (which depends on `deps`), then compiles
 - Ensure `GOFLAGS=-mod=mod` is set (Makefile sets this automatically)
 - Use `make check` for the full pre-commit chain: `lint sec vulncheck secrets test api-docs build`
+
+## `static-check` / `govulncheck` Fails on an Unrelated PR (Go stdlib CVE)
+
+**Symptom:** An open PR that touches no Go code — e.g. a Renovate GitHub Actions
+SHA bump — fails the `static-check` job at the `govulncheck` step. Multiple
+in-flight PRs fail identically.
+
+**Root cause:** `govulncheck` flags a Go **standard-library** vulnerability
+present in the pinned Go patch on `main`. The failure lives in `main`'s
+toolchain, not the PR diff, so it surfaces on *every* PR's `static-check`.
+This is the "N in-flight PRs failing identically → diagnose `main`, not the
+PRs" pattern. It recurs each time a Go patch ships stdlib security fixes.
+
+**Diagnose** — read the actual failing step, don't guess:
+```bash
+gh run view <run-id> --log-failed | grep -A4 'Vulnerability #'
+# Look for: "Standard library", "Found in: <pkg>@goX.Y.Z", "Fixed in: <pkg>@goX.Y.W"
+```
+
+**Fix (real fix — bump Go; NEVER waive a reachable stdlib CVE).** Bump the Go
+patch across all three pins in ONE change (mirrors Renovate's "Go toolchain"
+group so the managers stay consistent):
+
+| File | Line |
+|------|------|
+| `go.mod` | `go X.Y.W` |
+| `.mise.toml` | `go = "X.Y.W"` |
+| `Dockerfile` | `golang:1.26-alpine@sha256:<digest>` — refresh so the `docker` job's Trivy scan doesn't ship a binary built against the old stdlib |
+
+Get the new digest and confirm it is the fixed patch *before* editing:
+```bash
+docker buildx imagetools inspect golang:1.26-alpine --format '{{.Manifest.Digest}}'
+docker run --rm golang:1.26-alpine@<digest> go version   # MUST show the fixed patch goX.Y.W
+```
+
+Verify locally before pushing (this is the proof, not a hope):
+```bash
+mise install go@X.Y.W
+mise exec -- govulncheck ./...   # must report "No vulnerabilities found"
+make static-check                # the full gate that was failing
+make check-go-alignment          # go.mod and .mise.toml must agree
+```
+
+Then PR the fix to `main` (do NOT push onto the Renovate branch — it can
+auto-merge from under you). Renovate auto-rebases the in-flight PRs onto the
+fix and they go green.
+
+**Why Renovate didn't bump it first:** Go patches ship ~monthly and
+`govulncheck` flips red the instant a CVE is disclosed — faster than any
+Renovate schedule + CI + automerge cycle, so a manual bump-on-red is the
+correct fast path. Additionally, if past Go bumps were applied **manually**
+(as stdlib-CVE fires force), Renovate's gomod extraction diverges and the
+"Go toolchain" group stops firing. Tell: the Renovate Dependency Dashboard
+(issue #8) freezes at an old `go` version and lists deps the repo no longer
+has. To re-engage it, tick the rebase/refresh checkbox on the Dashboard to
+force a fresh extraction.
 
 ## Tests Fail
 
