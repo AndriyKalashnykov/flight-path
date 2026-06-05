@@ -47,7 +47,7 @@ flight-path/
 │   └── .npmrc                           # pnpm configuration
 ├── img/                                 # README screenshots (Swagger UI, Newman output)
 ├── benchmarks/                          # Saved benchmark results (bench_YYYYMMDD_HHMMSS.txt)
-├── scripts/                             # build.sh, build-image.sh, wait-for-server.sh
+├── scripts/                             # build.sh (cross-compile matrix), pick-port.sh, wait-for-server.sh
 ├── .zap/rules.tsv                       # OWASP ZAP scan rules for DAST job
 ├── .golangci.yml                        # golangci-lint configuration (default: all)
 ├── Dockerfile                           # Multi-stage, multi-platform Docker build (Alpine)

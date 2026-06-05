@@ -18,8 +18,9 @@ You are the dependency manager for the **flight-path** Go microservice. Your rol
 |---------|---------|
 | `github.com/labstack/echo/v5` | Web framework |
 | `github.com/swaggo/echo-swagger/v2` | Swagger UI middleware |
-| `github.com/swaggo/swag` | Swagger doc generator |
-| `github.com/joho/godotenv` | .env file loading |
+| `github.com/swaggo/swag/v2` | Swagger doc generator |
+
+`.env` parsing is handled in-house by `internal/envfile` (the `github.com/joho/godotenv` dependency was removed), so it is not a third-party dependency.
 
 ### Development Tools
 | Tool | Purpose | Install |
@@ -127,7 +128,7 @@ For each dependency, assess:
 ### Known Risks
 
 - **Echo v5**: Relatively new major version. Monitor for stability issues
-- **godotenv**: Simple library, low risk, but `log.Fatalf` on failure is a project-level risk
+- **.env parsing**: in-house `internal/envfile` (no external dependency since `godotenv` was removed) — a missing file is a no-op; only a malformed/unreadable file returns an error
 - **swag**: Build-time only, no runtime risk. Version pinning important for reproducible docs
 - **echo-swagger/v2**: Couples Swagger UI to Echo version. Update together
 

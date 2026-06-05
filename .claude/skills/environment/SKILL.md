@@ -10,7 +10,7 @@ description: >
 
 ## Go (via mise)
 
-Pinned in `.mise.toml` at repo root: `go = "1.26.4"`. Activated automatically via shell hook (`eval "$(mise activate bash)"` or zsh/fish equivalent in `~/.zshrc`). `make deps` installs the pinned Go through mise; CI uses `actions/setup-go` with `go-version-file: 'go.mod'`.
+Pinned in `.mise.toml` at repo root: `go = "1.26.4"`. Activated automatically via shell hook (`eval "$(mise activate bash)"` or zsh/fish equivalent in `~/.zshrc`). `make deps` installs the pinned Go through mise; CI installs it the same way via `jdx/mise-action` (which reads `.mise.toml`, mirrored from `go.mod`) — not `actions/setup-go`.
 
 ## Node.js (via nvm)
 
@@ -53,21 +53,21 @@ Most build targets depend on `deps` and auto-install missing tools.
 | `bench-compare` | deps | Compare latest two benchmarks |
 | `build` | api-docs | Compile binary |
 | `run` | build | Build and start server |
-| `check` | lint, sec, vulncheck, secrets, test, api-docs, build | Pre-commit checklist |
-| `ci` | static-check, build, test, fuzz | Local CI pipeline |
-| `ci-full` | ci, coverage-check | CI + coverage threshold |
+| `check` | ci | Alias for `make ci` (full local pipeline) |
+| `ci` | deps, static-check, test, integration-test, coverage, coverage-check, build, fuzz, deps-prune-check | Local CI pipeline |
+| `ci-run` | deps | Run the GitHub Actions workflow locally via act |
 | `coverage` | — | Test coverage report |
 | `coverage-check` | coverage | Verify 80% threshold |
 | `clean` | — | Remove build artifacts and test cache |
-| `image-build` | build | Build Docker image locally |
+| `image-build` | build | Build Docker image locally (`flight-path:local`) |
 | `image-run` | image-stop, image-build | Run container locally (detached) |
 | `image-stop` | — | Stop the locally running container |
 | `image-push` | image-build | Push Docker image to GHCR |
 | `image-smoke-test` | — | Smoke-test a pre-built container |
-| `image-test` | image-build, image-smoke-test | Build + smoke test container |
+| `image-structure-test` | — | Validate image metadata + binary (container-structure-test) |
+| `image-test` | image-build, image-smoke-test, image-structure-test | Build + smoke-test + structure-test |
 | `image-scan` | deps, build | Build image + Trivy scan (trivy installed via mise) |
-| `build-image` | deps, api-docs, lint, sec, vulncheck, secrets | Multi-platform build + push |
-| `release` | lint, sec, vulncheck, test, api-docs, build | Tag and push release |
+| `release` | ci | Tag and push release (runs full `ci` first) |
 | `e2e` | deps | Newman E2E tests |
 | `update` | — | Update Go dependencies |
 

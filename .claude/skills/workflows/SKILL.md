@@ -32,7 +32,7 @@ Benchmarks run: `go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s`
 
 Quick way:
 ```bash
-make check    # Runs: lint sec vulncheck secrets test api-docs build
+make check    # Alias for `make ci` — runs the full local pipeline (see "Local CI" below)
 ```
 
 Or individual steps:
@@ -49,52 +49,54 @@ make build          # Compile binary (depends on api-docs)
 ## Local CI
 
 ```bash
-make ci             # static-check + build + test + fuzz
-make ci-full        # ci + coverage-check (80% threshold)
+make ci       # full pipeline: deps + static-check + test + integration-test + coverage + coverage-check + build + fuzz + deps-prune-check
+make ci-run   # run the GitHub Actions workflow locally via act
 ```
+
+`make check` is an alias for `make ci`.
 
 ## Release
 
-1. Ensure clean main branch, all checks pass
-2. Run full checks: `make check`
-3. `make release` — validates semver tag (`vN.N.N`), updates `pkg/api/version.txt`, commits, tags, pushes
-4. GitHub Actions release workflow triggers on tag push (uses GoReleaser)
+1. Ensure a clean `main` branch with an upstream set
+2. `make release` — runs the full `ci` pipeline first, then validates the semver tag (`vN.N.N`), updates `pkg/api/version.txt`, commits, tags, and pushes
+3. On the tag push, the tag-gated `goreleaser` and `docker` jobs in `.github/workflows/ci.yml` run (there is **no** separate `release.yml`): GoReleaser builds binaries/archives/checksums + the GitHub Release, and `docker` pushes the cosign-signed multi-arch image to GHCR. They are serialized via `needs:` so a tag produces both artifacts or neither.
 
-`make release` depends on: `lint sec vulncheck test api-docs build`
+`make release` depends on `ci` (the full local pipeline).
 
 ## Docker
 
 ```bash
-make image-build                         # Build locally (single platform, buildx)
-make image-run                           # Build + run container (-e SERVER_PORT=8080)
-make image-test                          # Build + smoke test (health + API check)
-make build-image                         # Multi-platform build + push to Docker Hub
+make image-build    # Build image locally (single platform, buildx)
+make image-run      # Build + run container (binds a free host port, --env-file .env.example)
+make image-test     # Build + smoke-test + structure-test
+make image-push     # Build + push to GHCR (requires GH_ACCESS_TOKEN)
 ```
 
-- Image: multi-stage Alpine build (`golang:1.26-alpine` -> `alpine:3.23.3`)
-- Non-root user: `srvuser:1000`, `CGO_ENABLED=0`
+- Image: multi-stage build (`golang:1.26-alpine` -> `alpine:3.23.4`)
+- Non-root user: `srvuser:srvgroup` (uid/gid 1000), `CGO_ENABLED=0`
 - Platforms: `linux/amd64`, `linux/arm64`, `linux/arm/v7`
-- Registry: `andriykalashnykov/flight-path:latest` on Docker Hub
-- `make build-image` runs checks first (`deps api-docs lint sec vulncheck secrets`) then calls `scripts/build-image.sh`
+- Registry: GHCR — `make image-push` tags `ghcr.io/<user>/flight-path:<git-tag>`. The release-grade multi-arch build + cosign signing is done by the `docker` job in ci.yml on tag pushes, not by the local target.
 
 ## CI Pipeline (GitHub Actions)
 
-Pipeline in `.github/workflows/ci.yml`, runs on push and PRs (with `paths-ignore` for non-critical files like docs, images, benchmarks, and metadata — `CLAUDE.md` is excluded from ignore via `!CLAUDE.md` negation):
+Pipeline in `.github/workflows/ci.yml`, runs on push to `main`, tags `v*`, and PRs. A `changes` job (`dorny/paths-filter`) emits a `code` output; heavy jobs gate on `needs.changes.outputs.code == 'true'`, so doc-only changes run only `changes` + `ci-pass`. (Uses a `changes` filter, NOT trigger-level `paths-ignore` — this avoids the Repository-Ruleset deadlock where a skipped workflow never reports the required `ci-pass` check.)
 
-| Job | Depends on | What it runs |
+| Job | Needs | What it runs |
 |---|---|---|
-| `static-check` | — | `make static-check` (lint, sec, vulncheck, secrets, lint-ci) + Trivy FS scan |
-| `builds` | static-check | `make build` + upload binary artifact |
-| `tests` | static-check | `make test` + `make fuzz` |
-| `integration` | builds, tests | Download artifact, start server, install Newman, `make e2e` |
-| `dast` | integration | Start server, OWASP ZAP API scan against Swagger spec |
-| `image-scan` | builds | Build Docker image, Trivy image scan |
-| `container-test` | image-scan | Build image, run container, health + API smoke test |
+| `changes` | — | `dorny/paths-filter` — emits the `code` gate output |
+| `static-check` | changes | `make static-check` (incl. check-go-alignment, check-docs-go-version, lint, sec, vulncheck, secrets, trivy-fs, mermaid-lint, release-check) |
+| `build` | changes, static-check | `make build` + upload binary artifact |
+| `test` | changes, static-check | `make coverage` + `make coverage-check` (80%) + `make fuzz` |
+| `integration-test` | changes, static-check | `make integration-test` (full HTTP stack via httptest) |
+| `e2e` | changes, build, test | Download binary (fallback rebuild), start server, `make e2e-quick` (Newman) |
+| `dast` | changes, static-check, test | OWASP ZAP API scan (skipped under `act`) |
+| `goreleaser` | changes, static-check, build, test, integration-test, e2e, dast | **tag-only** — GoReleaser binaries/archives/checksums + GitHub Release |
+| `docker` | changes, static-check, build, test, integration-test, goreleaser | Build + Trivy image scan + smoke/structure test every push; on tags also push + cosign-sign multi-arch to GHCR |
+| `ci-pass` | all of the above | Aggregator (`if: always()`); single required check for branch protection (skipped jobs count as success) |
 
-- Go version read from `go.mod` via `actions/setup-go`
-- Integration job sets up Node.js for Newman
-- Server readiness: polls with curl for up to 30 seconds
-- Release workflow (`.github/workflows/release.yml`) triggers on git tags via GoReleaser
+- Go + Node + the whole quality toolchain are installed by `jdx/mise-action` reading `.mise.toml` (which mirrors `go.mod` and `.nvmrc`) — not `actions/setup-go`/`setup-node`.
+- There is **no** `release.yml`; the release phase lives in `ci.yml` as the tag-gated `goreleaser` + `docker` jobs, so `ci-pass` aggregates CI and release into one green check.
+- Run the whole workflow locally with `make ci-run` (uses `act`).
 
 ## Dependency Updates
 

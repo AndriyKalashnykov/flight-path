@@ -1,6 +1,6 @@
 # CI/CD Specification
 
-Every CI job and the full release pipeline live in a single workflow file (`.github/workflows/ci.yml`), with tag-gated sibling jobs for the release phase. Supporting workflows (`claude.yml`, `claude-ci-fix.yml`, `cleanup-runs.yml`) are separate.
+Every CI job and the full release pipeline live in a single workflow file (`.github/workflows/ci.yml`), with tag-gated sibling jobs for the release phase. Supporting workflows (`claude.yml`, `claude-ci-fix.yml`, `auto-merge.yml`, `cleanup-runs.yml`, `nightly-fuzz.yml`) are separate.
 
 ## `ci.yml`
 
@@ -10,7 +10,7 @@ Every CI job and the full release pipeline live in a single workflow file (`.git
 - Push of tags matching `v*`
 - Pull requests targeting `main`
 
-`paths-ignore` excludes documentation, images, benchmarks, `.claude/**`, and other non-critical files; `CLAUDE.md` is re-included via `!CLAUDE.md`. Tags are unaffected by `paths-ignore`.
+The workflow always triggers; a `changes` job (`dorny/paths-filter`) then gates every heavy job on whether the push touches code — a negated glob over `**.md`, `docs/**`, `specs/**`, `.claude/**`, `benchmarks/**`, image assets, and other non-critical paths, with `CLAUDE.md` re-included as project config. Doc-only changes run only `changes` + `ci-pass`. This deliberately avoids trigger-level `paths-ignore`, which would deadlock with the Repository Ruleset (a skipped workflow never reports the required `ci-pass` check). Tags always run the full pipeline.
 
 ### Permissions
 
