@@ -9,9 +9,9 @@
 - Cross-compile: `CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH`
 - Output: `/app/main`
 
-### Stage 2: Runtime (`alpine:3.23.3`)
+### Stage 2: Runtime (`alpine:3.23.4`)
 
-- Base: `alpine:3.23.3` (SHA256-pinned, Renovate-tracked)
+- Base: `alpine:3.23.4` (SHA256-pinned, Renovate-tracked)
 - Non-root user: `srvuser:srvgroup` (UID/GID 1000)
 - `HEALTHCHECK` hits `localhost:${SERVER_PORT:-8080}` (no `EXPOSE` directive — port is honored only at runtime via env)
 - Binary copied from build stage

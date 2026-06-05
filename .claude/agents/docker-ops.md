@@ -7,10 +7,10 @@ You are the Docker and container operations specialist for the **flight-path** G
 ## Project Context
 
 - **Dockerfile**: Multi-stage build (build + runtime)
-- **Base images**: `golang:1.26-alpine` (build), `alpine:3.23` (runtime)
-- **Build script**: `scripts/build-image.sh`
-- **CI job**: `image-scan` in `.github/workflows/ci.yml`
-- **Known issue**: Container crashes — `.env` not copied to runtime stage, `godotenv.Load()` calls `log.Fatalf`
+- **Base images**: `golang:1.26-alpine` (build), `alpine:3.23.4` (runtime), both SHA256-pinned
+- **Build**: `make image-build` → `docker buildx build --load -t flight-path:local .` (there is no `build-image.sh`; `scripts/build.sh` is a cross-compile matrix, not an image build)
+- **CI job**: `docker` in `.github/workflows/ci.yml` (build + Trivy image scan + smoke/structure test; push + cosign sign on tags)
+- **Runtime config**: the `.env` file is optional — `internal/envfile.Load` no-ops on a missing file and `app.Port()` defaults to `8080`, so the container starts cleanly with no `.env`
 
 ## Current Dockerfile Analysis
 
@@ -19,19 +19,19 @@ You are the Docker and container operations specialist for the **flight-path** G
 # - Uses BuildKit cache mounts for GOMODCACHE and GOCACHE
 # - Requires --build-arg GOMODCACHE and GOCACHE
 
-# Runtime stage: alpine:3.23
-# - Non-root user (srvuser:1000)
-# - MISSING: .env file → causes runtime crash
-# - Has both CMD and ENTRYPOINT → potential conflict
-# - No HEALTHCHECK instruction
+# Runtime stage: alpine:3.23.4
+# - Non-root user (srvuser:srvgroup, uid/gid 1000)
+# - Binary copied to /main; single ENTRYPOINT ["/main"] (no CMD)
+# - No .env needed — envfile.Load no-ops on a missing file, port defaults to 8080
+# - HEALTHCHECK present (wget against the configured host/port)
 ```
 
 ## Build Commands
 
-### Standard Build (cross-platform)
+### Standard Build (single platform, loaded into the local daemon)
 
 ```bash
-make build-image
+make image-build
 ```
 
 Or manually:
@@ -66,11 +66,14 @@ docker buildx build --load \
 ### Run Container
 
 ```bash
-# With .env mounted (workaround for known issue)
-docker run --rm -p 8080:8080 -v "$(pwd)/.env:/app/.env:ro" flight-path:local
+# No .env needed — defaults to port 8080
+docker run --rm -p 8080:8080 flight-path:local
 
-# Or pass env vars directly
-docker run --rm -p 8080:8080 -e SERVER_PORT=8080 flight-path:local
+# Override the port if desired
+docker run --rm -p 9090:9090 -e SERVER_PORT=9090 flight-path:local
+
+# Or use the Make target (binds a free host port, --env-file .env.example)
+make image-run
 ```
 
 ### Health Check
@@ -82,7 +85,7 @@ curl -sf http://localhost:8080/ && echo "OK" || echo "FAIL"
 ### Smoke Test
 
 ```bash
-docker run -d --name fp-test -p 8080:8080 -v "$(pwd)/.env:/.env:ro" flight-path:local
+docker run -d --name fp-test -p 8080:8080 flight-path:local
 sleep 3
 
 # Health check
@@ -120,45 +123,19 @@ docker history flight-path:local
 docker inspect flight-path:local --format '{{json .Config}}' | python3 -m json.tool
 ```
 
-## Known Issues and Fixes
+## Previously-Known Issues (all resolved — kept for context)
 
-### Issue 1: Container Crash (`.env` not in runtime stage)
+These were real in earlier revisions and have since been fixed in the
+Dockerfile/source. If older notes still describe them as open, they don't apply:
 
-**Root cause**: `godotenv.Load()` in `main.go` calls `log.Fatalf` when `.env` is missing.
-
-**Workarounds**:
-1. Mount `.env` at runtime: `-v "$(pwd)/.env:/.env:ro"`
-2. Pass env vars directly: `-e SERVER_PORT=8080`
-
-**Proper fix** (requires code change):
-- Copy `.env` to runtime stage: `COPY --from=build /app/.env /`
-- Or make `godotenv.Load()` non-fatal when env vars are already set
-- Or use `-env-file` flag with a default fallback
-
-### Issue 2: CMD + ENTRYPOINT Conflict
-
-Current:
-```dockerfile
-CMD ["/bin/sh", "-c", "./main"]
-ENTRYPOINT [ "./main" ]
-```
-
-When both are set, CMD becomes arguments to ENTRYPOINT. This runs: `./main /bin/sh -c ./main` — likely causes unexpected behavior.
-
-**Fix**: Use one or the other:
-```dockerfile
-ENTRYPOINT ["./main"]
-# OR
-CMD ["./main"]
-```
-
-### Issue 3: No HEALTHCHECK
-
-Add to Dockerfile:
-```dockerfile
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
-```
+- **Container crash on missing `.env`** — RESOLVED. `internal/envfile.Load`
+  treats a missing file as a no-op (the in-house package replaced
+  `github.com/joho/godotenv`, which used to `log.Fatal`); `app.Port()` defaults
+  to `8080`. No `.env` mount or `-e SERVER_PORT` is required to start.
+- **CMD + ENTRYPOINT conflict** — RESOLVED. The runtime stage now has a single
+  `ENTRYPOINT ["/main"]` and no `CMD`.
+- **No HEALTHCHECK** — RESOLVED. The Dockerfile defines a `HEALTHCHECK` that
+  `wget`s the configured host/port.
 
 ## Security Checklist
 

@@ -49,7 +49,7 @@ go clean -cache           # Nuclear option
 
 - `make build` depends on `api-docs` (which depends on `deps`), then compiles
 - Ensure `GOFLAGS=-mod=mod` is set (Makefile sets this automatically)
-- Use `make check` for the full pre-commit chain: `lint sec vulncheck secrets test api-docs build`
+- Use `make check` (alias for `make ci`) for the full local pipeline: static-check + test + integration-test + coverage + coverage-check + build + fuzz + deps-prune-check
 
 ## `static-check` / `govulncheck` Fails on an Unrelated PR (Go stdlib CVE)
 
@@ -154,21 +154,26 @@ make image-build                    # Build locally (single platform, uses build
 docker build --no-cache -t flight-path:debug .  # Build without cache
 ```
 
-- Image: multi-stage Alpine build (`golang:1.26-alpine` -> `alpine:3.23.3`)
-- Non-root user: `srvuser:1000`
+- Image: multi-stage Alpine build (`golang:1.26-alpine` -> `alpine:3.23.4`)
+- Non-root user: `srvuser:srvgroup` (uid/gid 1000)
 - `CGO_ENABLED=0`, platforms: `linux/amd64`, `linux/arm64`, `linux/arm/v7`
-- `make build-image` runs checks first (`deps api-docs lint sec vulncheck secrets`) then pushes to Docker Hub
+- `make image-push` builds then pushes to GHCR (`ghcr.io/<user>/flight-path:<tag>`); requires `GH_ACCESS_TOKEN`. Multi-arch build + cosign signing happen in the `docker` CI job on tag pushes
 
-## Docker Container Crashes at Runtime
+## Docker Container: Port Configuration
 
-Known issue: `.env` file is not copied into the Docker runtime stage, and `godotenv.Load()` calls `log.Fatalf` on error.
+The container runs fine **without** a `.env` file. `internal/envfile.Load`
+treats a missing file as a no-op (returns nil), and `app.Port()` defaults to
+`8080` when `SERVER_PORT` is unset — so there is no "crashes without .env"
+issue (the in-house `envfile` package replaced `github.com/joho/godotenv`,
+which used to `log.Fatal` on a missing file).
 
-Workaround: pass `SERVER_PORT` as environment variable:
+To run on a non-default port, set `SERVER_PORT` via `-e` (or an env-file):
 ```bash
-docker run -d -p 8080:8080 -e SERVER_PORT=8080 flight-path:local
+docker run -d -p 9090:9090 -e SERVER_PORT=9090 flight-path:local
 ```
 
-Or use `make image-run` / `make image-test` which handle this automatically.
+`make image-run` / `make image-test` handle this automatically — they bind a
+free host port and pass `--env-file .env.example`.
 
 ## Tool Not Found
 
@@ -177,7 +182,7 @@ make deps                           # Install all tools
 export PATH=$PATH:$(go env GOPATH)/bin  # Ensure tools are on PATH
 ```
 
-- `newman` requires Node.js — `make deps` installs both via nvm/npm
+- `newman` requires Node.js — `make deps` provisions Node via mise and installs newman via pnpm (corepack)
 
 ## Diagnostic Commands
 

@@ -59,8 +59,8 @@ For each layer, evaluate:
 - Trade-off: Separate package for one type vs. putting it in handlers
 
 **Configuration**:
-- Three mechanisms: `.env` file (godotenv), flags (`-env-file`), environment variables
-- `log.Fatalf` on missing `.env` — inflexible for containerized deployment
+- Three mechanisms: `.env` file (in-house `envfile`), flags (`-env-file`), environment variables
+- Missing `.env` is tolerated (`envfile.Load` no-ops) and the port defaults to 8080 — container-friendly; `log.Fatalf` only fires on a malformed/unreadable file
 
 ### Design Patterns in Use
 

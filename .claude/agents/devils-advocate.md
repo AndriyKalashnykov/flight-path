@@ -16,8 +16,8 @@ You are a senior adversarial reviewer for the **flight-path** Go microservice. Y
 
 - **Stack**: Go 1.26.4, Echo v5, Swagger/Swaggo
 - **Core**: `FindItinerary()` — O(n) two-pass map algorithm (`internal/handlers/api.go`)
-- **CI pipeline**: static-check → builds → tests → integration (Newman E2E) → DAST (OWASP ZAP) → image-scan (Trivy)
-- **Known issue**: Docker container crashes at runtime (`.env` not copied to runtime stage, `godotenv.Load()` calls `log.Fatalf`)
+- **CI pipeline**: static-check → build → test → integration-test → e2e (Newman) → dast (OWASP ZAP) → docker (Trivy image scan); tag-gated goreleaser; all aggregated by `ci-pass`
+- **Config loading**: in-house `internal/envfile.Load` (replaced `godotenv`) — a missing `.env` is a no-op and the port defaults to 8080, so there is no runtime crash
 - **Linting**: 60+ linters enabled via golangci-lint v2
 - **Security tools**: gosec, govulncheck, gitleaks, Trivy (filesystem + image), OWASP ZAP
 
@@ -51,7 +51,7 @@ Evaluate the current architecture against these criteria:
 - **Algorithm placement**: Business logic lives in `internal/handlers/api.go` alongside HTTP handlers — is this the right home?
 - **Middleware stack**: CORS `*`, security headers, request logging, recover — all needed? Any missing?
 - **Error handling**: JSON error format consistency across all paths
-- **Configuration**: `.env` + `godotenv` + `flag` — three mechanisms for config. Too many?
+- **Configuration**: `.env` (in-house `envfile`) + `-env-file` flag + environment variables — three mechanisms for config. Too many?
 
 ### Phase 4: Alternative Research
 
@@ -115,7 +115,7 @@ Always probe these known areas:
 
 ### Dependencies
 - Echo v5 — is it stable enough for production? What's the migration path if deprecated?
-- `godotenv` + `log.Fatalf` pattern — should config loading be more resilient?
+- Config loading via in-house `envfile` — a missing `.env` is tolerated (no-op); is the remaining `log.Fatalf` on a malformed/unreadable file the right failure mode?
 - Swagger generation (`swag`) as a build dependency — adds CI time. Worth it?
 
 ### Testing Gaps
