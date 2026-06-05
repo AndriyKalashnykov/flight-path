@@ -100,8 +100,14 @@ Pipeline in `.github/workflows/ci.yml`, runs on push to `main`, tags `v*`, and P
 
 ## Dependency Updates
 
-- **Automated**: Renovate auto-creates and auto-merges PRs (config: `renovate.json`)
+- **Automated**: Renovate auto-creates and auto-merges PRs (config: `renovate.json`, via `platformAutomerge`)
 - **Manual**: `make update` (runs `go get -u && go mod tidy`)
+
+## Auto-merge (applies to your own PRs too)
+
+`auto-merge.yml` runs `gh pr merge --auto --squash` on every **non-draft PR authored by the repo owner** (`AndriyKalashnykov`) — not just Renovate PRs. So any PR you open here merges (squash) the instant `ci-pass` goes green, with no manual merge step.
+
+Practical consequence: **treat an open PR as immutable.** Don't push extra commits to an in-flight PR's branch expecting it to wait — native auto-merge will land it on green CI and strand the new commits on an orphaned branch. Put follow-up work on a **fresh branch from `origin/main`** (after the prior PR merges: `git fetch origin --prune && git reset --hard origin/main`). If commits do get stranded, `git cherry-pick` them onto a fresh branch and open a new PR.
 
 ## Bumping the Go version
 
