@@ -93,6 +93,19 @@ make static-check                # the full gate that was failing
 make check-go-alignment          # go.mod and .mise.toml must agree
 ```
 
+**The bump is not done at the pins — sweep the docs in the SAME PR.** Prose
+docs (`README.md`, `CLAUDE.md`, `specs/`, `docs/ARCHITECTURE.md`, the
+`.claude/agents/*.md` and `.claude/skills/*.md` files) are not touched by
+Renovate and go stale on merge. Do NOT grep one exact version string — grep the
+broad pattern across the whole tree and prove zero stale remain:
+```bash
+git ls-files | xargs grep -nE 'go ?1\.26|gvm' 2>/dev/null   # inspect every hit
+make check-docs-go-version                                   # the drift gate; must pass
+```
+`check-docs-go-version` runs inside `static-check` and reds CI if any live-state
+doc still shows an old Go patch — never declare the bump done until it is green.
+Full procedure: the "Bumping the Go version" checklist in the `workflows` skill.
+
 Then PR the fix to `main` (do NOT push onto the Renovate branch — it can
 auto-merge from under you). Renovate auto-rebases the in-flight PRs onto the
 fix and they go green.
