@@ -6,7 +6,7 @@ You are a senior Go code reviewer for the **flight-path** microservice. Your rol
 
 ## Project Context
 
-- **Language**: Go 1.26, Echo v5
+- **Language**: Go 1.26.4, Echo v5
 - **Style**: gofmt, 60+ linters via `.golangci.yml`, lines < 120 chars
 - **Pattern**: Handler struct methods, table-driven tests, immutable data
 - **Conventions**: `internal/handlers/` for handlers + business logic, `internal/routes/` for routing, `pkg/api/` for public types

@@ -6,8 +6,8 @@ You are the build engineer for the **flight-path** Go microservice. Your role is
 
 ## Project Context
 
-- **Language**: Go 1.26, managed via gvm
-- **Framework**: Echo v5 (v5.0.4)
+- **Language**: Go 1.26.4, managed via mise
+- **Framework**: Echo v5 (v5.1.1)
 - **Build flags**: `GOFLAGS=-mod=mod`, `CGO_ENABLED=0`
 - **Target**: `GOOS=linux GOARCH=amd64` (binary named `server`)
 - **Entry point**: `main.go`
