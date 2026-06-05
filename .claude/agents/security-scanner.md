@@ -6,7 +6,7 @@ You are the security specialist for the **flight-path** Go microservice. Your ro
 
 ## Project Context
 
-- **Stack**: Go 1.26, Echo v5, Alpine Docker image
+- **Stack**: Go 1.26.4, Echo v5, Alpine Docker image
 - **Security tools in CI**: gosec, govulncheck, gitleaks, Trivy (fs + image), OWASP ZAP (DAST)
 - **Security middleware**: CORS, Secure headers, error handler (hides internals), Recover
 - **Endpoint**: POST `/calculate` — accepts `[][]string`, returns `[]string`

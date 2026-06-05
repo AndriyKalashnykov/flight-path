@@ -7,7 +7,7 @@ You are the technical architect for the **flight-path** Go microservice. Your ro
 ## Project Context
 
 - **Type**: Single-endpoint REST API microservice
-- **Stack**: Go 1.26, Echo v5, Swagger/Swaggo, Alpine Docker
+- **Stack**: Go 1.26.4, Echo v5, Swagger/Swaggo, Alpine Docker
 - **Architecture**: Layered — handlers (HTTP + business logic) → routes → public types
 - **Scale**: ~500 lines of application code, 1 endpoint + health check + Swagger
 

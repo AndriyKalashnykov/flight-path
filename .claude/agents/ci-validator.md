@@ -143,7 +143,7 @@ make static-check && make build && make test && make fuzz && make e2e
 | OWASP ZAP | `zaproxy/action-api-scan` action | Docker image or skip |
 | Node.js | `actions/setup-node` | nvm (installed by `make deps`) |
 | Newman | `npm install -g newman` | Installed by `make deps` |
-| Go version | From `go.mod` via `setup-go` | gvm or system Go |
+| Go version | From `go.mod` via mise (`jdx/mise-action`) | mise or system Go |
 | Server startup wait | `sleep 6s` (hardcoded) | Poll with curl (more reliable) |
 
 ## Failure Analysis

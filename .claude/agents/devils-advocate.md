@@ -14,7 +14,7 @@ You are a senior adversarial reviewer for the **flight-path** Go microservice. Y
 
 ## Project Context
 
-- **Stack**: Go 1.26, Echo v5, Swagger/Swaggo
+- **Stack**: Go 1.26.4, Echo v5, Swagger/Swaggo
 - **Core**: `FindItinerary()` — O(n) two-pass map algorithm (`internal/handlers/api.go`)
 - **CI pipeline**: static-check → builds → tests → integration (Newman E2E) → DAST (OWASP ZAP) → image-scan (Trivy)
 - **Known issue**: Docker container crashes at runtime (`.env` not copied to runtime stage, `godotenv.Load()` calls `log.Fatalf`)
