@@ -5,7 +5,7 @@
 **flight-path** is a Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
 - **Language**: Go 1.26.4 (via mise, optional — system Go works too)
-- **Framework**: Echo v5 (v5.1.1)
+- **Framework**: Echo v5 (v5.2.0)
 - **Docs**: Swagger/Swaggo (auto-generated)
 - **Version**: See `pkg/api/version.txt`
 - **Repo**: https://github.com/AndriyKalashnykov/flight-path
@@ -240,7 +240,7 @@ Update specs when changing architecture, API, or testing strategy.
 
 | Package | Version | Purpose |
 |---|---|---|
-| `github.com/labstack/echo/v5` | v5.1.1 | Web framework |
+| `github.com/labstack/echo/v5` | v5.2.0 | Web framework |
 | `github.com/swaggo/echo-swagger/v2` | v2.0.1 | Swagger UI |
 | `github.com/swaggo/swag/v2` | v2.0.0-rc5 | Swagger generator |
 

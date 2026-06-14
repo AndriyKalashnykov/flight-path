@@ -27,7 +27,7 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, request-flow s
 | Component | Technology | Rationale |
 |-----------|------------|-----------|
 | Language | Go 1.26.4 (from `go.mod`) | Statically compiled binary, strong stdlib HTTP, goroutine concurrency |
-| Framework | Echo v5.1.1 | Lightweight router with built-in JSON binding, middleware stack, Swagger integration |
+| Framework | Echo v5.2.0 | Lightweight router with built-in JSON binding, middleware stack, Swagger integration |
 | API Docs | Swagger (swaggo/swag v2) | Auto-generated OpenAPI spec from Go annotations |
 | Testing | go test (unit, bench, fuzz), Newman/Postman (E2E) | Table-driven unit tests + black-box API tests against the built binary |
 | Linting | golangci-lint v2.12.2, hadolint, actionlint, shellcheck, mermaid-cli (via Docker) | Meta-linter + Dockerfile + workflows + shell + diagrams |
