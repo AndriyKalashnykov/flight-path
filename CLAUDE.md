@@ -5,7 +5,7 @@
 **flight-path** is a Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
 - **Language**: Go 1.26.4 (via mise, optional — system Go works too)
-- **Framework**: Echo v5 (v5.1.1)
+- **Framework**: Echo v5 (v5.2.0)
 - **Docs**: Swagger/Swaggo (auto-generated)
 - **Version**: See `pkg/api/version.txt`
 - **Repo**: https://github.com/AndriyKalashnykov/flight-path
@@ -125,7 +125,8 @@ make bench          # Run benchmarks
 make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare two benchmark runs (auto-discovers latest two, or pass OLD=/NEW=)
 make check-go-alignment # Verify Go version matches across go.mod and .mise.toml
-make static-check   # All static analysis (check-go-alignment + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check)
+make check-docs-go-version # Verify the Go version referenced in docs matches go.mod
+make static-check   # All static analysis (check-go-alignment + check-docs-go-version + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check)
 make build          # Generate Swagger docs + compile binary
 make run            # Build and run server locally
 make e2e            # Self-contained: build + start server + run Newman + stop server
@@ -163,6 +164,7 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 |----------|---------|---------|
 | `APP_NAME` | flight-path | Application name (used in Docker tags) |
 | `GO_VERSION` | (auto-extracted from go.mod) | Go version auto-parsed from `go.mod` via regex (mise also reads `go.mod` natively) |
+| `ACT_UBUNTU_VERSION` | act-latest-20260601 | Dated `catthehacker/ubuntu` runner image `make ci-run` maps to `ubuntu-latest` (Renovate-tracked Docker tag) |
 | `MERMAID_CLI_VERSION` | 11.15.0 | Mermaid diagram validator (Docker image — only ecosystem mise can't manage) |
 | `MISE_VERSION` | 2026.5.13 | mise bootstrap version (used by `make deps` if mise isn't already installed) |
 | `NODE_VERSION` | 24 | Node.js major version (source of truth: `.nvmrc` / `.mise.toml`; installed via mise) |
@@ -238,7 +240,7 @@ Update specs when changing architecture, API, or testing strategy.
 
 | Package | Version | Purpose |
 |---|---|---|
-| `github.com/labstack/echo/v5` | v5.1.1 | Web framework |
+| `github.com/labstack/echo/v5` | v5.2.0 | Web framework |
 | `github.com/swaggo/echo-swagger/v2` | v2.0.1 | Swagger UI |
 | `github.com/swaggo/swag/v2` | v2.0.0-rc5 | Swagger generator |
 
@@ -272,7 +274,7 @@ All quality/security tools below are installed in one pass by
 
 GitHub Actions CI workflow runs on push to `main`, tags `v*`, and pull requests. The workflow always triggers; a `changes` detector job (`dorny/paths-filter`) gates every heavy job on whether the push touches code (negated glob over `**.md`, `docs/**`, `specs/**`, `LICENSE`, `.gitignore`, `.claudeignore`, `.claude/**`, `benchmarks/**`, image assets — with `CLAUDE.md` re-included as project config). Doc-only PRs only run `changes` (~10s) and `ci-pass` (which treats skipped jobs as success). Avoids the trigger-level `paths-ignore` deadlock with Repository Rulesets — the workflow always reports `ci-pass`, satisfying required-check gates.
 
-Claude Code workflow (`claude.yml`) provides interactive mode (responds to `@claude` mentions, restricted to `OWNER`/`MEMBER`/`COLLABORATOR` author associations) and automated PR review on every non-draft PR. Claude CI Fix workflow (`claude-ci-fix.yml`) auto-triggers on CI failures via `workflow_run` (same-repo branches only) and uses a dual anti-recursion guard (bot-author check + `claude-fix-attempted` label) plus a 12K total input cap on CI logs to prevent prompt-injection context stuffing.
+Claude Code workflow (`claude.yml`) provides interactive mode only (responds to `@claude` mentions on issues, PR comments, and PR reviews, restricted to `OWNER`/`MEMBER`/`COLLABORATOR` author associations); it has no `pull_request` trigger and does not auto-review PRs. Claude CI Fix workflow (`claude-ci-fix.yml`) auto-triggers on CI failures via `workflow_run` (same-repo branches only) and uses a dual anti-recursion guard (bot-author check + `claude-fix-attempted` label) plus a 12K total input cap on CI logs to prevent prompt-injection context stuffing.
 
 All jobs live in `.github/workflows/ci.yml` (single-file layout matching the `/ci-workflow` skill template). The release-side `goreleaser` (tag-only) and `docker` (every push, push/sign tag-gated) are serialized via `needs:` so a tag either produces both the GitHub Release object AND the GHCR image, or neither — no half-released tags.
 
@@ -330,7 +332,7 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 - [ ] **govulncheck Renovate "abandoned" false positive**: `golang.org/x/vuln/cmd/govulncheck` last release (v1.1.4) is ~15 months old, which trips Renovate's release-age abandonment heuristic. The repo is actively maintained (main-branch pushes within days, 0 open issues, official Go sub-repo under `golang/`), and the CVE database the tool consults at `vuln.go.dev` updates server-side independently of the CLI's release cadence. Locally suppressed in `renovate.json` via `abandonmentThreshold: "5 years"` for this depName. Upstream tracked in [renovatebot/renovate discussions#42727](https://github.com/renovatebot/renovate/discussions/42727) under *Suggest an Idea* (proposal: fold commit activity + `archived` flag into the abandonment heuristic, not just release age) — when that lands, consider removing the local override. Originally filed as issue [#42725](https://github.com/renovatebot/renovate/issues/42725), auto-closed by the Renovate bot per its Issues-are-for-maintainers policy and re-filed as the Discussion above.
 - [ ] **Newman version lag**: Newman 6.2.2 is the latest release but ships stale internals — it emits `[DEP0176] DeprecationWarning: fs.F_OK is deprecated` (from `newman/lib/run/secure-fs.js:146`), bundles postman-sandbox 4.7.1 (upstream 6.6.1) + postman-runtime 7.39.1 (upstream 7.53.0), and carries an open moderate `pnpm audit` finding GHSA-w5hq-g745-h8pq (`uuid` <11.1.1, transitive via `postman-collection` — resolves to 3.4.0 / 8.3.2). The `uuid` advisory canNOT be safely fixed with a `pnpm-workspace.yaml` override: patched `uuid` is ≥11.1.1, a breaking API major over the v3/v8 the tree uses. All three resolve only with a newer Newman — check `pnpm view newman version` for Newman 7.x or a new 6.x release
 - [ ] **Postman Collection Format v3**: YAML-based format announced Mar 2026. Newman doesn't support it yet. Track Newman releases for v3 support
-- [ ] **swaggo/swag v1 indirect dep**: `echo-swagger/v2` pulls in `swag v1` transitively. Fix submitted upstream as [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146) (issue [#147](https://github.com/swaggo/echo-swagger/issues/147)). Check `gh pr view 146 --repo swaggo/echo-swagger --json state --jq '.state'`; when merged, run `go get github.com/swaggo/echo-swagger/v2@latest && go mod tidy` to drop swag v1 from `go.mod`
+- [ ] **swaggo/swag v1 indirect dep**: `echo-swagger/v2` (latest `v2.0.1`) still pulls in `swag v1` (`v1.16.6`) transitively. The original upstream fix [swaggo/echo-swagger#146](https://github.com/swaggo/echo-swagger/pull/146) was **closed unmerged on 2026-05-31**; tracking issue [#147](https://github.com/swaggo/echo-swagger/issues/147) remains **open**. No echo-swagger release drops swag v1 yet. Re-check periodically: `gh issue view 147 --repo swaggo/echo-swagger --json state --jq '.state'` and `gh api repos/swaggo/echo-swagger/releases --jq '[.[]|select(.tag_name|startswith("v2"))][0].tag_name'`; when a release lands that removes the swag v1 edge, run `go get github.com/swaggo/echo-swagger/v2@latest && go mod tidy` to drop it from `go.mod`
 
 ## Environment
 

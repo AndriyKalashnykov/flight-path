@@ -51,6 +51,16 @@ func TestFlightCalculate(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
+			name:       "segment with empty airport code returns 400",
+			body:       `[["","EWR"]]`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "self-loop segment returns 400",
+			body:       `[["SFO","SFO"]]`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
 			name:       "malformed JSON returns 400",
 			body:       `not json`,
 			wantStatus: http.StatusBadRequest,

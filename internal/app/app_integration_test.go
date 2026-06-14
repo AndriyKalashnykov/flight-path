@@ -285,6 +285,80 @@ func TestCalculateCircularPath(t *testing.T) {
 	}
 }
 
+// TestCalculateSelfLoopRejected asserts a segment whose source equals its
+// destination is rejected with 400 + Index through the full middleware chain.
+// The documented contract states source and destination cannot be the same.
+func TestCalculateSelfLoopRejected(t *testing.T) {
+	s := newTestServer(t, nil)
+	body := bytes.NewBufferString(`[["SFO","ATL"],["EWR","EWR"]]`)
+	req := must(http.NewRequest(http.MethodPost, s.URL+"/calculate", body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("self-loop: want 400, got %d", resp.StatusCode)
+	}
+	var env map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if msg, _ := env["Error"].(string); !strings.Contains(strings.ToLower(msg), "differ") {
+		t.Errorf("Error: want substring 'differ', got %q", msg)
+	}
+	if idx, ok := env["Index"].(float64); !ok || int(idx) != 1 {
+		t.Errorf("Index: want 1, got %v", env["Index"])
+	}
+}
+
+// TestCalculateEmptyAirportRejected asserts a segment containing an empty
+// airport code is rejected with 400 + Index rather than silently producing a
+// success response with an empty-string airport.
+func TestCalculateEmptyAirportRejected(t *testing.T) {
+	s := newTestServer(t, nil)
+	body := bytes.NewBufferString(`[["","EWR"]]`)
+	req := must(http.NewRequest(http.MethodPost, s.URL+"/calculate", body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := do(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("empty airport: want 400, got %d", resp.StatusCode)
+	}
+	var env map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if msg, _ := env["Error"].(string); !strings.Contains(strings.ToLower(msg), "non-empty") {
+		t.Errorf("Error: want substring 'non-empty', got %q", msg)
+	}
+}
+
+// TestRateLimiterEnforced asserts the RateLimiter middleware actually rejects a
+// burst that exceeds the configured rate. The limits are lowered via the
+// RATE_LIMIT_PER_SEC / RATE_LIMIT_BURST env vars (read at app.New() time) so a
+// small in-process burst deterministically trips the 429 path — guarding
+// against a regression that silently disables the limiter (it would otherwise
+// have no assertion at any layer).
+func TestRateLimiterEnforced(t *testing.T) {
+	s := newTestServer(t, map[string]string{
+		"RATE_LIMIT_PER_SEC": "1",
+		"RATE_LIMIT_BURST":   "1",
+	})
+	const attempts = 20
+	got429 := false
+	for i := 0; i < attempts; i++ {
+		resp := do(t, must(http.NewRequest(http.MethodGet, s.URL+"/", nil)))
+		code := resp.StatusCode
+		resp.Body.Close()
+		if code == http.StatusTooManyRequests {
+			got429 = true
+			break
+		}
+	}
+	if !got429 {
+		t.Errorf("rate limiter: expected at least one 429 across %d rapid requests at rate=1/burst=1, got none", attempts)
+	}
+}
+
 func TestSwaggerUIRedirect(t *testing.T) {
 	s := newTestServer(t, nil)
 	client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}

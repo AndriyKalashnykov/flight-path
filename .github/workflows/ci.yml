@@ -304,8 +304,8 @@ jobs:
       # Weekly cache-bust for the apk upgrade layer keeps DAST honest about
       # base-image security drift even when the Dockerfile is unchanged.
       - name: Compute APK cache-bust week
-        id: apk-week
-        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
+        id: apk-date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Build image for DAST
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -318,7 +318,7 @@ jobs:
           build-args: |
             GOMODCACHE=/go/pkg/mod
             GOCACHE=/root/.cache/go-build
-            APK_UPGRADE_WEEK=${{ steps.apk-week.outputs.week }}
+            APK_UPGRADE_DATE=${{ steps.apk-date.outputs.date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -457,8 +457,8 @@ jobs:
       # Weekly cache-bust for the apk upgrade layer so the image picks up new
       # Alpine security patches even when the Dockerfile is unchanged.
       - name: Compute APK cache-bust week
-        id: apk-week
-        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
+        id: apk-date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Docker metadata
         id: meta
@@ -495,7 +495,7 @@ jobs:
           build-args: |
             GOMODCACHE=/go/pkg/mod
             GOCACHE=/root/.cache/go-build
-            APK_UPGRADE_WEEK=${{ steps.apk-week.outputs.week }}
+            APK_UPGRADE_DATE=${{ steps.apk-date.outputs.date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -558,7 +558,7 @@ jobs:
           build-args: |
             GOMODCACHE=/go/pkg/mod
             GOCACHE=/root/.cache/go-build
-            APK_UPGRADE_WEEK=${{ steps.apk-week.outputs.week }}
+            APK_UPGRADE_DATE=${{ steps.apk-date.outputs.date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

@@ -17,7 +17,7 @@ C4Container
     Person(client, "API Client", "cURL, Postman, Newman, browser")
 
     System_Boundary(api, "Flight Path API") {
-        Container(server, "flight-path server", "Go 1.26.4, Echo v5.1.1", "Single static binary. Serves POST /calculate, GET /, and GET /swagger/* (embedded Swagger UI via swaggo/echo-swagger v2.0.1). Middleware: RequestID, Logger, Recover, BodyLimit 1 MiB, Gzip, RateLimiter (100/s, burst 200), CORS (multi-origin via CORS_ORIGIN), Secure headers, Cache-Control no-store.")
+        Container(server, "flight-path server", "Go 1.26.4, Echo v5.2.0", "Single static binary. Serves POST /calculate, GET /, and GET /swagger/* (embedded Swagger UI via swaggo/echo-swagger v2.0.1). Middleware: RequestID, Logger, Recover, BodyLimit 1 MiB, Gzip, RateLimiter (100/s, burst 200), CORS (multi-origin via CORS_ORIGIN), Secure headers, Cache-Control no-store.")
     }
 
     Rel(client, server, "POST /calculate, GET /, GET /swagger/*", "HTTPS / JSON")
@@ -45,7 +45,7 @@ sequenceDiagram
 
     C->>E: POST /calculate<br/>Body: [["SFO","ATL"],["ATL","EWR"]]
     E->>MW: Request passes through middleware
-    MW-->>MW: Logger → Recover → CORS → Security Headers → Cache-Control
+    MW-->>MW: RequestID → Logger → Recover → BodyLimit → Gzip → RateLimiter → CORS → Security Headers → Cache-Control
     MW->>H: Route matched → handler called
 
     H->>H: Bind JSON payload to [][]string
