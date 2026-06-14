@@ -10,6 +10,9 @@
 //	KEY=value
 //	KEY = value            (whitespace around '=' is trimmed)
 //	KEY="quoted value"     (outer single or double quotes are stripped)
+//	export KEY=value       (a leading "export " prefix is stripped)
+//	KEY=value # comment     (an inline comment after whitespace is stripped
+//	                         from UNQUOTED values; '#' inside quotes is kept)
 //	                       (blank lines are ignored)
 //
 // Already-set variables are NOT overwritten, which matches godotenv's default
@@ -55,13 +58,17 @@ func Load(path string) error {
 			return fmt.Errorf("envfile: %s:%d: missing '='", path, lineNo)
 		}
 		key = strings.TrimSpace(key)
+		// Strip an optional "export " prefix (common in shell-sourced files).
+		if rest, found := strings.CutPrefix(key, "export "); found {
+			key = strings.TrimSpace(rest)
+		}
 		if key == "" {
 			return fmt.Errorf("envfile: %s:%d: empty key", path, lineNo)
 		}
 		if _, exists := os.LookupEnv(key); exists {
 			continue
 		}
-		val = strings.Trim(strings.TrimSpace(val), `"'`)
+		val = parseValue(val)
 		if err := os.Setenv(key, val); err != nil {
 			return fmt.Errorf("envfile: %s:%d: setenv %s: %w", path, lineNo, key, err)
 		}
@@ -70,4 +77,28 @@ func Load(path string) error {
 		return fmt.Errorf("envfile: %s: read: %w", path, err)
 	}
 	return nil
+}
+
+// parseValue normalizes a raw value: it strips surrounding whitespace, then
+// either removes outer single/double quotes (preserving any '#' inside) or, for
+// an unquoted value, drops an inline comment introduced by whitespace + '#'.
+// A bare '#' with no preceding whitespace (e.g. a literal "pa#ss") is kept.
+func parseValue(raw string) string {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return ""
+	}
+	if v[0] == '"' || v[0] == '\'' {
+		return strings.Trim(v, `"'`)
+	}
+	if v[0] == '#' {
+		return ""
+	}
+	if i := strings.IndexAny(v, " \t"); i >= 0 {
+		// Look for a '#' that begins a comment after the first whitespace run.
+		if c := strings.Index(v[i:], "#"); c >= 0 {
+			v = v[:i+c]
+		}
+	}
+	return strings.TrimSpace(v)
 }

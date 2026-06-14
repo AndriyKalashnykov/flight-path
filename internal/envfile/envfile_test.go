@@ -63,6 +63,31 @@ func TestLoad(t *testing.T) {
 			content: "FP_TEST_FOO=bar",
 			want:    map[string]string{"FP_TEST_FOO": "bar"},
 		},
+		{
+			name:    "export prefix is stripped",
+			content: "export FP_TEST_FOO=bar\n",
+			want:    map[string]string{"FP_TEST_FOO": "bar"},
+		},
+		{
+			name:    "inline comment after whitespace is stripped from unquoted value",
+			content: "FP_TEST_FOO=bar  # trailing note\n",
+			want:    map[string]string{"FP_TEST_FOO": "bar"},
+		},
+		{
+			name:    "hash without preceding whitespace is kept in value",
+			content: "FP_TEST_FOO=pa#ss\n",
+			want:    map[string]string{"FP_TEST_FOO": "pa#ss"},
+		},
+		{
+			name:    "hash inside quotes is preserved",
+			content: `FP_TEST_FOO="pa #ss"` + "\n",
+			want:    map[string]string{"FP_TEST_FOO": "pa #ss"},
+		},
+		{
+			name:    "value that is entirely a comment becomes empty",
+			content: "FP_TEST_FOO= # only a comment\n",
+			want:    map[string]string{"FP_TEST_FOO": ""},
+		},
 	}
 
 	for _, tc := range tests {

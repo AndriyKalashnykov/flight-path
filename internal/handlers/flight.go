@@ -11,6 +11,10 @@ import (
 // errorKey is the JSON field name for error messages in 400/500 responses.
 const errorKey = "Error"
 
+// indexKey is the JSON field naming the offending segment's index in
+// per-segment validation errors.
+const indexKey = "Index"
+
 // FlightCalculate godoc
 // @Summary Determine the flight path of a person.
 // @Description get the flight path of a person.
@@ -46,12 +50,25 @@ func (h Handler) FlightCalculate(c *echo.Context) error {
 		if len(v) < 2 {
 			return c.JSON(http.StatusBadRequest, map[string]any{
 				errorKey: "Each flight segment must contain both source and destination",
-				"Index":  i,
+				indexKey: i,
+			})
+		}
+		src, dst := v[0], v[1]
+		if src == "" || dst == "" {
+			return c.JSON(http.StatusBadRequest, map[string]any{
+				errorKey: "Airport codes must be non-empty",
+				indexKey: i,
+			})
+		}
+		if src == dst {
+			return c.JSON(http.StatusBadRequest, map[string]any{
+				errorKey: "Source and destination airports must differ",
+				indexKey: i,
 			})
 		}
 		flights = append(flights, api.Flight{
-			Start: v[0],
-			End:   v[1],
+			Start: src,
+			End:   dst,
 		})
 	}
 

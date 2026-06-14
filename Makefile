@@ -37,6 +37,11 @@ NODE_VERSION        := $(shell cat .nvmrc 2>/dev/null || echo 24)
 MISE_VERSION        := 2026.5.13
 # renovate: datasource=docker depName=minlag/mermaid-cli
 MERMAID_CLI_VERSION := 11.15.0
+# Runner image `act` maps to the workflow's `runs-on: ubuntu-latest`. Pinned to
+# a DATED, immutable catthehacker tag so `make ci-run` uses a controlled image
+# that can't shift under an `act` upgrade. Renovate tracks it via the comment.
+# renovate: datasource=docker depName=catthehacker/ubuntu versioning=loose
+ACT_UBUNTU_VERSION  := act-latest-20260601
 
 # Ensure tools installed to ~/.local/bin (mise bootstrap lives here) AND mise's
 # shim dir (hadolint, trivy, act, goreleaser, golangci-lint, gosec, gitleaks,
@@ -464,6 +469,7 @@ ci-run: deps
 		act push -W .github/workflows/ci.yml \
 			--job $$job \
 			--eventpath $$EVENT \
+			-P ubuntu-latest=catthehacker/ubuntu:$(ACT_UBUNTU_VERSION) \
 			--container-architecture linux/amd64 \
 			--pull=false \
 			--artifact-server-port "$$ACT_PORT" \
@@ -589,7 +595,7 @@ deps-prune-check: deps
 	@echo "No prunable dependencies found."
 
 .PHONY: help deps deps-mise deps-image deps-check api-docs test integration-test fuzz bench bench-save bench-compare \
-	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check check-go-alignment static-check mermaid-lint release-check build run release update open-swagger \
+	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check check-go-alignment check-docs-go-version static-check mermaid-lint release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \
 	require-docker image-build image-run image-stop image-push image-smoke-test image-structure-test image-test image-scan \

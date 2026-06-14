@@ -81,7 +81,7 @@ Layered Go microservice with a single HTTP endpoint over an in-memory algorithm 
 flowchart LR
     client["API Client<br/>(curl / Postman / browser)"]
     subgraph server["flight-path (Echo v5)"]
-        mw["Middleware stack<br/>RequestLogger · Recover · CORS · Secure<br/>Cache-Control · CORP"]
+        mw["Middleware stack<br/>RequestID · RequestLogger · Recover · BodyLimit<br/>Gzip · RateLimiter · CORS · Secure · Cache-Control · CORP"]
         routes["Routes<br/>POST /calculate<br/>GET /<br/>GET /swagger/*"]
         handlers["Handlers<br/>FlightCalculate<br/>ServerHealthCheck"]
         algo["FindItinerary()<br/>O(n) in-memory graph walk"]
@@ -211,7 +211,8 @@ Run `make help` to see all available targets.
 | `make mermaid-lint` | Validate Mermaid diagrams in markdown files |
 | `make release-check` | Validate `.goreleaser.yml` syntax and config via `goreleaser check` |
 | `make check-go-alignment` | Verify the Go version matches across `go.mod` and `.mise.toml` |
-| `make static-check` | Run code static check (check-go-alignment + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| `make check-docs-go-version` | Verify the Go version referenced in docs matches `go.mod` |
+| `make static-check` | Run code static check (check-go-alignment + check-docs-go-version + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
 
 ### Docker
 
@@ -232,7 +233,7 @@ Run `make help` to see all available targets.
 
 | Target | Description |
 |--------|-------------|
-| `make ci` | Run full CI pipeline locally (deps + static-check + test + integration-test + coverage-check + build + fuzz + deps-prune-check) |
+| `make ci` | Run full CI pipeline locally (deps + static-check + test + integration-test + coverage + coverage-check + build + fuzz + deps-prune-check) |
 | `make ci-run` | Run GitHub Actions workflow locally using [act](https://github.com/nektos/act) |
 | `make check` | Run pre-commit checklist (alias for `make ci`) |
 
@@ -261,7 +262,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All j
 | Job | Triggers | Steps |
 |-----|----------|-------|
 | **changes** | push, PR, tags | `dorny/paths-filter` — emits `code` output. Filter: `!(**.md|docs/**|specs/**|LICENSE|.gitignore|.claudeignore|.claude/**|benchmarks/**|**.png|**.jpg|**.gif|**.svg)` plus `CLAUDE.md` re-include. |
-| **static-check** | code changes | `make static-check` (format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| **static-check** | code changes | `make static-check` (check-go-alignment + check-docs-go-version + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
 | **build** | code changes, after static-check | Build binary, upload artifact |
 | **test** | code changes, after static-check | Coverage threshold check (80%+), fuzz tests |
 | **integration-test** | code changes, after static-check | Full HTTP stack + middleware tests (`//go:build integration`) |
@@ -275,6 +276,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All j
 
 | Name | Type | Used by | How to obtain |
 |------|------|---------|---------------|
+| `GITHUB_TOKEN` | Secret (auto-provided) | `goreleaser`, `docker` jobs | Automatically injected by GitHub Actions — no manual setup. Used for GitHub Release creation and GHCR push/login. |
 | `CLAUDE_CONFIG_TOKEN` | Secret | `claude.yml`, `claude-ci-fix.yml` | PAT with `contents: read` for [`AndriyKalashnykov/claude-config`](https://github.com/AndriyKalashnykov/claude-config) — allows workflows to check out shared Claude configuration |
 | `ANTHROPIC_API_KEY` | Secret | `claude.yml`, `claude-ci-fix.yml` | [console.anthropic.com](https://console.anthropic.com/) API key — powers the Claude Code action |
 | `ACT` | Variable (local-only) | `dast` job guard, upload-artifact guards in `ci.yml` and `nightly-fuzz.yml` | Injected by `make ci-run` via `--var ACT=true`. Do **not** set on GitHub Actions runners — it would skip the `dast` job in production CI. |

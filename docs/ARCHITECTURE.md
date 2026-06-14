@@ -45,7 +45,7 @@ sequenceDiagram
 
     C->>E: POST /calculate<br/>Body: [["SFO","ATL"],["ATL","EWR"]]
     E->>MW: Request passes through middleware
-    MW-->>MW: Logger → Recover → CORS → Security Headers → Cache-Control
+    MW-->>MW: RequestID → Logger → Recover → BodyLimit → Gzip → RateLimiter → CORS → Security Headers → Cache-Control
     MW->>H: Route matched → handler called
 
     H->>H: Bind JSON payload to [][]string
