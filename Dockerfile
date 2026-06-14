@@ -16,13 +16,13 @@ RUN --mount=type=cache,target="$GOMODCACHE" \
 # runtime image
 FROM alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 AS runtime
 WORKDIR /
-# Weekly cache-bust for security updates. CI passes APK_UPGRADE_WEEK=$(date -u +%Y-W%V)
-# as a build-arg so the `apk upgrade` layer re-runs at least once per week, picking
+# Daily cache-bust for security updates. CI passes APK_UPGRADE_DATE=$(date -u +%Y-%m-%d)
+# as a build-arg so the `apk upgrade` layer re-runs at least once per day, picking
 # up new CVE fixes from the Alpine package repo even when the Dockerfile is unchanged.
-# Without this, the cached layer can serve stale package versions for weeks after a
-# CVE is fixed upstream (e.g., CVE-2026-28390 openssl: apk repo has 3.5.6-r0 but the
-# cached layer still ships 3.5.5-r0).
-ARG APK_UPGRADE_WEEK=manual
+# Without this, the cached layer can serve stale package versions after a CVE is fixed
+# upstream (e.g., CVE-2026-45447 openssl: apk repo has 3.5.7-r0 but a stale weekly-keyed
+# cache layer still shipped 3.5.6-r0 — daily granularity bounds that staleness to <24h).
+ARG APK_UPGRADE_DATE=manual
 RUN apk upgrade --no-cache
 # Non-root runtime user. UID/GID are ARGs so consumers can align them with a
 # host volume's ownership without editing the Dockerfile; defaults match the
