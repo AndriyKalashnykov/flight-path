@@ -22,6 +22,7 @@ Go and Node are provisioned by [mise](https://mise.jdx.dev/) from `.mise.toml` (
 | benchstat | Go install pinned via `BENCHSTAT_VERSION` in `Makefile` | Benchmark comparison |
 | newman | `pnpm install` in `test/` (pinned in `test/package.json`) | Postman collection runner |
 | mermaid-cli | Docker image pinned via `MERMAID_CLI_VERSION` in `Makefile` | Mermaid diagram validator |
+| PlantUML | Docker image pinned via `PLANTUML_VERSION` in `Makefile` | C4 architecture diagram renderer (`make diagrams` / `diagrams-check`) |
 
 ## Build Flags
 
@@ -52,7 +53,7 @@ api-docs → go build
 1. **api-docs** — `swag init --parseDependency -g main.go` regenerates `docs/swagger.{json,yaml,go}` from handler annotations
 2. **go build** — `go build -a -o server main.go` (static binary via `CGO_ENABLED=0`)
 
-Upstream quality/security gates (lint, sec, vulncheck, secrets, trivy-fs, mermaid-lint, release-check) live in `make static-check` and are not prerequisites of `make build` — they run in their own CI job and in `make ci`.
+Upstream quality/security gates (lint, sec, vulncheck, secrets, trivy-fs, mermaid-lint, diagrams-check, release-check) live in `make static-check` and are not prerequisites of `make build` — they run in their own CI job and in `make ci`.
 
 ## Run Locally
 

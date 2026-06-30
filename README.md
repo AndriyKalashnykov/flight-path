@@ -261,7 +261,7 @@ GitHub Actions runs on every push to `main`, tags `v*`, and pull requests. All j
 | Job | Triggers | Steps |
 |-----|----------|-------|
 | **changes** | push, PR, tags | `dorny/paths-filter` — emits `code` output. Filter: `!(**.md|docs/**|specs/**|LICENSE|.gitignore|.claudeignore|.claude/**|benchmarks/**|**.png|**.jpg|**.gif|**.svg)` plus `CLAUDE.md` re-include. |
-| **static-check** | code changes | `make static-check` (check-go-alignment + check-docs-go-version + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| **static-check** | code changes | `make static-check` (check-go-alignment + check-docs-go-version + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + diagrams-check + release-check) |
 | **build** | code changes, after static-check | Build binary, upload artifact |
 | **test** | code changes, after static-check | Coverage threshold check (80%+), fuzz tests |
 | **integration-test** | code changes, after static-check | Full HTTP stack + middleware tests (`//go:build integration`) |

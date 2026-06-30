@@ -84,7 +84,7 @@ Pipeline in `.github/workflows/ci.yml`, runs on push to `main`, tags `v*`, and P
 | Job | Needs | What it runs |
 |---|---|---|
 | `changes` | — | `dorny/paths-filter` — emits the `code` gate output |
-| `static-check` | changes | `make static-check` (incl. check-go-alignment, check-docs-go-version, lint, sec, vulncheck, secrets, trivy-fs, mermaid-lint, release-check) |
+| `static-check` | changes | `make static-check` (incl. check-go-alignment, check-docs-go-version, lint, sec, vulncheck, secrets, trivy-fs, mermaid-lint, diagrams-check, release-check) |
 | `build` | changes, static-check | `make build` + upload binary artifact |
 | `test` | changes, static-check | `make coverage` + `make coverage-check` (80%) + `make fuzz` |
 | `integration-test` | changes, static-check | `make integration-test` (full HTTP stack via httptest) |
