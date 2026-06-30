@@ -37,6 +37,13 @@ NODE_VERSION        := $(shell cat .nvmrc 2>/dev/null || echo 24)
 MISE_VERSION        := 2026.5.13
 # renovate: datasource=docker depName=minlag/mermaid-cli
 MERMAID_CLI_VERSION := 11.15.0
+# PlantUML renderer for the C4 architecture diagrams (make diagrams). Renovate
+# tracks the tag but it is EXCLUDED from automerge (see renovate.json "PlantUML
+# renderer" rule): a renderer bump can change the committed PNG bytes, which
+# `diagrams-check` correctly fails on, and the bot cannot run `make diagrams` to
+# regenerate them — so a human regenerates per bump (runbook in CLAUDE.md).
+# renovate: datasource=docker depName=plantuml/plantuml
+PLANTUML_VERSION    := 1.2026.6
 # Runner image `act` maps to the workflow's `runs-on: ubuntu-latest`. Pinned to
 # a DATED, immutable catthehacker tag so `make ci-run` uses a controlled image
 # that can't shift under an `act` upgrade. Renovate tracks it via the comment.
@@ -260,7 +267,7 @@ check-docs-go-version:
 	fi
 
 #static-check: @ Run code static check
-static-check: check-go-alignment check-docs-go-version format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint release-check
+static-check: check-go-alignment check-docs-go-version format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint diagrams-check release-check
 	@echo "Static check passed."
 
 #build: @ Build REST API server's binary
@@ -548,6 +555,44 @@ renovate-validate: deps
 	fi; \
 		npx --yes renovate@latest --platform=local
 
+# === C4 architecture diagrams (PlantUML) ===
+# Source .puml + rendered PNG are BOTH committed so github.com shows the images
+# without a toolchain. `diagrams-check` (wired into static-check) fails if a
+# .puml edit OR a PLANTUML_VERSION bump isn't accompanied by a re-render.
+DIAGRAM_DIR   := docs/diagrams
+DIAGRAM_SRC   := $(wildcard $(DIAGRAM_DIR)/*.puml)
+DIAGRAM_OUT   := $(patsubst $(DIAGRAM_DIR)/%.puml,$(DIAGRAM_DIR)/out/%.png,$(DIAGRAM_SRC))
+# Version-stamped sentinel: its NAME encodes PLANTUML_VERSION, so a renderer
+# bump invalidates the prereq and forces a full re-render (catches the
+# "renderer bumped but PNGs left stale" green-on-stale class). Gitignored.
+DIAGRAM_STAMP := $(DIAGRAM_DIR)/out/.plantuml-$(PLANTUML_VERSION).stamp
+
+#diagrams: @ Render C4 PlantUML architecture diagrams to PNG
+diagrams: $(DIAGRAM_OUT)
+
+$(DIAGRAM_DIR)/out/%.png: $(DIAGRAM_DIR)/%.puml $(DIAGRAM_STAMP)
+	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker is required for diagrams"; exit 1; }
+	@mkdir -p $(DIAGRAM_DIR)/out
+	docker run --rm -v "$(CURDIR)/$(DIAGRAM_DIR):/work" -w /work \
+		--user $$(id -u):$$(id -g) \
+		-e HOME=/tmp -e _JAVA_OPTIONS=-Duser.home=/tmp \
+		plantuml/plantuml:$(PLANTUML_VERSION) \
+		-tpng -o out $(notdir $<)
+
+$(DIAGRAM_STAMP):
+	@mkdir -p $(DIAGRAM_DIR)/out
+	@rm -f $(DIAGRAM_DIR)/out/.plantuml-*.stamp
+	@touch $@
+
+#diagrams-clean: @ Remove rendered diagram artefacts (forces full re-render)
+diagrams-clean:
+	rm -rf $(DIAGRAM_DIR)/out
+
+#diagrams-check: @ Verify committed diagrams match current source + renderer (CI)
+diagrams-check: diagrams
+	@git diff --exit-code -- $(DIAGRAM_DIR)/out || \
+		{ echo "ERROR: Diagram source or PLANTUML_VERSION changed but rendered PNGs not updated. Run 'make diagrams' and commit."; exit 1; }
+
 #mermaid-lint: @ Validate Mermaid diagrams in markdown files
 mermaid-lint:
 	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker is required for mermaid-lint"; exit 1; }
@@ -595,7 +640,7 @@ deps-prune-check: deps
 	@echo "No prunable dependencies found."
 
 .PHONY: help deps deps-mise deps-image deps-check api-docs test integration-test fuzz bench bench-save bench-compare \
-	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check check-go-alignment check-docs-go-version static-check mermaid-lint release-check build run release update open-swagger \
+	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check check-go-alignment check-docs-go-version static-check mermaid-lint diagrams diagrams-clean diagrams-check release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \
 	require-docker image-build image-run image-stop image-push image-smoke-test image-structure-test image-test image-scan \

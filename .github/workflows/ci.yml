@@ -52,6 +52,7 @@ jobs:
             code:
               - '!(**.md|docs/**|specs/**|LICENSE|.gitignore|.claudeignore|.claude/**|benchmarks/**|**.png|**.jpg|**.gif|**.svg)'
               - 'CLAUDE.md'
+              - 'docs/diagrams/**/*.puml'
       # Tag pushes always force `code=true` so the full release pipeline runs
       # even if the tag points at a doc-only commit.
       - name: Decide code output
