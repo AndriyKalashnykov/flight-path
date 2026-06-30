@@ -1,0 +1,28 @@
+@startuml c4-context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.13.0/C4_Context.puml
+
+' Landscape layout — keeps a small Context view from rendering as a tall portrait.
+LAYOUT_LEFT_RIGHT()
+
+' Modern flat styling: no shadows, sharper corners, clean sans-serif, modern palette.
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+skinparam roundCorner 4
+skinparam defaultFontName "Inter, Helvetica, Arial, sans-serif"
+skinparam defaultFontSize 13
+skinparam ArrowColor #37474F
+skinparam ArrowThickness 1.2
+skinparam rectangleBorderThickness 1.3
+
+UpdateElementStyle("person", $fontColor="#FFFFFF", $bgColor="#0F766E", $borderColor="#134E4A")
+UpdateElementStyle("system", $fontColor="#FFFFFF", $bgColor="#2563EB", $borderColor="#1E3A8A")
+
+title System Context — flight-path
+
+Person(client, "API Client", "cURL, Postman, Newman, or browser")
+System(flightpath, "flight-path", "Go REST API that reconstructs a full itinerary from unordered flight segments")
+
+Rel(client, flightpath, "POST /calculate, GET /, GET /swagger/*", "HTTPS / JSON")
+
+SHOW_LEGEND()
+@enduml

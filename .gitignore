@@ -20,3 +20,7 @@ output/
 main
 server
 test/node_modules/
+
+# PlantUML render-trigger sentinel (re-render trigger, not a tracked artifact;
+# the rendered PNGs in docs/diagrams/out/ ARE committed)
+docs/diagrams/out/.plantuml-*.stamp

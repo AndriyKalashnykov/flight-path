@@ -38,7 +38,8 @@ flight-path/
 ├── pkg/api/
 │   ├── data.go                          # Flight struct + TestFlights test data
 │   └── version.txt                      # Semantic version
-├── docs/                                # Generated Swagger docs + architecture/planning docs (ARCHITECTURE.md has Mermaid diagrams)
+├── docs/                                # Generated Swagger docs + architecture/planning docs (ARCHITECTURE.md: C4 Container PNG + Mermaid sequence/flow diagrams)
+│   └── diagrams/                        # C4 architecture diagrams-as-code: *.puml sources + out/*.png rendered (committed; `make diagrams`)
 ├── specs/                               # Reverse-engineered specifications (see specs/README.md for index)
 ├── test/
 │   ├── FlightPath.postman_collection.json  # E2E test collection (18 cases: 3 health/security + 1 swagger + 6 happy + 8 negative)
@@ -117,6 +118,9 @@ make secrets        # Scan for hardcoded secrets (gitleaks)
 make lint-ci        # Lint GitHub Actions workflow files (actionlint + shellcheck)
 make lint-scripts-exec # Verify all shell scripts are executable (catches subagent 0644 writes)
 make mermaid-lint   # Validate Mermaid diagrams in markdown files (minlag/mermaid-cli Docker)
+make diagrams       # Render C4 PlantUML architecture diagrams to PNG (plantuml/plantuml Docker)
+make diagrams-clean # Remove rendered diagram artefacts (forces full re-render)
+make diagrams-check # Verify committed diagram PNGs match current .puml source + PLANTUML_VERSION (CI gate)
 make release-check  # Validate .goreleaser.yml syntax and config (goreleaser check)
 make test           # Run unit + handler tests (go test -race -v ./...)
 make integration-test # Run integration tests (full HTTP stack + middleware; //go:build integration)
@@ -126,7 +130,7 @@ make bench-save     # Save benchmark results with timestamp
 make bench-compare  # Compare two benchmark runs (auto-discovers latest two, or pass OLD=/NEW=)
 make check-go-alignment # Verify Go version matches across go.mod and .mise.toml
 make check-docs-go-version # Verify the Go version referenced in docs matches go.mod
-make static-check   # All static analysis (check-go-alignment + check-docs-go-version + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check)
+make static-check   # All static analysis (check-go-alignment + check-docs-go-version + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + diagrams-check + release-check)
 make build          # Generate Swagger docs + compile binary
 make run            # Build and run server locally
 make e2e            # Self-contained: build + start server + run Newman + stop server
@@ -166,6 +170,7 @@ make deps-prune-check # Verify no prunable dependencies (CI gate)
 | `GO_VERSION` | (auto-extracted from go.mod) | Go version auto-parsed from `go.mod` via regex (mise also reads `go.mod` natively) |
 | `ACT_UBUNTU_VERSION` | act-latest-20260601 | Dated `catthehacker/ubuntu` runner image `make ci-run` maps to `ubuntu-latest` (Renovate-tracked Docker tag) |
 | `MERMAID_CLI_VERSION` | 11.15.0 | Mermaid diagram validator (Docker image — only ecosystem mise can't manage) |
+| `PLANTUML_VERSION` | 1.2026.6 | C4 PlantUML renderer (`make diagrams`; Docker image). Renovate-tracked but **excluded from automerge** — a bump can change committed PNG bytes that the bot can't regenerate; a human runs `make diagrams` per bump (see Upgrade Tracking) |
 | `MISE_VERSION` | 2026.5.13 | mise bootstrap version (used by `make deps` if mise isn't already installed) |
 | `NODE_VERSION` | 24 | Node.js major version (source of truth: `.nvmrc` / `.mise.toml`; installed via mise) |
 
@@ -269,6 +274,7 @@ All quality/security tools below are installed in one pass by
 | `benchstat` | Benchmark comparison | mise / `.mise.toml` (go:golang.org/x/perf/cmd/benchstat) |
 | `newman` | E2E API testing | `pnpm install` in `test/` (pinned in `test/package.json`) |
 | `mermaid-cli` | Mermaid diagram validator (runs as Docker image) | `make mermaid-lint` (pulls image on demand) |
+| `plantuml` | C4 architecture diagram renderer (runs as Docker image) | `make diagrams` (pulls `plantuml/plantuml:$(PLANTUML_VERSION)` on demand) |
 
 ## CI/CD
 
@@ -281,7 +287,7 @@ All jobs live in `.github/workflows/ci.yml` (single-file layout matching the `/c
 | Job | Triggers | Steps |
 |-----|----------|-------|
 | **changes** | all | `dorny/paths-filter` — emits `code` output; downstream jobs gate on `needs.changes.outputs.code == 'true'` |
-| **static-check** | code changes | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| **static-check** | code changes | `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + diagrams-check + release-check) |
 | **build** | code changes | Build binary, upload `server-binary` artifact |
 | **test** | code changes | Coverage threshold check (80%+), fuzz tests, upload coverage artifact |
 | **integration-test** | code changes | `make integration-test` — full HTTP stack (middleware, CORS branches, error envelope, preflight) via httptest |
@@ -316,6 +322,7 @@ Use the following skills when working on related files:
 | `renovate.json` | `/renovate` |
 | `README.md` | `/readme` |
 | `.github/workflows/*.{yml,yaml}` | `/ci-workflow` |
+| `docs/diagrams/*.puml`, architecture diagrams | `/architecture-diagrams` |
 
 When spawning subagents, always pass conventions from the respective skill into the agent's prompt.
 
@@ -324,6 +331,11 @@ When spawning subagents, always pass conventions from the respective skill into 
 Items to check each session until resolved (remove when done):
 
 - [ ] **swag v2 GA**: `swaggo/swag` v2 is still RC (v2.0.0-rc5) — check `gh api repos/swaggo/swag/releases --jq '[.[] | select(.tag_name | startswith("v2"))][0].tag_name'` for a stable release, then bump the swag pin in `.mise.toml` (the `go:github.com/swaggo/swag/v2/cmd/swag` backend entry) and `go.mod`
+
+**Standing runbook — C4 diagram renderer bumps (do NOT remove):**
+
+- **`PLANTUML_VERSION` Renovate PR (group "PlantUML renderer", `automerge: false`)** — the hosted bot can't render, so this PR is intentionally NOT auto-merged. When it opens: check it out, run `make diagrams`, and commit the regenerated `docs/diagrams/out/*.png` onto the PR branch. `diagrams-check` (in `static-check`) goes green and the PR can merge. If `make diagrams` produces no PNG change (byte-identical render across the bump), just merge — the gate is already green.
+- **C4-PlantUML `!include` version** (pinned to `v2.13.0` in `docs/diagrams/*.puml`) is deliberately NOT Renovate-tracked (no customManager) — tracking it would create the same un-regenerable bot PR with no automerge benefit. Periodically bump by hand: `gh api repos/plantuml-stdlib/C4-PlantUML/releases/latest --jq .tag_name`, update both `.puml` files, `make diagrams`, commit source + PNG together.
 
 ## Upgrade Backlog
 

@@ -126,6 +126,20 @@
       "pinDigests": false
     },
     {
+      "description": "PlantUML renderer for the C4 diagrams (make diagrams) — EXCLUDED from automerge. A renderer bump can change the committed PNG bytes, which the `diagrams-check` gate (inside static-check) correctly fails on; the hosted Renovate bot cannot run `make diagrams` to regenerate the PNGs, so leaving automerge on would create a standing red PR the bot can never make green. Its own group + automerge:false means the bump PR opens and waits for a human to run `make diagrams` and commit (runbook in CLAUDE.md Upgrade Tracking). Placed after the Toolchain pins / Docker dependencies rules so this groupName and automerge:false win for plantuml/plantuml.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchDepNames": [
+        "plantuml/plantuml"
+      ],
+      "groupName": "PlantUML renderer",
+      "automerge": false
+    },
+    {
       "description": "Group Node.js dependencies",
       "matchManagers": [
         "npm"

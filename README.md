@@ -11,14 +11,9 @@ The **runtime surface** is an Echo v5 HTTP service with Swagger/OpenAPI docs and
 
 ## Overview
 
-```mermaid
-C4Context
-    title System Context — flight-path
-    Person(client, "API Client", "cURL, Postman, Newman, browser")
-    System(flightpath, "flight-path", "Go REST API that reconstructs full itinerary from unordered flight segments")
-    Rel(client, flightpath, "POST /calculate", "HTTPS/JSON")
-    UpdateLayoutConfig($c4ShapeInRow="2", $showLegend="true")
-```
+<p align="center"><img src="docs/diagrams/out/c4-context.png" alt="C4 System Context diagram — an API Client (cURL, Postman, Newman, browser) calls the flight-path Go REST API over HTTPS/JSON" width="700"></p>
+
+Source: [`docs/diagrams/c4-context.puml`](./docs/diagrams/c4-context.puml) — regenerate with `make diagrams`.
 
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, request-flow sequence, and CI/CD pipeline diagrams.
 
@@ -30,7 +25,7 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for Container, request-flow s
 | Framework | Echo v5.2.0 | Lightweight router with built-in JSON binding, middleware stack, Swagger integration |
 | API Docs | Swagger (swaggo/swag v2) | Auto-generated OpenAPI spec from Go annotations |
 | Testing | go test (unit, bench, fuzz), Newman/Postman (E2E) | Table-driven unit tests + black-box API tests against the built binary |
-| Linting | golangci-lint v2.12.2, hadolint, actionlint, shellcheck, mermaid-cli (via Docker) | Meta-linter + Dockerfile + workflows + shell + diagrams |
+| Linting | golangci-lint v2.12.2, hadolint, actionlint, shellcheck, mermaid-cli + PlantUML (via Docker) | Meta-linter + Dockerfile + workflows + shell + diagrams |
 | Container | Docker (multi-stage Alpine) | Small image, reproducible build, scratch-like runtime |
 | CI/CD | GitHub Actions + GoReleaser | Tag-gated release pipeline with cosign keyless signing |
 | Dependencies | Renovate | Auto-updates with platform automerge and security fast-track |
@@ -126,6 +121,7 @@ Auto-generated OpenAPI spec: [`docs/swagger.json`](./docs/swagger.json)
 | [actionlint](https://github.com/rhysd/actionlint) | `make lint-ci` | Lints GitHub Actions workflow files (uses shellcheck internally) |
 | [shellcheck](https://github.com/koalaman/shellcheck) | `make lint-ci` | Validates shell scripts inside workflow `run:` steps |
 | [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) | `make mermaid-lint` | Validates Mermaid diagrams in markdown files against GitHub's renderer |
+| [PlantUML](https://plantuml.com/) | `make diagrams-check` | Re-renders the C4 architecture diagrams and fails if committed PNGs drift from their `.puml` source |
 
 ### Container Security
 
@@ -209,10 +205,13 @@ Run `make help` to see all available targets.
 | `make lint-ci` | Lint GitHub Actions workflow files |
 | `make lint-scripts-exec` | Verify all shell scripts are executable (catches subagent 0644 writes) |
 | `make mermaid-lint` | Validate Mermaid diagrams in markdown files |
+| `make diagrams` | Render the C4 PlantUML architecture diagrams to PNG (`plantuml/plantuml` Docker image) |
+| `make diagrams-check` | Verify committed diagram PNGs match current `.puml` source + `PLANTUML_VERSION` (CI gate) |
+| `make diagrams-clean` | Remove rendered diagram artefacts (forces a full re-render) |
 | `make release-check` | Validate `.goreleaser.yml` syntax and config via `goreleaser check` |
 | `make check-go-alignment` | Verify the Go version matches across `go.mod` and `.mise.toml` |
 | `make check-docs-go-version` | Verify the Go version referenced in docs matches `go.mod` |
-| `make static-check` | Run code static check (check-go-alignment + check-docs-go-version + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| `make static-check` | Run code static check (check-go-alignment + check-docs-go-version + format-check + lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + diagrams-check + release-check) |
 
 ### Docker
 
@@ -242,7 +241,7 @@ Run `make help` to see all available targets.
 | Target | Description |
 |--------|-------------|
 | `make help` | List available tasks |
-| `make deps` | Install dev tools — `mise install` reads `.mise.toml` and provisions Go, Node, and every Go-, aqua-, or core-backend-managed tool: golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser, container-structure-test, swag, benchstat. Newman is the only remaining non-mise tool — installed via pnpm + corepack inside `test/`. mermaid-cli runs as a Docker image (no mise backend). |
+| `make deps` | Install dev tools — `mise install` reads `.mise.toml` and provisions Go, Node, and every Go-, aqua-, or core-backend-managed tool: golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser, container-structure-test, swag, benchstat. Newman is the only remaining non-mise tool — installed via pnpm + corepack inside `test/`. mermaid-cli and PlantUML run as Docker images (no mise backend). |
 | `make deps-mise` | Bootstrap mise + install every tool pinned in `.mise.toml` |
 | `make deps-image` | Lean dependency target for `image-*` targets (mise tools only — no Node/pnpm/Newman) |
 | `make deps-check` | Show required Go version, mise status, and tool status |

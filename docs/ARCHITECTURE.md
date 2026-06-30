@@ -10,20 +10,9 @@ and the Swagger UI (via `swaggo/echo-swagger`). It has no datastore, message
 broker, cache, or third-party API dependency at runtime — the diagram below
 shows the complete runtime topology.
 
-```mermaid
-C4Container
-    title Container Diagram - Flight Path API
+<p align="center"><img src="diagrams/out/c4-container.png" alt="C4 Container diagram — an API Client calls the single flight-path server container (Go 1.26.4, Echo v5.2.0) over HTTPS/JSON; the server embeds the HTTP stack, routing, FindItinerary algorithm, and Swagger UI with no datastore, broker, or cache" width="705"></p>
 
-    Person(client, "API Client", "cURL, Postman, Newman, browser")
-
-    System_Boundary(api, "Flight Path API") {
-        Container(server, "flight-path server", "Go 1.26.4, Echo v5.2.0", "Single static binary. Serves POST /calculate, GET /, and GET /swagger/* (embedded Swagger UI via swaggo/echo-swagger v2.0.1). Middleware: RequestID, Logger, Recover, BodyLimit 1 MiB, Gzip, RateLimiter (100/s, burst 200), CORS (multi-origin via CORS_ORIGIN), Secure headers, Cache-Control no-store.")
-    }
-
-    Rel(client, server, "POST /calculate, GET /, GET /swagger/*", "HTTPS / JSON")
-
-    UpdateLayoutConfig($showLegend="true")
-```
+Source: [`docs/diagrams/c4-container.puml`](diagrams/c4-container.puml) — regenerate with `make diagrams`.
 
 The internal package layout (`internal/{routes,handlers}`, `pkg/api/`) mirrors
 the layered-architecture table in the [README Architecture section](../README.md#architecture)
