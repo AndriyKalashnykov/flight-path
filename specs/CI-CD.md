@@ -20,7 +20,7 @@ Default `contents: read`. Elevated permissions are scoped per job that needs the
 
 | Job | Triggers | Depends on | Timeout | Steps |
 |---|---|---|---|---|
-| **static-check** | all | — | 15 min | `mise install`, `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + release-check) |
+| **static-check** | all | — | 15 min | `mise install`, `make static-check` (lint-ci + lint + sec + vulncheck + secrets + trivy-fs + mermaid-lint + diagrams-check + release-check) |
 | **build** | all | static-check | 10 min | `go build`, upload `server-binary` artifact |
 | **test** | all | static-check | 15 min | `make coverage-check` (80% floor), upload coverage artifact |
 | **integration-test** | all | static-check | 10 min | `make integration-test` — full HTTP stack via `httptest` and `//go:build integration` |
