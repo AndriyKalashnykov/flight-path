@@ -5,6 +5,9 @@
 LAYOUT_LEFT_RIGHT()
 
 ' Modern flat styling: no shadows, sharper corners, clean sans-serif, modern palette.
+' dpi 150 (1.5x) raises render resolution for a crisp README hero — scales
+' rasterization only, not layout, so the LAYOUT_LEFT_RIGHT aspect is unchanged.
+skinparam dpi 150
 skinparam backgroundColor #FAFAFA
 skinparam shadowing false
 skinparam roundCorner 4

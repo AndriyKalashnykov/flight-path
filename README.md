@@ -11,7 +11,7 @@ The **runtime surface** is an Echo v5 HTTP service with Swagger/OpenAPI docs and
 
 ## Overview
 
-<p align="center"><img src="docs/diagrams/out/c4-context.png" alt="C4 System Context diagram — an API Client (cURL, Postman, Newman, browser) calls the flight-path Go REST API over HTTPS/JSON" width="700"></p>
+<p align="center"><img src="docs/diagrams/out/c4-context.png" alt="C4 System Context diagram — an API Client (cURL, Postman, Newman, browser) calls the flight-path Go REST API over HTTPS/JSON" width="1024"></p>
 
 Source: [`docs/diagrams/c4-context.puml`](./docs/diagrams/c4-context.puml) — regenerate with `make diagrams`.
 
