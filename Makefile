@@ -357,6 +357,8 @@ release: ci
 	}
 	@NT=$$(bash -c 'read -p "Please provide a new tag (current tag - $(CURRENTTAG)): " newtag; echo $$newtag'); \
 	echo "$$NT" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "Error: Tag must match vN.N.N"; exit 1; }; \
+	if git rev-parse -q --verify "refs/tags/$$NT" >/dev/null 2>&1; then echo "ERROR: tag $$NT already exists locally. Pick a new version or delete it: git tag -d $$NT"; exit 1; fi; \
+	if git ls-remote --exit-code --tags origin "refs/tags/$$NT" >/dev/null 2>&1; then echo "ERROR: tag $$NT already exists on origin. Pick a new version."; exit 1; fi; \
 	read -p "Are you sure to create and push $$NT tag? [y/N] " ans; [ "$${ans:-N}" = y ] || exit 1; \
 	echo "$$NT" > ./pkg/api/version.txt; \
 	git add pkg/api/version.txt; \
