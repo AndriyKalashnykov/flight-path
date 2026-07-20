@@ -281,8 +281,16 @@ jobs:
   # rather than the bare server binary. Catches container-level surface that
   # the binary doesn't carry — e.g., headers added by entrypoint scripts,
   # apk-upgrade-week deltas in the Alpine layer, USER permission gotchas.
-  # The image is built once here using the GHA layer cache populated by the
-  # docker job, so the scan is fast on a warm cache.
+  # Since the `docker` job became tag-only, this job is ALSO the repo's only
+  # per-push image coverage: it builds the Dockerfile (single-arch amd64) and
+  # actually runs the container on every code push, so a Dockerfile that fails
+  # to build — or an image that won't start — still goes red on the commit that
+  # introduced it. What is NOT covered per-push is the Trivy image CVE scan,
+  # `make image-smoke-test`, `make image-structure-test`, and the arm64 leg;
+  # those run only at tag-cut, so watch the tag run's `docker` job on release.
+  #
+  # Note the layer cache is COLD on non-tag pushes now (the docker job that used
+  # to warm it is skipped) — measured ~2m12s -> ~2m59s. Correct, just slower.
   dast:
     if: vars.ACT != 'true' && !failure() && !cancelled() && needs.changes.outputs.code == 'true'
     needs: [changes, static-check, test]
@@ -431,11 +439,16 @@ jobs:
     # structure test, multi-arch build, push, cosign sign) all run exclusively
     # on `v*` tags — nothing image-related runs on ordinary pushes or PRs.
     #
-    # TRADE-OFF (deliberate): this removes PR-time detection of Dockerfile and
-    # multi-arch regressions. A broken Dockerfile now surfaces at release time
-    # rather than on the commit that introduced it. `goreleaser` is likewise
-    # tag-only, and `ci-pass` already treats a skipped job as non-failure, so
-    # the required check still passes on non-tag pushes.
+    # TRADE-OFF (deliberate), stated precisely: a broken Dockerfile is STILL
+    # caught per-push — the `dast` job builds the image (amd64) and runs the
+    # container on every code push. What moves to tag-cut is the Trivy image
+    # CVE scan, `make image-smoke-test`, `make image-structure-test`, and the
+    # arm64 leg, so an arm64 cross-compile regression now surfaces at release
+    # rather than on the introducing commit. Watch the tag run's docker job.
+    #
+    # `goreleaser` is likewise tag-only, and `ci-pass` aggregates on
+    # failure/cancelled (not success()), so a skipped docker job keeps it green
+    # on non-tag pushes — verified on PR #302 and #300.
     if: |
       !failure() && !cancelled() &&
       needs.changes.outputs.code == 'true' &&
