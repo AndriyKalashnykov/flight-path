@@ -244,6 +244,7 @@ Run `make help` to see all available targets.
 | `make deps` | Install dev tools — `mise install` reads `.mise.toml` and provisions Go, Node, and every Go-, aqua-, or core-backend-managed tool: golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser, container-structure-test, swag, benchstat. Newman is the only remaining non-mise tool — installed via pnpm + corepack inside `test/`. mermaid-cli and PlantUML run as Docker images (no mise backend). |
 | `make deps-mise` | Bootstrap mise + install every tool pinned in `.mise.toml` |
 | `make deps-image` | Lean dependency target for `image-*` targets (mise tools only — no Node/pnpm/Newman) |
+| `make deps-go` | Lean dependency target for Go-only targets (mise tools only — no Node/pnpm/Newman) |
 | `make deps-check` | Show required Go version, mise status, and tool status |
 | `make release` | Run full CI pipeline then tag and push a new release |
 | `make open-swagger` | Open browser with Swagger docs pointing to localhost |
