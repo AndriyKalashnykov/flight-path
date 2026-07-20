@@ -26,7 +26,7 @@ Default `contents: read`. Elevated permissions are scoped per job that needs the
 | **integration-test** | all | static-check | 10 min | `make integration-test` — full HTTP stack via `httptest` and `//go:build integration` |
 | **e2e** | all | build, test | 15 min | Download binary (fallback: rebuild when artifact download fails), start server, run Newman collection. Runs identically under `act` via `make ci-run`. |
 | **dast** | all except under `act` (`vars.ACT == 'true'` skips) | build, test | 15 min | Download binary, start server, run OWASP ZAP API scan against `swagger.json`. Skipped in `act` because ZAP needs Docker-in-Docker. |
-| **docker** | all | static-check, build, test | 30 min | Gate 1–3 every push (build, Trivy image scan, smoke test). Gate 4 multi-arch build every push; push only when `startsWith(github.ref, 'refs/tags/')`. Gate 5 cosign signing tag-only. |
+| **docker** | tag push only | static-check, build, test | 30 min | Entire job gated on `startsWith(github.ref, 'refs/tags/')`. Build, Trivy image scan, smoke test, structure test, multi-arch build, GHCR push, and cosign signing all run only on `v*` tags — no image work on ordinary pushes or PRs. |
 | **goreleaser** | tag push only | all above | 30 min | GoReleaser builds binaries, archives, checksums, changelog; creates the GitHub Release |
 | **ci-pass** | always | every upstream job | — | Aggregator with `if: always()`; fails only when `contains(needs.*.result, 'failure')`. Single required check for branch protection. On non-tag pushes, `goreleaser` is `skipped` (not `failure`) and the aggregator still passes. |
 
