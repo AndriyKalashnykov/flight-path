@@ -427,9 +427,19 @@ jobs:
   # (treated as success by `needs:`), so docker still runs every push.
   docker:
     needs: [changes, static-check, build, test, integration-test, goreleaser]
+    # Tag pushes only. Image builds (single-arch scan build, Trivy, smoke test,
+    # structure test, multi-arch build, push, cosign sign) all run exclusively
+    # on `v*` tags — nothing image-related runs on ordinary pushes or PRs.
+    #
+    # TRADE-OFF (deliberate): this removes PR-time detection of Dockerfile and
+    # multi-arch regressions. A broken Dockerfile now surfaces at release time
+    # rather than on the commit that introduced it. `goreleaser` is likewise
+    # tag-only, and `ci-pass` already treats a skipped job as non-failure, so
+    # the required check still passes on non-tag pushes.
     if: |
       !failure() && !cancelled() &&
-      needs.changes.outputs.code == 'true'
+      needs.changes.outputs.code == 'true' &&
+      startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
