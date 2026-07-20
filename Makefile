@@ -312,14 +312,29 @@ check-docs-go-version:
 # a pnpm scan is RED on a correctly-fixed tree and would be deleted on day one.
 check-deps-tier:
 	@allow='e2e|e2e-quick|renovate-validate'; \
-	pat='^[a-z][a-z0-9-]*:[^=]*[[:space:]]deps([[:space:]]|$$)'; \
-	n=$$(grep -cE "$$pat" Makefile); \
-	if [ "$$n" -lt 3 ]; then \
-		echo "ERROR: check-deps-tier is VACUOUS — expected >=3 targets on the full 'deps', found $$n."; \
-		echo "  The deps targets were probably renamed/restructured; this gate is no longer measuring anything."; \
+	: 'Target field is [^[:space:]#][^:]* — NOT ^[a-z][a-z0-9-]*. That narrower'; \
+	: 'form is already wrong in this very file: $$(DIAGRAM_STAMP): and'; \
+	: '$$(DIAGRAM_DIR)/out/%.png: are real rules it cannot see. Make also honors'; \
+	: '"foo : deps", "$$(FOO): deps", "UPPER: deps", "a_b: deps" and "foo:: deps",'; \
+	: 'so a narrow pattern is an evasion surface, not just a miss. [^=]* after the'; \
+	: 'colon keeps ":=" and "?=" assignments out.'; \
+	: 'Dot-uppercase targets are Make SPECIALS (.PHONY, .SUFFIXES, .DEFAULT_GOAL,'; \
+	: '...). .PHONY legitimately lists deps as a NAME, not a prerequisite, so the'; \
+	: 'broadened pattern matches it — excluded here. Broadening the target field'; \
+	: 'without this filter turns a false-negative fix into a false positive.'; \
+	pat='^[^[:space:]#][^:]*:[^=]*[[:space:]]deps([[:space:]]|$$)'; \
+	hits=$$(grep -nE "$$pat" Makefile | grep -vE '^[0-9]+:\.[A-Z]' || true); \
+	n=$$(printf '%s' "$$hits" | grep -c . || true); \
+	: 'Floor is 1, not the current count. Pinning it to 3 would turn any FURTHER'; \
+	: 'reduction of Node dependence (e.g. repointing e2e-quick) into a RED gate'; \
+	: 'whose only remedies are to revert the improvement or edit the gate. n=0 is'; \
+	: 'the genuine vacuity signal — it is what a rename of deps produces.'; \
+	if [ "$$n" -lt 1 ]; then \
+		echo "ERROR: check-deps-tier is VACUOUS — found NO targets depending on the full 'deps'."; \
+		echo "  'deps' was probably renamed or restructured, so this gate is measuring nothing."; \
 		exit 1; \
 	fi; \
-	viol=$$(grep -nE "$$pat" Makefile | grep -vE "^[0-9]+:($$allow):" || true); \
+	viol=$$(printf '%s\n' "$$hits" | grep -vE "^[0-9]+:($$allow) *:" | grep -E '.' || true); \
 	if [ -n "$$viol" ]; then \
 		echo "ERROR: these targets depend on the full 'deps' (which provisions Node/pnpm/Newman)"; \
 		echo "       but are not in the allowlist ($$allow):"; \
