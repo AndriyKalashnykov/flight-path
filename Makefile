@@ -102,7 +102,7 @@ deps-mise:
 	fi
 
 #deps: @ Download and install dependencies (full toolchain — Go, Node, every quality tool, Newman)
-deps: deps-mise
+deps: deps-go
 	@command -v node >/dev/null 2>&1 || { \
 		echo "Error: Node.js not found. Install mise (https://mise.jdx.dev), then run 'mise install' — .mise.toml pins node=$(NODE_VERSION)."; \
 		exit 1; \
@@ -144,6 +144,15 @@ deps: deps-mise
 # trivy, and goreleaser via .mise.toml.
 deps-image: deps-mise
 
+#deps-go: @ Lean dependency target for Go-only targets (mise tools only — no Node/pnpm/Newman)
+# Everything that compiles, tests, lints, or scans Go needs the mise toolchain
+# and nothing else. Keeping those targets off the full `deps` chain means a
+# Newman/corepack provisioning failure can no longer redden `static-check` —
+# which is exactly what happened on 2026-07-20, when a corepack breakage took
+# down linting. Only `e2e`, `e2e-quick` and `renovate-validate` genuinely need
+# Node; `check-deps-tier` enforces that allowlist.
+deps-go: deps-mise
+
 #deps-check: @ Show required Go version and tool status
 deps-check:
 	@echo "Go version required: $(GO_VERSION)"
@@ -155,27 +164,27 @@ deps-check:
 	done
 
 #api-docs: @ Generate Swagger API documentation from Go annotations
-api-docs: deps
+api-docs: deps-go
 	@$(call go-exec,swag init --parseDependency -g main.go)
 
 #test: @ Run unit + handler tests
-test: deps
+test: deps-go
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -race -v ./...)
 
 #integration-test: @ Run integration tests (full HTTP stack via httptest, CORS/middleware/error paths)
-integration-test: deps
+integration-test: deps-go
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -race -tags=integration -v ./internal/app/...)
 
 #fuzz: @ Run fuzz tests for 30 seconds
-fuzz: deps
+fuzz: deps-go
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test ./internal/handlers/ -fuzz=FuzzFindItinerary -fuzztime=30s)
 
 #bench: @ Run benchmarks for 3 seconds
-bench: deps
+bench: deps-go
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s)
 
 #bench-save: @ Save benchmark results to a timestamped file
-bench-save: deps
+bench-save: deps-go
 	@mkdir -p benchmarks
 	@# $$(date) evaluates at recipe-execution time; $(shell date) would evaluate
 	@# at Make-parse time and stamp identical timestamps on consecutive runs
@@ -185,7 +194,7 @@ bench-save: deps
 	@set -o pipefail; $(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test ./internal/handlers/ -bench=. -benchmem -benchtime=3s) | tee "benchmarks/bench_$$(date +%Y%m%d_%H%M%S).txt"
 
 #bench-compare: @ Compare two benchmark runs (auto-discovers latest two, or pass OLD=/NEW=)
-bench-compare: deps
+bench-compare: deps-go
 	@if [ -z "$(OLD)" ] || [ -z "$(NEW)" ]; then \
 		NEW_FILE=$$(ls -t benchmarks/bench_*.txt 2>/dev/null | head -n 1); \
 		OLD_FILE=$$(ls -t benchmarks/bench_*.txt 2>/dev/null | head -n 2 | tail -n 1); \
@@ -202,7 +211,7 @@ bench-compare: deps
 	fi
 
 #lint: @ Run golangci-lint and hadolint (comprehensive linting via .golangci.yml)
-lint: deps lint-scripts-exec
+lint: deps-go lint-scripts-exec
 	@$(call go-exec,golangci-lint run ./...)
 	@command -v hadolint >/dev/null 2>&1 || { echo "ERROR: hadolint not on PATH. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@hadolint Dockerfile
@@ -218,27 +227,27 @@ lint-scripts-exec:
 	fi
 
 #vulncheck: @ Run Go vulnerability check on dependencies
-vulncheck: deps
+vulncheck: deps-go
 	@$(call go-exec,govulncheck ./...)
 
 #secrets: @ Scan for hardcoded secrets in source code and git history
-secrets: deps
+secrets: deps-go
 	@$(call go-exec,gitleaks detect --source . --verbose --redact)
 
 #sec: @ Run gosec security scanner
-sec: deps
+sec: deps-go
 	@$(call go-exec,gosec ./...)
 
 #lint-ci: @ Lint GitHub Actions workflow files
-lint-ci: deps
+lint-ci: deps-go
 	@$(call go-exec,actionlint)
 
 #format: @ Format Go code (rewrites files in place; for dev use)
-format: deps
+format: deps-go
 	@$(call go-exec,gofmt -l -w .)
 
 #format-check: @ Verify Go code is gofmt-clean (CI gate; non-mutating, exits non-zero on diff)
-format-check: deps
+format-check: deps-go
 	@DIFF=$$($(call go-exec,gofmt -l .)); \
 	if [ -n "$$DIFF" ]; then \
 		echo "ERROR: gofmt would rewrite the following files. Run 'make format'."; \
@@ -247,7 +256,7 @@ format-check: deps
 	fi
 
 #release-check: @ Validate .goreleaser.yml syntax and config
-release-check: deps
+release-check: deps-go
 	@command -v goreleaser >/dev/null 2>&1 || { echo "ERROR: goreleaser not on PATH. Run 'make deps' (installs via .mise.toml)."; exit 1; }
 	@goreleaser check
 
@@ -290,15 +299,62 @@ check-docs-go-version:
 	fi
 
 #static-check: @ Run code static check
-static-check: check-go-alignment check-docs-go-version format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint diagrams-check release-check
+#check-deps-tier: @ Verify only e2e/e2e-quick/renovate-validate depend on the full (Node-provisioning) deps
+# Keyed on an ALLOWLIST of the 3 targets that genuinely need Node, derived from
+# the Makefile source itself — NOT on scanning `make -n static-check` output for
+# node tokens. That token approach was measured and rejected: static-check's
+# closure covers only 7 of the 24 repointed targets, so it was blind to a
+# regression in the other 17 — including `ci`, `test`, `build` and `coverage`,
+# the highest-traffic targets in the repo. This form catches all 24.
+#
+# Deliberately NOT scanning for a `pnpm` token either: trivy-fs (a static-check
+# prereq) legitimately contains `--skip-dirs test/node_modules,.pnpm-store`, so
+# a pnpm scan is RED on a correctly-fixed tree and would be deleted on day one.
+check-deps-tier:
+	@allow='e2e|e2e-quick|renovate-validate'; \
+	: 'Target field is [^[:space:]#][^:]* — NOT ^[a-z][a-z0-9-]*. That narrower'; \
+	: 'form is already wrong in this very file: $$(DIAGRAM_STAMP): and'; \
+	: '$$(DIAGRAM_DIR)/out/%.png: are real rules it cannot see. Make also honors'; \
+	: '"foo : deps", "$$(FOO): deps", "UPPER: deps", "a_b: deps" and "foo:: deps",'; \
+	: 'so a narrow pattern is an evasion surface, not just a miss. [^=]* after the'; \
+	: 'colon keeps ":=" and "?=" assignments out.'; \
+	: 'Dot-uppercase targets are Make SPECIALS (.PHONY, .SUFFIXES, .DEFAULT_GOAL,'; \
+	: '...). .PHONY legitimately lists deps as a NAME, not a prerequisite, so the'; \
+	: 'broadened pattern matches it — excluded here. Broadening the target field'; \
+	: 'without this filter turns a false-negative fix into a false positive.'; \
+	pat='^[^[:space:]#][^:]*:[^=]*[[:space:]]deps([[:space:]]|$$)'; \
+	hits=$$(grep -nE "$$pat" Makefile | grep -vE '^[0-9]+:\.[A-Z]' || true); \
+	n=$$(printf '%s' "$$hits" | grep -c . || true); \
+	: 'Floor is 1, not the current count. Pinning it to 3 would turn any FURTHER'; \
+	: 'reduction of Node dependence (e.g. repointing e2e-quick) into a RED gate'; \
+	: 'whose only remedies are to revert the improvement or edit the gate. n=0 is'; \
+	: 'the genuine vacuity signal — it is what a rename of deps produces.'; \
+	if [ "$$n" -lt 1 ]; then \
+		echo "ERROR: check-deps-tier is VACUOUS — found NO targets depending on the full 'deps'."; \
+		echo "  'deps' was probably renamed or restructured, so this gate is measuring nothing."; \
+		exit 1; \
+	fi; \
+	viol=$$(printf '%s\n' "$$hits" | grep -vE "^[0-9]+:($$allow) *:" | grep -E '.' || true); \
+	if [ -n "$$viol" ]; then \
+		echo "ERROR: these targets depend on the full 'deps' (which provisions Node/pnpm/Newman)"; \
+		echo "       but are not in the allowlist ($$allow):"; \
+		echo "$$viol" | sed 's/^/  /'; \
+		echo "  Fix: depend on 'deps-go' instead — a Go-only target must not be able to fail"; \
+		echo "       because Newman provisioning broke. If it genuinely needs Node, add it to"; \
+		echo "       the allowlist above with a reason."; \
+		exit 1; \
+	fi; \
+	echo "check-deps-tier: OK — checked $$n targets on full deps, all allowlisted."
+
+static-check: check-go-alignment check-docs-go-version check-deps-tier format-check lint-ci lint sec vulncheck secrets trivy-fs mermaid-lint diagrams-check release-check
 	@echo "Static check passed."
 
 #build: @ Build REST API server's binary
-build: deps api-docs
+build: deps-go api-docs
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) && go build -a -o server main.go)
 
 #run: @ Run REST API locally
-run: deps build
+run: deps-go build
 	@export TZ="UTC"; ./server -env-file .env
 
 #require-docker: @ Verify docker CLI is available (internal guard for image-* recipes)
@@ -392,7 +448,7 @@ release: ci
 	echo "Done."
 
 #update: @ Update Go dependencies to latest versions and run `go mod tidy`
-update: deps
+update: deps-go
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) && go get -u ./... && go mod tidy)
 
 # === Platform Detection ===
@@ -441,7 +497,7 @@ clean:
 	@$(call go-exec,go clean -testcache) 2>/dev/null || true
 
 #coverage: @ Run unit + integration tests with coverage report
-coverage: deps
+coverage: deps-go
 	@mkdir -p $(OUTDIR)
 	@$(call go-exec,export GOFLAGS=$(GOFLAGS) TZ="UTC" && go test -race -tags=integration -coverpkg=./internal/... -coverprofile=$(COVPROF) -covermode=atomic ./internal/...)
 	@$(call go-exec,go tool cover -func=$(COVPROF))
@@ -449,7 +505,7 @@ coverage: deps
 	@echo "Coverage report: $(OUTDIR)/coverage.html"
 
 #coverage-check: @ Verify the coverage profile meets the 80% threshold (run `make coverage` first)
-coverage-check: deps
+coverage-check: deps-go
 	@if [ ! -s $(COVPROF) ]; then \
 		echo "ERROR: $(COVPROF) missing or empty. Run 'make coverage' first."; \
 		exit 1; \
@@ -469,7 +525,7 @@ coverage-check: deps
 # profile that `coverage-check` then asserts against; running it after `test`
 # and `integration-test` ensures `coverage-check` operates on a fresh profile
 # without re-running every assertion a third time.
-ci: deps static-check test integration-test coverage coverage-check build fuzz deps-prune-check
+ci: deps-go static-check test integration-test coverage coverage-check build fuzz deps-prune-check
 	@echo "Local CI pipeline passed."
 
 #ci-run: @ Run GitHub Actions workflow locally using act
@@ -480,7 +536,7 @@ ci: deps static-check test integration-test coverage coverage-check build fuzz d
 # commit and report every file as changed, so `code=true` and every job
 # runs — desired behavior for local CI (opposite of the doc-only-skip
 # behavior on GitHub).
-ci-run: deps
+ci-run: deps-go
 	@docker container prune -f 2>/dev/null || true
 	@EVENT=$$(mktemp /tmp/act-push-event.XXXXXX.json); \
 	printf '{"repository":{"default_branch":"main"},"ref":"refs/heads/main","before":"0000000000000000000000000000000000000000","after":"0000000000000000000000000000000000000000"}' > $$EVENT; \
@@ -648,14 +704,14 @@ mermaid-lint:
 	fi
 
 #deps-prune: @ Remove unused Go module dependencies (Go-only project; no other ecosystems to prune)
-deps-prune: deps
+deps-prune: deps-go
 	@echo "=== Dependency Pruning ==="
 	@echo "--- Go: running go mod tidy ---"
 	@$(call go-exec,go mod tidy)
 	@echo "=== Pruning complete ==="
 
 #deps-prune-check: @ Verify no prunable dependencies (CI gate)
-deps-prune-check: deps
+deps-prune-check: deps-go
 	@$(call go-exec,go mod tidy)
 	@if ! git diff --exit-code go.mod go.sum >/dev/null 2>&1; then \
 		echo "ERROR: go.mod/go.sum not tidy. Run 'make deps-prune'."; \
@@ -664,7 +720,7 @@ deps-prune-check: deps
 	fi
 	@echo "No prunable dependencies found."
 
-.PHONY: help deps deps-mise deps-image deps-check api-docs test integration-test fuzz bench bench-save bench-compare \
+.PHONY: help deps deps-mise deps-image deps-go deps-check check-deps-tier api-docs test integration-test fuzz bench bench-save bench-compare \
 	lint lint-scripts-exec vulncheck secrets sec lint-ci format format-check check-go-alignment check-docs-go-version static-check mermaid-lint diagrams diagrams-clean diagrams-check release-check build run release update open-swagger \
 	test-case-one test-case-two test-case-three e2e e2e-quick clean coverage coverage-check \
 	ci ci-run check trivy-fs trivy-image \
