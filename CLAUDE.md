@@ -4,7 +4,7 @@
 
 **flight-path** is a Go REST API microservice that calculates flight paths from unordered flight segments. Given a list of [source, destination] pairs, it determines the complete path (starting airport to ending airport).
 
-- **Language**: Go 1.26.4 (via mise, optional — system Go works too)
+- **Language**: Go 1.26.5 (via mise, optional — system Go works too)
 - **Framework**: Echo v5 (v5.2.0)
 - **Docs**: Swagger/Swaggo (auto-generated)
 - **Version**: See `pkg/api/version.txt`
@@ -348,7 +348,7 @@ Items identified by upgrade analysis. Review periodically, act when conditions c
 
 ## Environment
 
-- Go 1.26.4 via mise (reads `.mise.toml`); install with `curl -fsSL https://mise.jdx.dev/install.sh | bash`
+- Go 1.26.5 via mise (reads `.mise.toml`); install with `curl -fsSL https://mise.jdx.dev/install.sh | bash`
 - Node.js via mise (reads `.mise.toml` / `.nvmrc`); pnpm enabled via corepack
 - Quality/security tools (golangci-lint, gosec, govulncheck, gitleaks, actionlint, shellcheck, hadolint, trivy, act, goreleaser) are mise-managed and surface on `PATH` via `$HOME/.local/share/mise/shims` (exported by the Makefile alongside `$HOME/.local/bin` for the mise installer itself)
 - Environment variables loaded from `.env` (`SERVER_PORT=8080`)

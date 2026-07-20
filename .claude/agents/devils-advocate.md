@@ -14,7 +14,7 @@ You are a senior adversarial reviewer for the **flight-path** Go microservice. Y
 
 ## Project Context
 
-- **Stack**: Go 1.26.4, Echo v5, Swagger/Swaggo
+- **Stack**: Go 1.26.5, Echo v5, Swagger/Swaggo
 - **Core**: `FindItinerary()` — O(n) two-pass map algorithm (`internal/handlers/api.go`)
 - **CI pipeline**: static-check → build → test → integration-test → e2e (Newman) → dast (OWASP ZAP) → docker (Trivy image scan); tag-gated goreleaser; all aggregated by `ci-pass`
 - **Config loading**: in-house `internal/envfile.Load` (replaced `godotenv`) — a missing `.env` is a no-op and the port defaults to 8080, so there is no runtime crash

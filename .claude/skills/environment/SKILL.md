@@ -10,7 +10,7 @@ description: >
 
 ## Go (via mise)
 
-Pinned in `.mise.toml` at repo root: `go = "1.26.4"`. Activated automatically via shell hook (`eval "$(mise activate bash)"` or zsh/fish equivalent in `~/.zshrc`). `make deps` installs the pinned Go through mise; CI installs it the same way via `jdx/mise-action` (which reads `.mise.toml`, mirrored from `go.mod`) — not `actions/setup-go`.
+Pinned in `.mise.toml` at repo root: `go = "1.26.5"`. Activated automatically via shell hook (`eval "$(mise activate bash)"` or zsh/fish equivalent in `~/.zshrc`). `make deps` installs the pinned Go through mise; CI installs it the same way via `jdx/mise-action` (which reads `.mise.toml`, mirrored from `go.mod`) — not `actions/setup-go`.
 
 ## Node.js (via nvm)
 

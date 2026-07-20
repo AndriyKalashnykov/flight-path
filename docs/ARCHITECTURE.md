@@ -10,7 +10,7 @@ and the Swagger UI (via `swaggo/echo-swagger`). It has no datastore, message
 broker, cache, or third-party API dependency at runtime — the diagram below
 shows the complete runtime topology.
 
-<p align="center"><img src="diagrams/out/c4-container.png" alt="C4 Container diagram — an API Client calls the single flight-path server container (Go 1.26.4, Echo v5.2.0) over HTTPS/JSON; the server embeds the HTTP stack, routing, FindItinerary algorithm, and Swagger UI with no datastore, broker, or cache" width="705"></p>
+<p align="center"><img src="diagrams/out/c4-container.png" alt="C4 Container diagram — an API Client calls the single flight-path server container (Go 1.26.5, Echo v5.2.0) over HTTPS/JSON; the server embeds the HTTP stack, routing, FindItinerary algorithm, and Swagger UI with no datastore, broker, or cache" width="705"></p>
 
 Source: [`docs/diagrams/c4-container.puml`](diagrams/c4-container.puml) — regenerate with `make diagrams`.
 
