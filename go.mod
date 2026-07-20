@@ -1,6 +1,6 @@
 module github.com/AndriyKalashnykov/flight-path
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/labstack/echo/v5 v5.2.0
