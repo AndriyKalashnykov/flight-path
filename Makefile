@@ -111,7 +111,30 @@ deps: deps-mise
 	@# (e.g., "pnpm@10.5.2"). corepack reads that field on first invocation and
 	@# auto-installs the exact version; no separate PNPM_VERSION constant is
 	@# needed in this Makefile. Renovate updates the field in test/package.json.
-	@command -v pnpm >/dev/null 2>&1 || { echo "Enabling pnpm via corepack (version read from test/package.json packageManager field)..."; corepack enable; }
+	@#
+	@# --install-directory is LOAD-BEARING — do not "simplify" it away.
+	@#
+	@# MEASURED: jdx/mise-action v4.2.1 (upstream commit b107e20a, "fix: exclude
+	@# PATH from environment export") stopped exporting mise env's PATH and now
+	@# adds only ~/.local/share/mise/shims. On that version, bare `corepack
+	@# enable` exits 0 yet leaves no pnpm on PATH, so the NEXT recipe line dies
+	@# with `pnpm: command not found` (exit 127). CI was green for ~3 months on
+	@# v4.2.0 and broke on the bump; see CI run 29673837398.
+	@#
+	@# NOT ESTABLISHED: exactly which directory corepack picks on the runner.
+	@# Two container reproductions (symlink shim, exec-wrapper shim) both had
+	@# corepack write next to its own invocation path, which would have been on
+	@# PATH — i.e. neither reproduced the failure. The chain is unresolved.
+	@#
+	@# So the fix does not depend on knowing that: pinning the install directory
+	@# to ~/.local/bin — which line 58 above unconditionally prepends to PATH for
+	@# every recipe — removes the variable entirely. Correct under both v4.2.0
+	@# and v4.2.1.
+	@command -v pnpm >/dev/null 2>&1 || { \
+		echo "Enabling pnpm via corepack (version read from test/package.json packageManager field)..."; \
+		mkdir -p "$$HOME/.local/bin"; \
+		corepack enable --install-directory "$$HOME/.local/bin"; \
+	}
 	@[ -f test/node_modules/.bin/newman ] || { echo "Installing newman..."; cd test && pnpm install; }
 
 #deps-image: @ Lean dependency target for image-* targets (mise tools only — no Node/pnpm/Newman)
