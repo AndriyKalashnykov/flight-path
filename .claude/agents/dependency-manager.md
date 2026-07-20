@@ -32,7 +32,7 @@ You are the dependency manager for the **flight-path** Go microservice. Your rol
 | `actionlint` | GitHub Actions linter | `make deps` |
 | `benchstat` | Benchmark comparison | `make deps` |
 | `swag` | Swagger generation | `make deps` |
-| `newman` | E2E API testing | `make deps` (npm) |
+| `newman` | E2E API testing | `make deps` (pnpm via corepack, in `test/`) |
 
 ## Audit Protocol
 
